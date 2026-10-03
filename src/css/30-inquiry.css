@@ -1,0 +1,637 @@
+/*
+ * Transaction inquiry dialog (PRD 5.4): a local mock, labelled as a demo at
+ * every step. Composes the shared dialog, form, notice and steps components.
+ */
+@media (min-width: 720px) {
+  dialog.dlg--inquiry {
+    width: min(640px, calc(100vw - 32px));
+  }
+}
+.inq-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ------------------------------------------------------------- Header */
+.dlg__head.inq-head {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s1);
+  padding: var(--s2) var(--s3) var(--s4) var(--s5);
+}
+.inq-head__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-left: calc(-1 * var(--s3));
+}
+.btn.inq-head__back {
+  padding-inline: var(--s3) var(--s4);
+  color: var(--primary-ink);
+  font-weight: 650;
+}
+.inq-head__close {
+  flex-shrink: 0;
+}
+.inq-head__titlebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  padding-right: var(--s3);
+}
+.dlg__title.inq-head__title {
+  flex: 0 1 auto;
+  margin: 0;
+}
+.steps.inq-steps {
+  margin: var(--s3) var(--s3) 0 0;
+}
+.inq-steps__label {
+  overflow-wrap: anywhere;
+}
+.inq-steps li.is-done {
+  color: var(--ink-2);
+}
+
+/* --------------------------------------------------------------- Body */
+.dlg__body.inq-body {
+  padding: var(--s5) var(--s5) var(--s6);
+}
+.inq-body[tabindex='0']:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -4px;
+  border-radius: 0;
+}
+.inq-body--enter > * {
+  animation: yes-fade-up var(--dur) var(--ease) both;
+}
+.inq-step__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 var(--s2);
+  font-size: var(--fs-md);
+}
+.inq-step__count {
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.inq-lede {
+  margin: 0 0 var(--s4);
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+  max-width: 60ch;
+}
+.inq-muted {
+  color: var(--muted);
+}
+.inq-flash {
+  margin-bottom: var(--s5);
+}
+.inq-flash p + p {
+  margin-top: var(--s2);
+}
+.btn--link.inq-linkbtn {
+  min-height: 44px;
+  margin-block: -12px;
+  text-align: left;
+  white-space: normal;
+}
+.inq-note {
+  margin-top: var(--s4);
+}
+.inq-keep {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  margin: var(--s6) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.inq-keep .icon {
+  margin-top: 1px;
+}
+
+/* Transaction carried into the inquiry */
+.inq-tx {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.inq-tx__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  padding: var(--s4);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+.inq-tx--pending .inq-tx__top {
+  background: color-mix(in srgb, var(--warn-wash) 70%, var(--surface));
+}
+.inq-tx__top > .dir {
+  width: 40px;
+  height: 40px;
+}
+.inq-tx__name {
+  flex: 1 1 12rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.inq-tx__type {
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.inq-tx__desc {
+  font-weight: 650;
+  line-height: 1.35;
+}
+.inq-tx__amount {
+  margin: 0 0 0 auto;
+  font-size: var(--fs-lg);
+  line-height: 1.2;
+}
+.inq-kv {
+  padding: var(--s4);
+  row-gap: var(--s2);
+}
+.inq-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+.inq-notin {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.inq-tz {
+  margin: calc(-1 * var(--s1)) 0 0;
+  padding: 0 var(--s4) var(--s4);
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+/* ----------------------------------------------------------- Details */
+.inq-form > * + * {
+  margin-top: var(--s6);
+}
+.inq-form {
+  margin-top: var(--s4);
+}
+.inq-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-width: 0;
+}
+.inq-field.is-invalid {
+  padding-left: var(--s4);
+  border-left: 4px solid var(--danger);
+}
+.inq-legend {
+  padding: 0;
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 650;
+  color: var(--ink);
+}
+fieldset.inq-group > .inq-legend {
+  margin-bottom: var(--s2);
+}
+.inq-req,
+.inq-opt {
+  display: inline-block;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.6;
+  vertical-align: 2px;
+  white-space: nowrap;
+}
+.inq-req {
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  color: var(--ink-2);
+}
+.inq-opt {
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.inq-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+}
+.inq-hint .icon {
+  margin-top: 2px;
+}
+fieldset.inq-group > .inq-hint {
+  margin-bottom: var(--s1);
+}
+.inq-field .field__hint {
+  margin: 0;
+}
+.inq-error {
+  margin: 0;
+}
+.inq-error .icon {
+  margin-top: 1px;
+}
+.choice.inq-choice {
+  font-size: var(--fs-base);
+  align-items: flex-start;
+  padding: 11px 14px;
+  min-height: 48px;
+}
+.inq-choice__icon {
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+.inq-choice__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.inq-choice__label {
+  color: var(--ink);
+  font-weight: 400;
+  line-height: 1.4;
+}
+.inq-choice:has(input:checked) .inq-choice__label {
+  font-weight: 650;
+}
+.inq-choice__hint {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  line-height: 1.4;
+}
+.inq-choices--channel .inq-choice__label {
+  font-size: var(--fs-sm);
+  font-weight: 650;
+}
+.inq-group.is-invalid .inq-choice {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+}
+.inq-group.is-invalid .inq-choice:has(input:checked) {
+  border-color: var(--primary);
+}
+@media (min-width: 600px) {
+  .inq-choices--channel {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .inq-choices--channel .inq-choice {
+    flex-wrap: wrap;
+    align-content: flex-start;
+  }
+  .inq-choices--channel .inq-choice__text {
+    flex-basis: 100%;
+  }
+}
+.inq-warn {
+  padding: var(--s2) var(--s3);
+}
+.inq-warn p {
+  margin: 0;
+}
+.textarea.inq-textarea {
+  min-height: 112px;
+  line-height: 1.5;
+}
+.inq-count {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.inq-count.is-low {
+  color: var(--warn);
+  font-weight: 650;
+}
+
+/* Error summary: role="alert", focus target, links to each field */
+.inq-errors {
+  display: flex;
+  gap: var(--s3);
+  align-items: flex-start;
+  margin-bottom: var(--s5);
+  padding: var(--s4);
+  border: 2px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--danger-wash);
+  color: var(--ink);
+}
+.inq-errors > .icon {
+  color: var(--danger);
+  margin-top: 1px;
+}
+.inq-errors:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.inq-errors__body {
+  min-width: 0;
+}
+.inq-errors__title {
+  margin: 0 0 var(--s1);
+  font-size: var(--fs-base);
+}
+.inq-errors__list {
+  margin: 0;
+  padding-left: 1.1em;
+  font-size: var(--fs-sm);
+}
+/* Block links: the bullet aligns with the first line and each target is 44px tall. */
+.inq-errors__list a {
+  display: block;
+  min-height: 44px;
+  padding-block: 11px;
+  line-height: 1.5;
+  color: var(--danger);
+  font-weight: 650;
+}
+
+/* ------------------------------------------------------------ Review */
+.inq-demo-note {
+  margin: var(--s2) 0 var(--s5);
+}
+.inq-review {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.inq-review__row {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 30%) minmax(0, 1fr) auto;
+  gap: var(--s1) var(--s4);
+  align-items: start;
+  padding: var(--s4);
+}
+.inq-review__row + .inq-review__row {
+  border-top: 1px solid var(--line);
+}
+.inq-review dt {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.inq-review dd {
+  margin: 0;
+}
+.inq-review__value,
+.inq-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.inq-review__strong {
+  font-weight: 650;
+}
+.inq-review__value .amount {
+  font-weight: 650;
+}
+.inq-quote {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.inq-review__action {
+  justify-self: end;
+}
+@media (max-width: 559px) {
+  .inq-review__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .inq-review__row > dt {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+  .inq-review__action {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .inq-review__value {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+/* ------------------------------------------------------ Confirmation */
+.inq-receipt {
+  display: flex;
+  gap: var(--s4);
+  align-items: flex-start;
+  padding: var(--s5);
+  border: 1px dashed var(--demo-line);
+  border-radius: var(--radius-lg);
+  background: var(--demo-bg);
+  color: var(--ink);
+}
+.inq-receipt__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--demo-line);
+  background: var(--surface);
+  color: var(--demo-ink);
+}
+.inq-receipt__main {
+  min-width: 0;
+}
+.inq-receipt__label {
+  margin: 0 0 var(--s1);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--demo-ink);
+}
+.inq-receipt__ref {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  margin: 0 0 var(--s3);
+}
+.inq-receipt__code {
+  font-size: clamp(1.25rem, 1.5vw + 0.95rem, 1.6rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+.inq-receipt__ref .tag {
+  white-space: normal;
+}
+.inq-receipt__body {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+}
+.inq-sec {
+  margin-top: var(--s6);
+}
+.inq-sec__title {
+  font-size: var(--fs-base);
+  margin-bottom: var(--s3);
+}
+.inq-sec__p {
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+}
+.inq-kv--done {
+  padding: 0;
+}
+.inq-prod {
+  display: grid;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.inq-prod li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+}
+.inq-prod__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: var(--primary-wash);
+  color: var(--primary-ink);
+}
+.inq-placeholder .tag {
+  margin-bottom: var(--s1);
+}
+.inq-placeholder p {
+  margin-bottom: var(--s1);
+}
+
+/* ------------------------------------------------------------- Footer */
+.dlg__foot.inq-foot {
+  align-items: center;
+}
+
+/* ------------------------------------------------------- Small screens */
+@media (max-width: 719px) {
+  .dlg__head.inq-head {
+    gap: 2px;
+    padding: var(--s1) var(--s2) var(--s3) var(--s4);
+  }
+  .inq-head__titlebar {
+    gap: var(--s2);
+  }
+  .inq-head__bar {
+    margin-left: calc(-1 * var(--s3));
+  }
+  .inq-head__titlebar,
+  .steps.inq-steps {
+    padding-right: var(--s2);
+    margin-right: 0;
+  }
+  .dlg__body.inq-body {
+    padding: var(--s4) var(--s4) var(--s5);
+  }
+  .dlg__foot.inq-foot {
+    padding: var(--s3) var(--s4);
+  }
+  .inq-receipt {
+    padding: var(--s4);
+    gap: var(--s3);
+  }
+}
+@media (max-width: 479px) {
+  /* Bars only; the step heading names the step ("Step 2 of 4"). */
+  .inq-steps__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .steps.inq-steps {
+    margin-top: var(--s2);
+  }
+  .inq-receipt__icon {
+    display: none;
+  }
+  .inq-tx__amount {
+    flex-basis: 100%;
+    margin-left: 52px;
+  }
+}
+
+@media (max-width: 359px) {
+  /* Keep Back and the primary action on one row; "Back" stays the accessible name. */
+  .dlg__foot.inq-foot .btn.inq-foot__back {
+    flex: 0 0 44px;
+    width: 44px;
+    padding: 0;
+    border-radius: 50%;
+  }
+  .inq-foot__back span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .dlg__foot.inq-foot .btn--primary {
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+@media (forced-colors: active) {
+  .inq-tx,
+  .inq-review,
+  .inq-receipt,
+  .inq-errors {
+    border: 1px solid CanvasText;
+  }
+  .inq-field.is-invalid {
+    border-left-color: CanvasText;
+  }
+}
