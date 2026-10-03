@@ -61,7 +61,7 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas:
-    'mark title close'
+    'mark title tools'
     'mark tag tag';
   align-items: center;
   column-gap: var(--s3);
@@ -88,8 +88,22 @@
   grid-area: tag;
   margin: 0;
 }
+/* Close, and while the drawer is modal (the masthead behind it is inert) the
+   language switch: the same pair as in the transaction detail's header. */
+.asst__tools {
+  grid-area: tools;
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+}
+.asst__tools .seg {
+  padding: 2px;
+}
+.asst__tools .seg__btn {
+  min-height: 44px; /* a full touch target, like every control in the drawer */
+  padding: 0 10px;
+}
 .asst__close {
-  grid-area: close;
   color: var(--ink-2);
 }
 .asst__ctx {
@@ -628,18 +642,22 @@
   flex: none;
 }
 
-@media (max-width: 379px) {
-  .asst__head {
-    padding-left: var(--s4);
-  }
+/* Phones: the title shares its row with the language switch and the close
+   button, so the decorative mark gives way. */
+@media (max-width: 479px) {
   .asst__mark {
     display: none;
   }
   .asst__bar {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
-      'title close'
+      'title tools'
       'tag tag';
+  }
+}
+@media (max-width: 379px) {
+  .asst__head {
+    padding-left: var(--s4);
   }
   .asst__body {
     padding-inline: var(--s3);
@@ -685,8 +703,8 @@
   .asst__bar {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
-      'title close'
-      'tag close';
+      'title tools'
+      'tag tools';
     row-gap: 0;
   }
   .asst__title {
@@ -717,6 +735,15 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+  }
+}
+/* Short and narrow (small phones, 400% zoom): no room for the demo label beside
+   the language switch, so it takes the row under the title. */
+@media (max-height: 640px) and (max-width: 479px) {
+  .asst__bar {
+    grid-template-areas:
+      'title tools'
+      'tag tag';
   }
 }
 /*

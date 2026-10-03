@@ -894,7 +894,7 @@
       '<span class="und-oc__txmain"><span class="und-oc__desc">' +
       esc(YES.L(tx.description)) +
       '</span><span class="und-oc__txmeta"><span>' +
-      esc(ui.typeLabel(tx.type)) +
+      esc(ui.typeLabel(tx)) +
       '</span> · <span>' +
       esc(YES.fmt.date(tx.postedAt || tx.initiatedAt, 'medium')) +
       '</span> · <span>' +
@@ -1307,7 +1307,7 @@
         'understand.ex.feesTotal': 'Total fees',
         'understand.ex.noFees': 'No fees were charged this period.',
         'understand.ex.postedOn': 'Posted {date}',
-        'understand.ex.startedOn': 'Started {date}',
+        'understand.ex.startedOn': 'Initiated {date}',
         'understand.ex.withFee': 'fee {amount} on its own line',
         'understand.ex.noRedemptions': 'No redemptions this period.',
         'understand.ex.provider': 'Redemption provider',

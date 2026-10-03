@@ -127,6 +127,16 @@ export default async function (t) {
   t.assert(s1.includes('not a formal dispute') || s1.includes('isn’t a formal dispute'), 'inquiry distinguished from a dispute or fraud report');
   t.assert(await page.locator('#inquiry-dialog .inq-head .tag--illustrative').isVisible(), 'visible demo tag in the header');
   t.assert(await page.locator('[data-inq-backtx]').isVisible(), 'Back to transaction is available');
+  // The masthead behind the modal is inert: the dialog carries its own language switch.
+  t.eq(
+    await page.evaluate(() => {
+      const g = document.querySelector('#inquiry-dialog .inq-head__tools [role="group"]');
+      return g && [g.getAttribute('aria-label'), ...Array.from(g.querySelectorAll('button[data-lang]'), (b) => [b.getAttribute('data-lang'), b.textContent.replace(/(EN|ES)$/, ''), b.getAttribute('aria-pressed')].join(':'))];
+    }),
+    ['Language', 'en:English:true', 'es:Español:false'],
+    'language switch in the dialog header, buttons named “English” / “Español”'
+  );
+  t.assert(await page.locator('[data-fk="inq-lang-es"]').isVisible(), 'language switch visible');
   t.eq(await page.locator('#inquiry-dialog a[href^="http"], #inquiry-dialog [src^="http"]').count(), 0, 'no external links');
   if (mobile) {
     await page.waitForFunction(() => document.getElementById('inquiry-dialog').getAnimations().every((a) => a.playState === 'finished'), null, { timeout: 2000 }).catch(() => {});
@@ -350,6 +360,24 @@ export default async function (t) {
   await expectFocus('inq-edit-reason', 'focus kept on the same control');
   t.eq(await page.evaluate(() => YES.i18n.audit()), {}, 'i18n parity');
 
+  t.step('the dialog’s own language switch: same step, same answers, focus on the pressed language');
+  await page.click('[data-fk="inq-lang-es"]');
+  await page.waitForFunction(() => YES.i18n.lang === 'es');
+  t.assert(await isOpen(), 'still open after switching from inside the dialog');
+  t.eq([await title(), await step(), await page.evaluate(() => document.documentElement.lang)], ['Preguntar por este movimiento', 'review', 'es'], 'Spanish, same step');
+  const esRv = await dialogText();
+  t.assert(esRv.includes('El importe no parece correcto') && esRv.includes('Correo electrónico registrado') && esRv.includes('Please check it.'), 'answers kept');
+  await expectFocus('inq-lang-es', 'focus stays on the pressed language');
+  t.eq(await page.getAttribute('[data-fk="inq-lang-es"]', 'aria-pressed'), 'true', 'Español pressed');
+  await page.waitForFunction(() => /Idioma cambiado a español/.test(Array.from(document.querySelectorAll('#inquiry-dialog > [aria-live]'), (r) => r.textContent).join('|')), null, { timeout: 2000 }).catch(() => {});
+  t.assert(/Idioma cambiado a español/.test(await liveText()), 'language change announced inside the dialog');
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Enter'); // keyboard: the English button, just before
+  await page.waitForFunction(() => YES.i18n.lang === 'en');
+  t.eq([await title(), await step()], ['Ask about this transaction', 'review'], 'English again from the keyboard, same step');
+  await expectFocus('inq-lang-en', 'focus on English');
+  await page.focus('[data-fk="inq-edit-reason"]');
+
   /* ------------------------------------------------------------------ */
   t.step('review shows every entry with edit links and the demo note');
   await expectFocus('inq-edit-reason', 'focus on Change reason');
@@ -389,7 +417,8 @@ export default async function (t) {
   t.assert(done.includes('No case was created'), 'says no case exists');
   t.assert(done.includes('authenticated, auditable'), 'production: authenticated, auditable submission');
   t.assert(done.includes('genuine case ID') && done.includes('status'), 'production: genuine case ID and status');
-  t.assert(done.includes('duplicate'), 'production: duplicate prevention');
+  t.assert(done.includes('recognized as a duplicate'), 'production: duplicate prevention');
+  t.assert(!/recognis|colour/.test(done), 'US spelling on the confirmation too');
   t.assert(done.includes('redacted from analytics'), 'production: sensitive fields redacted from analytics');
   t.assert(done.includes('formal dispute or a fraud report') && done.includes('approved policy and timing copy'), 'inquiry vs dispute/fraud with placeholder');
   t.assert(done.includes('The amount looks wrong') && done.includes('Email on file'), 'what was entered is summarised');
@@ -417,17 +446,33 @@ export default async function (t) {
   await shot('dark-done-bottom');
   await page.emulateMedia({ colorScheme: 'light' });
 
+  t.step('switch language on the confirmation without losing it');
+  await page.click('[data-fk="inq-lang-es"]');
+  await page.waitForFunction(() => YES.i18n.lang === 'es');
+  t.eq([await title(), await step(), (await text('[data-inq-ref]')).trim()], ['Solo demostración: no se envió ninguna consulta', 'done', ref], 'Spanish confirmation, same fictional reference');
+  t.assert((await dialogText()).includes('se reconocería como duplicada'), 'Spanish production notes');
+  await expectFocus('inq-lang-es', 'focus stays on the language switch');
+  await page.evaluate(() => document.querySelector('#inquiry-dialog .inq-body').scrollTo(0, 0));
+  await shot('es-done');
+  await page.click('[data-fk="inq-lang-en"]');
+  await page.waitForFunction(() => YES.i18n.lang === 'en');
+  t.eq(await title(), 'Demo only — no inquiry was sent', 'English confirmation again');
+  await page.waitForFunction(() => /Language changed to English/.test(Array.from(document.querySelectorAll('#inquiry-dialog > [aria-live]'), (r) => r.textContent).join('|')), null, { timeout: 2000 }).catch(() => {});
+  t.eq(await liveText(), 'Language changed to English', 'only the language change is announced (the Spanish one is gone)');
+
   /* ------------------------------------------------------------------ */
   t.step('after submission: duplicate-prevention demo');
   await page.click('[data-fk="inq-done"]');
   await waitClosed();
   await expectFocus('inq-test-trigger', 'focus returns to the trigger');
   t.eq(await liveText(), '', 'closing empties the dialog’s live regions');
+  t.eq(await page.locator('#inquiry-dialog [data-lang], #inquiry-dialog button').count(), 0, 'no stale controls (a second language switch) left in the closed dialog');
   // In Spanish, a new inquiry about another transaction carries nothing of the English confirmation.
   await page.evaluate(() => YES.setLang('es'));
   await openWith(PENDING);
   const fresh = await page.evaluate(() => document.getElementById('inquiry-dialog').textContent);
   t.assert(!fresh.includes('Demo only — no inquiry was sent') && !fresh.includes(ref), 'no English confirmation or earlier reference left in the dialog');
+  t.assert(fresh.includes('Canje solicitado') && !fresh.includes('Canjeado'), 'a pending redemption is “Canje solicitado”, never “Canjeado”');
   t.eq(await liveText(), '', 'live regions empty on a new inquiry');
   await close();
   await page.evaluate(() => YES.setLang('en'));
@@ -453,6 +498,19 @@ export default async function (t) {
   const p = await dialogText();
   t.assert(p.includes('Not posted yet') && p.includes('Not included in statement balance') && p.includes('Pending'), 'pending state explicit');
   t.assert(p.includes('REF-X6P3-9AT5'), 'pending reference carried in');
+  // Status-aware type label (ui.typeLabel(tx)): nothing completed-sounding for a request still pending.
+  t.assert(p.includes('Redemption requested') && !p.includes('Redeemed'), 'a pending redemption reads “Redemption requested”, never “Redeemed”');
+  // Masked identifiers: bullets shown, "ending in 4821" heard.
+  t.eq(
+    await page.evaluate(() => {
+      const dd = Array.from(document.querySelectorAll('#inquiry-dialog .inq-kv dt')).find((dt) => dt.textContent === 'Counterparty').nextElementSibling;
+      const heard = dd.cloneNode(true);
+      heard.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove());
+      return [dd.innerText.replace(/\s+/g, ' ').includes('Linked bank account •••• 4821'), heard.textContent.replace(/\s+/g, ' ').trim()];
+    }),
+    [true, 'Linked bank account ending in 4821'],
+    'masked counterparty: bullets visible, “ending in 4821” for assistive technology'
+  );
   await page.keyboard.press('Escape');
   await waitClosed();
   await expectFocus('inq-test-trigger', 'Escape closes and focus returns');
@@ -553,6 +611,47 @@ export default async function (t) {
       t.eq(await noHScroll(), { page: true, dialog: true, body: true }, `no horizontal scroll at 320px (${s})`);
       await shot('narrow-' + s);
     }
+    // Back to transaction, the language switch and Close share one row in both languages.
+    const headRow = () =>
+      page.evaluate(() => {
+        const box = (s) => document.querySelector('#inquiry-dialog ' + s).getBoundingClientRect();
+        const back = box('.inq-head__back');
+        const seg = box('.inq-head__tools .seg');
+        const cls = box('.inq-head__close');
+        const mid = (r) => r.top + r.height / 2;
+        return {
+          oneRow: Math.abs(mid(back) - mid(seg)) <= 4 && Math.abs(mid(seg) - mid(cls)) <= 4,
+          apart: back.right <= seg.left && seg.right <= cls.left,
+          inside: cls.right <= window.innerWidth
+        };
+      });
+    t.eq(await headRow(), { oneRow: true, apart: true, inside: true }, 'header row fits at 320px (English)');
+    await page.click('[data-fk="inq-lang-es"]');
+    await page.waitForFunction(() => YES.i18n.lang === 'es');
+    t.eq(await headRow(), { oneRow: true, apart: true, inside: true }, 'header row fits at 320px (Spanish)');
+    t.eq(await noHScroll(), { page: true, dialog: true, body: true }, 'no horizontal scroll at 320px in Spanish');
+    await page.evaluate(() => document.querySelector('#inquiry-dialog .inq-body').scrollTo(0, 0));
+    await shot('narrow-es-review');
+    // Very large text: the switch and Close take a row of their own rather than running off the screen.
+    await page.evaluate(() => {
+      const s = document.createElement('style');
+      s.id = 'inq-test-bigtext';
+      s.textContent = 'html { font-size: 200% !important; }';
+      document.head.appendChild(s);
+    });
+    t.eq(
+      await page.evaluate(() => {
+        const bar = document.querySelector('#inquiry-dialog .inq-head__bar');
+        const back = document.querySelector('#inquiry-dialog .inq-head__back').getBoundingClientRect();
+        const tools = document.querySelector('#inquiry-dialog .inq-head__tools').getBoundingClientRect();
+        return { fits: bar.scrollWidth <= bar.clientWidth + 1 && tools.right <= window.innerWidth, wrapped: tools.top >= back.bottom - 1 };
+      }),
+      { fits: true, wrapped: true },
+      '200% text at 320px: header controls wrap instead of overflowing'
+    );
+    await page.evaluate(() => document.getElementById('inq-test-bigtext').remove());
+    await page.click('[data-fk="inq-lang-en"]');
+    await page.waitForFunction(() => YES.i18n.lang === 'en');
     await page.click('[data-inq-submit]');
     t.eq(await noHScroll(), { page: true, dialog: true, body: true }, 'no horizontal scroll at 320px (confirmation)');
     await shot('narrow-done');

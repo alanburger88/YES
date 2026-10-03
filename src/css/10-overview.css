@@ -773,8 +773,16 @@ button.jr-step:hover {
     background: color-mix(in srgb, var(--ink) 4%, transparent);
     border-color: transparent;
   }
+  /* The selection frame sits just outside the column (in the gap), so even the
+     longest label word ("Transferencias" in the narrowest waterfall) keeps
+     clear of it instead of touching an inset frame. */
   .jr-step[aria-pressed='true'] {
     background: color-mix(in srgb, var(--primary) 9%, transparent);
+    border-color: transparent;
+    box-shadow: 0 0 0 2px var(--primary);
+  }
+  .jr-step[aria-pressed='true']:focus-visible {
+    box-shadow: 0 0 0 2px var(--primary), 0 0 0 4px var(--surface), 0 0 0 6px var(--focus);
   }
   .jr-step.is-member {
     background: color-mix(in srgb, var(--primary) 5%, transparent);
@@ -1748,6 +1756,17 @@ button.jr-step:hover {
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.04em;
+}
+/* Approved [YES_LOGO] artwork (ui.logoHtml in a foreignObject): left-aligned at
+   the lettering height, scaled with the poster; a currentColor mark takes the
+   poster ink so it stays legible in both schemes. */
+.ov-poster__artbox {
+  overflow: hidden;
+}
+.ov-poster__art {
+  display: flex;
+  justify-content: flex-start;
+  color: var(--poster-ink);
 }
 .ov-poster__hello {
   fill: var(--poster-ink);

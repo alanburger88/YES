@@ -15,20 +15,6 @@
     return !!(YES.integrity && !YES.integrity.ok);
   }
 
-  function logoHtml() {
-    var slot = YES.config.slots.YES_LOGO;
-    if (slot.svg) return '<span class="brand__logo" role="img" aria-label="' + esc(t('brand.logoAlt')) + '">' + slot.svg + '</span>';
-    return (
-      '<span class="brand__logo brand__logo--placeholder" role="img" aria-label="' +
-      esc(t('brand.logoAlt')) +
-      '" title="' +
-      esc(t('brand.logoPlaceholder')) +
-      '" data-slot="YES_LOGO">' +
-      esc(slot.text) +
-      '</span>'
-    );
-  }
-
   function periodLabel() {
     return YES.fmt.date(YES.data.statement.periodEnd, 'monthYear');
   }
@@ -54,9 +40,11 @@
     // Narrow layouts show "Sep 2026" and hide the word "Statement" visually; the
     // link's accessible name stays "YES Statement September 2026".
     var html =
-      '<div class="masthead__bar container">' +
+      '<div class="masthead__bar container' +
+      (YES.config.demo ? ' has-demo' : '') +
+      '">' +
       '<a class="brand" href="#/overview" data-nav="overview" data-fk="brand">' +
-      logoHtml() +
+      ui.logoHtml({ cls: 'brand__logo' }) +
       '<span class="brand__text"><span class="brand__title">' +
       esc(t('brand.statement')) +
       '</span><span class="brand__period">' +
@@ -134,29 +122,36 @@
 
   /* ------------------------------------------------------ Masthead metrics */
   /*
-   * Small screens stack the demo badge as a strip above the brand row. The
-   * masthead sticks with a negative `top` equal to that strip, so the badge is
-   * on the first screen but scrolls away, and only the brand row and the
-   * navigation stay pinned. On short viewports (landscape phones, 400% zoom)
-   * the masthead does not stick at all. --masthead-h always equals what stays
+   * Under 1000px the demo badge is a slim band above the brand row. The
+   * masthead sticks with a negative `top` equal to that band (less a 4px
+   * margin above the brand row), so the badge is on the first screen but
+   * scrolls away, and only the brand row and the navigation stay pinned (under
+   * 100px on a phone). On short viewports (landscape phones, 400% zoom) the
+   * masthead does not stick at all. --masthead-h always equals what stays
    * pinned, so scroll-padding keeps focused content clear of it (WCAG 2.4.11).
    */
+  var MAX_PINNED_SHARE = 0.3;
   function syncMastheadMetrics() {
     var mast = doc.getElementById('masthead');
     if (!mast) return;
     var rootStyle = doc.documentElement.style;
-    var sticky = root.getComputedStyle(mast).position === 'sticky';
     var mr = mast.getBoundingClientRect();
     var skip = 0;
     var badge = mast.querySelector('.demo-badge');
     var brand = mast.querySelector('.brand');
     var actions = mast.querySelector('.masthead__actions');
-    if (sticky && badge && brand && actions) {
+    if (badge && brand && actions) {
       var rowTop = Math.min(brand.getBoundingClientRect().top, actions.getBoundingClientRect().top);
       if (badge.getBoundingClientRect().bottom <= rowTop) skip = Math.max(0, Math.floor(rowTop - mr.top) - 4);
     }
-    rootStyle.setProperty('--mast-skip', skip + 'px');
-    rootStyle.setProperty('--masthead-h', (sticky ? Math.ceil(mr.height - skip) : 0) + 'px');
+    var pinned = Math.ceil(mr.height - skip);
+    // Very large text: a pinned area over 30% of the screen would leave too
+    // little room to read, so the masthead scrolls with the page instead (as
+    // on short viewports). Pinning never changes its height, so this is stable.
+    mast.classList.toggle('is-unpinned', pinned > (root.innerHeight || 0) * MAX_PINNED_SHARE);
+    var sticky = root.getComputedStyle(mast).position === 'sticky';
+    rootStyle.setProperty('--mast-skip', (sticky ? skip : 0) + 'px');
+    rootStyle.setProperty('--masthead-h', (sticky ? pinned : 0) + 'px');
   }
   /*
    * Keep the brand row on one line: if the actions would wrap below the brand

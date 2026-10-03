@@ -23,6 +23,8 @@
  *   modal   720–1099px: modal side drawer with a backdrop; <720px: full-screen sheet.
  *   stacked opened while another modal dialog is open: a modal on top of it,
  *           closing returns focus inside that dialog.
+ * While modal, the page behind is inert, so the header carries its own language
+ * switch (ui.langSwitchHtml); docked, the masthead's switch is beside it.
  */
 (function (root) {
   'use strict';
@@ -30,6 +32,9 @@
   var ui = YES.ui;
   var t = YES.t;
   var esc = ui.esc;
+  /* Text that may hold masked identifiers ("Debit card •••• 1190"), as HTML:
+     the bullets stay visible, assistive technology hears "ending in 1190". */
+  var mask = ui.maskedHtml || esc;
   var doc = root.document;
   var calc = YES.calc;
   var fmt = YES.fmt;
@@ -98,7 +103,7 @@
       v[k] = m;
       marks[m] = html[k];
     }
-    var s = esc(t(key, v));
+    var s = mask(t(key, v));
     Object.keys(marks).forEach(function (mk) {
       s = s.split(mk).join(marks[mk]);
     });
@@ -245,7 +250,24 @@
     return { label: label, html: samt(minor, sign), total: !!total };
   }
   function figText(label, text, opts) {
-    return { label: label, html: esc(text), txt: true, mono: !!(opts && opts.mono) };
+    return { label: label, html: mask(text), txt: true, mono: !!(opts && opts.mono) };
+  }
+  /**
+   * The customer's own note, as they wrote it: never translated, so it keeps the
+   * statement's language and says so with lang when that differs from the
+   * language this answer is rendered in (WCAG 3.1.2).
+   */
+  function memoHtml(memo) {
+    if (memo && typeof memo === 'object') return mask(YES.L(memo)); // localised: already in this language
+    var l = String(st().language || '');
+    var h = mask(memo);
+    return l && l.split('-')[0].toLowerCase() !== YES.i18n.lang ? '<span lang="' + esc(l) + '">' + h + '</span>' : h;
+  }
+  /** An answer's supporting rows: each statement transaction once, in the answer's order. */
+  function supportRows(m) {
+    return (m.rows || []).filter(function (r, i, a) {
+      return a.indexOf(r) === i && !!calc.tx(r);
+    });
   }
 
   /* ------------------------------------------------------------------ */
@@ -775,7 +797,7 @@
         rows.push(p.id);
       }
     }
-    if (tx.memo) paras.push(P('assistant.tx.memo', { memo: tx.memo }));
+    if (tx.memo) paras.push(P('assistant.tx.memo', {}, { memo: memoHtml(tx.memo) }));
 
     figs.push(figText(t('assistant.fig.counterparty'), YES.L(tx.counterparty)));
     figs.push(figText(t('assistant.fig.rail'), railLabel(tx.rail) + ' · ' + methodLabel(tx.method)));
@@ -1266,7 +1288,7 @@
     }
   }
   function subjectHtml(sub) {
-    return esc(sub.label) + (sub.amount != null ? ' · ' + samt(sub.amount, sub.sign || 'always') : '');
+    return mask(sub.label) + (sub.amount != null ? ' · ' + samt(sub.amount, sub.sign || 'always') : '');
   }
   function subjectText(sub) {
     return sub.label + (sub.amount != null ? ' · ' + fmt.amount(sub.amount, { sign: sub.sign || 'always' }) : '');
@@ -1298,13 +1320,14 @@
       '">' +
       ui.icon(ui.typeIcon(x.type), { size: 16 }) +
       '</span><span class="asst-row__main"><span class="asst-row__top"><span class="asst-row__desc">' +
-      esc(YES.L(x.description)) +
+      mask(YES.L(x.description)) +
       '</span><span class="asst-row__amt">' +
       samt(x.amount) +
       '</span></span><span class="asst-row__meta">' +
       esc(dShort(dateIso)) +
       ' · ' +
-      esc(ui.typeLabel(x.type)) +
+      // Status-aware: a pending redemption reads "Redemption requested", never "Redeemed".
+      esc(ui.typeLabel(x)) +
       ' · <span class="asst-row__id">' +
       esc(x.id) +
       '</span>' +
@@ -1366,7 +1389,7 @@
     var id = 'asst-' + esc(e.id);
     var h = '<article class="asst-ans' + (m.policy ? ' asst-ans--policy' : '') + (m.plain ? ' asst-ans--welcome' : '') + '" aria-labelledby="' + id + '-h">';
     h += '<p class="asst-ans__tags">' + demoTag(id + '-tag') + (m.policy ? '<span class="tag asst-tag-policy">' + ui.icon('shield', { size: 14 }) + '<span>' + esc(t('assistant.policyTag')) + '</span></span>' : '') + (m.illustrative ? ui.illustrativeTag('assistant.illustrativeTag') : '') + '</p>';
-    h += '<h3 id="' + id + '-h" class="asst-ans__title" tabindex="-1" data-fk="' + id + '-h" aria-describedby="' + id + '-tag">' + esc(m.title) + '</h3>';
+    h += '<h3 id="' + id + '-h" class="asst-ans__title" tabindex="-1" data-fk="' + id + '-h" aria-describedby="' + id + '-tag">' + mask(m.title) + '</h3>';
     h += '<div class="asst-ans__text">';
     (m.paras || []).forEach(function (p) {
       h += '<p>' + p + '</p>';
@@ -1390,9 +1413,7 @@
       h += '</tbody></table>' + (m.sum || '') + '</div>';
     }
 
-    var rowIds = (m.rows || []).filter(function (r, i, a) {
-      return a.indexOf(r) === i && calc.tx(r);
-    });
+    var rowIds = supportRows(m);
     if (rowIds.length) {
       var expanded = !!s.expanded[e.id];
       var shown = expanded || rowIds.length <= ROW_PREVIEW + 1 ? rowIds : rowIds.slice(0, ROW_PREVIEW);
@@ -1522,6 +1543,11 @@
     );
   }
 
+  /** The header's own language switch: only while the drawer is open and modal. */
+  function langSwitchShown() {
+    return (mode === 'modal' || mode === 'stacked') && typeof ui.langSwitchHtml === 'function';
+  }
+
   function drawerHtml() {
     var s = S();
     var last = s.thread[s.thread.length - 1];
@@ -1529,7 +1555,11 @@
     var h = '';
     h += '<div class="asst__head"><div class="asst__bar"><span class="asst__mark">' + ui.icon('chat', { size: 20 }) + '</span>';
     h += '<h2 id="asst-title" class="asst__title" tabindex="-1" data-fk="asst-title">' + esc(t('assistant.title')) + '</h2>';
-    h += '<button type="button" class="btn btn--icon btn--ghost asst__close" data-asst-close data-fk="asst-close" aria-label="' + esc(t('assistant.close')) + '">' + ui.icon('close', { size: 20 }) + '</button>';
+    // While the drawer is modal the masthead behind it is inert, so the header
+    // carries its own language switch (as the transaction detail does). Docked,
+    // the masthead's switch is right beside it.
+    h += '<div class="asst__tools">' + (langSwitchShown() ? ui.langSwitchHtml({ fk: 'asst-lang', compact: true }) : '');
+    h += '<button type="button" class="btn btn--icon btn--ghost asst__close" data-asst-close data-fk="asst-close" aria-label="' + esc(t('assistant.close')) + '">' + ui.icon('close', { size: 20 }) + '</button></div>';
     h += '<p class="asst__tagline">' + demoTag() + '</p></div>';
     h += '<p class="asst__ctx" data-asst-ctx><span class="asst__ctx-k">' + esc(t('assistant.about')) + '</span> <span class="asst__ctx-v">' + subjectHtml(sub) + '</span></p></div>';
 
@@ -1587,7 +1617,13 @@
     if (!els.dlg) return;
     var b = scrollerEl();
     var top = b ? b.scrollTop : 0;
+    // ui.announce keeps live regions inside the open modal drawer: carry them
+    // over, so a re-render never drops a region or a message on its way.
+    var live = ui.$$(':scope > .dlg-live--polite, :scope > .dlg-live--assertive', els.dlg);
     ui.render(els.dlg, drawerHtml());
+    live.forEach(function (r) {
+      els.dlg.appendChild(r);
+    });
     inqSig = inquirySig();
     animateId = null;
     b = scrollerEl();
@@ -1656,6 +1692,10 @@
   function finishClose(opts) {
     if (mode === null) return;
     mode = null;
+    // No language controls are left behind in the closed drawer (the masthead's
+    // switch is the page's only one again).
+    var sw = els.dlg.querySelector('.asst__tools .seg');
+    if (sw) sw.parentNode.removeChild(sw);
     var html = doc.documentElement;
     html.classList.remove('assistant-docked');
     html.classList.toggle('has-modal', ui.anyModalOpen());
@@ -1710,10 +1750,11 @@
     d.close(); // the async 'close' event sees the dialog open again and is ignored
     openAs(want);
     if (want === 'docked') doc.documentElement.classList.toggle('has-modal', ui.anyModalOpen());
+    render(); // adds or removes the header's language switch
     b = scrollerEl();
     if (b) b.scrollTop = top;
     var target = fk ? d.querySelector(fkSel(fk)) : null;
-    (target || d.querySelector('#asst-title')).focus({ preventScroll: true });
+    (target && visible(target) ? target : d.querySelector('#asst-title')).focus({ preventScroll: true });
   }
 
   /* ------------------------------------------------------------------ */
@@ -1793,6 +1834,18 @@
     ui.announce(t('assistant.cleared'));
   }
 
+  /** The thread entry a control in the drawer belongs to. */
+  function entryOf(el) {
+    var turn = el && el.closest ? el.closest('.asst-turn') : null;
+    return turn ? findEntry(turn.id.replace(/^asst-turn-/, '')) : null;
+  }
+  /** The supporting rows a row button was shown with (undefined for a lone row). */
+  function rowsAround(btn, id) {
+    var en = entryOf(btn);
+    var rows = en ? supportRows(model(en)) : [];
+    return rows.length > 1 && rows.indexOf(id) !== -1 ? rows : undefined;
+  }
+
   /* ------------------------------------------------------------------ */
   /* Events (bound once)                                                 */
   /* ------------------------------------------------------------------ */
@@ -1823,22 +1876,22 @@
     });
     ui.delegate(d, 'click', '[data-asst-tx]', function (e, b) {
       var id = b.getAttribute('data-asst-tx');
+      // Previous / Next in the detail stay within this explanation's rows, all of
+      // them (also those behind "Show all"). A single row has no list of its own.
+      var rows = rowsAround(b, id);
       if (mode === 'stacked') {
         // The drawer sits above another dialog: hand back to it so the detail is visible.
         var back = returnTo;
         close({ returnFocus: false });
-        YES.explorer.openTx(id, { trigger: back && visible(back) ? back : null });
+        YES.explorer.openTx(id, { trigger: back && visible(back) ? back : null, list: rows });
       } else {
-        YES.explorer.openTx(id, { trigger: b });
+        YES.explorer.openTx(id, { trigger: b, list: rows });
       }
     });
     ui.delegate(d, 'click', '[data-asst-rows]', function (e, b) {
       var en = findEntry(b.getAttribute('data-asst-rows'));
       if (!en) return;
-      var m = model(en);
-      var rowIds = (m.rows || []).filter(function (r, i, a) {
-        return a.indexOf(r) === i && calc.tx(r);
-      });
+      var rowIds = supportRows(model(en));
       // Localised in every language, so the chip follows a later language switch.
       var label = localized(function () {
         var lm = model(en);

@@ -135,7 +135,14 @@ for (const f of files) {
         }, include || null);
       },
       goto: async (hash = '') => {
-        await page.goto(URL_BASE + hash);
+        try {
+          await page.goto(URL_BASE + hash);
+        } catch (e) {
+          // The statement may rewrite its own address while it boots (e.g. a link
+          // to an unknown transaction drops the id), which Playwright can report
+          // as an interrupted navigation. The document still loads: wait for boot.
+          if (!/interrupted by another navigation/i.test(String((e && e.message) || ''))) throw e;
+        }
         await page.waitForFunction(() => window.YES && window.YES.ready === true, null, { timeout: 10000 });
       }
     };

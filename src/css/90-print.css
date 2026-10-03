@@ -61,6 +61,14 @@
     white-space: nowrap;
     letter-spacing: 0.06em;
   }
+  /* The [YES_LOGO] text placeholder (ui.logoHtml) stays legible when the
+     browser leaves background colours out of the print. */
+  .yes-logo--placeholder {
+    background: none;
+    color: #000;
+    outline: 0;
+    border: 1.5pt solid #000;
+  }
   a {
     color: #000;
     text-decoration: none;

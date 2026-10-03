@@ -3,11 +3,13 @@
  * The masthead is a size container: its layout follows the space it actually
  * has, so the docked assistant (which narrows #app) needs no special case.
  *   ≥1000px  one row: brand · demo badge · language · Ask YES
- *   <1000px  the demo badge becomes a strip above the brand row; that strip
- *            scrolls away (negative sticky top, set from 05-shell.js) and only
- *            the brand row and the navigation stay pinned
+ *   <1000px  the demo badge becomes a slim full-width band above the brand row;
+ *            the band scrolls away (negative sticky top, set from 05-shell.js)
+ *            and only the brand row and the navigation stay pinned
  *   <720px   compact language switch (EN/ES; names stay in the accessibility
- *            tree), short "Ask" label, short period, four tabs sharing the width
+ *            tree), short "Ask" label, short period, four tabs sharing the width;
+ *            on a phone the band, brand row and tabs take about 125px of the
+ *            first screen and under 100px stays pinned
  */
 .masthead {
   position: sticky;
@@ -19,8 +21,13 @@
   -webkit-backdrop-filter: saturate(1.4) blur(8px);
   border-bottom: 1px solid var(--line);
 }
-/* Short viewports (landscape phones, 400% zoom): nothing pinned, so content
-   gets the whole screen. */
+/* Short viewports (landscape phones, 400% zoom), or text so large that the
+   pinned part would take over 30% of the screen (.is-unpinned, 05-shell.js):
+   nothing pinned, so content gets the whole screen. */
+.masthead.is-unpinned {
+  position: relative;
+  top: auto;
+}
 @media (max-height: 500px) {
   .masthead {
     position: relative;
@@ -45,23 +52,9 @@
   min-height: 44px;
   min-width: 0;
 }
+/* The [YES_LOGO] slot at masthead size (ui.logoHtml; base styles in 02-components.css). */
 .brand__logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 36px;
-  min-width: 52px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: var(--primary);
-  color: var(--on-primary);
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  font-size: 1.05rem;
-}
-.brand__logo--placeholder {
-  outline: 1px dashed color-mix(in srgb, var(--primary) 60%, transparent);
-  outline-offset: 2px;
+  --logo-h: 36px;
 }
 .brand__text {
   display: flex;
@@ -84,9 +77,12 @@
 }
 .masthead__actions {
   display: flex;
+  flex-wrap: wrap; /* very large text: Ask YES moves under the switch, never off screen */
+  justify-content: flex-end;
   align-items: center;
   gap: var(--s2);
   margin-left: auto;
+  min-width: 0;
 }
 .btn--ask {
   min-height: 42px;
@@ -151,11 +147,23 @@
 }
 
 @container mast (max-width: 999px) {
-  /* Demo badge: a centred strip above the brand row. */
+  /* Demo badge: a slim, full-width band above the brand row, fully worded. It
+     is the first thing on the screen and scrolls away with the page. */
+  .masthead__bar.has-demo {
+    padding-top: 0;
+    row-gap: 6px;
+  }
   .demo-badge {
     order: -1;
-    flex-basis: 100%;
+    flex: 0 0 calc(100% + 2 * var(--gutter));
+    margin-inline: calc(-1 * var(--gutter));
     justify-content: center;
+    padding: 2px var(--gutter);
+    border-width: 0 0 1px;
+    border-radius: 0;
+    line-height: 1.5;
+    text-align: center;
+    white-space: normal;
   }
 }
 
@@ -165,14 +173,19 @@
     gap: var(--s2);
     padding-block: var(--s2) 6px;
   }
+  .masthead__bar.has-demo {
+    row-gap: 6px;
+    padding-block: 0 4px;
+  }
   .brand {
     gap: var(--s2);
   }
   .brand__logo {
-    height: 34px;
+    --logo-h: 34px;
+  }
+  .brand__logo--placeholder {
     min-width: 44px;
     padding: 0 6px;
-    font-size: 1rem;
   }
   /* "Sep 2026" on one line; "Statement September 2026" stays the link's name. */
   .brand__title,

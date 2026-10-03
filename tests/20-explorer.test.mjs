@@ -159,6 +159,15 @@ export default async function (t) {
   t.eq(await searchFor('+45.50'), [], 'a typed sign is respected');
   t.assert((await searchFor('45')).includes('TX-260924-1327'), 'a whole number finds amounts in that unit');
   t.eq(await searchFor('Redeemed'), ['TX-260920-0900'], 'a pending redemption is not labelled "Redeemed"');
+  t.eq(await searchFor('requested'), ['TX-260930-2247'], 'it reads "Redemption requested"');
+  t.eq(await searchFor('1190'), ['TX-260912-0805'], 'the visible tail of a masked identifier is searchable');
+  const masked = await page.evaluate(() => {
+    const row = document.querySelector('[data-tx-row="TX-260912-0805"]');
+    const m = row.querySelector('.tx-sub .tx-mask');
+    return { label: row.querySelector('[data-tx-open]').getAttribute('aria-label'), hidden: m.querySelector('[aria-hidden="true"]').textContent, spoken: m.querySelector('.sr-only').textContent };
+  });
+  t.assert(masked.label.includes('Debit card ending in 1190') && !masked.label.includes('•'), 'row name speaks "ending in 1190", not bullets: ' + masked.label);
+  t.eq([nbsp(masked.hidden), masked.spoken], ['•••• 1190', 'ending in 1190'], 'bullets hidden from assistive technology, the tail spoken');
   await page.click('[data-tx-q-clear]');
   await waitCount('Showing all 16 transactions');
   t.eq(await page.inputValue('#tx-q'), '', 'clear search button empties the box');
@@ -263,6 +272,16 @@ export default async function (t) {
   await clearAll();
   t.eq(await page.locator('[data-tx-undated]').count(), 0, 'no note without a date range');
 
+  t.step('applyFilter({ announce: false }) leaves the caller to announce');
+  await page.evaluate(() => {
+    YES.ui.announce('Caller summary.');
+    YES.explorer.applyFilter({ step: 'fees' }, { reset: true, navigate: false, announce: false });
+  });
+  await waitCount('Showing 3 of 16 transactions');
+  await page.waitForTimeout(400);
+  t.eq(await page.evaluate(() => document.getElementById('live-polite').textContent), 'Caller summary.', 'no count announcement talks over the caller');
+  await clearAll();
+
   t.step('sort by amount');
   await sortBy('amount:desc');
   await page.waitForTimeout(80);
@@ -335,6 +354,7 @@ export default async function (t) {
     t.assert(dtext.includes(s), 'detail shows ' + s);
   }
   t.eq(await page.locator('#tx-dialog .tx-onchain').count(), 0, 'no blockchain section for an internal transfer');
+  t.eq(await page.locator('#tx-dialog .tx-kv span[lang], #transactions-root .tx-memo span[lang]').count(), 0, 'a memo in the UI language needs no lang attribute');
   const demoTag = page.locator('#tx-dialog .tx-dlg__demo .tag--illustrative');
   t.assert(await demoTag.isVisible(), 'detail is visibly marked as demo data');
   t.eq((await demoTag.innerText().then(nbsp)).trim(), 'Illustrative demo data', 'demo tag wording');
@@ -447,7 +467,8 @@ export default async function (t) {
   await page.evaluate(() => {
     window.__inq = [];
     window.__ai = null;
-    YES.inquiry.start = (id, o) => window.__inq.push([id, !!(o && o.trigger)]);
+    // Records the id, where focus is to return, and whether the detail was still open.
+    YES.inquiry.start = (id, o) => window.__inq.push([id, o && o.trigger ? o.trigger.getAttribute('data-fk') : null, document.getElementById('tx-dialog').open]);
     YES.assistant.open = (ctx) => {
       window.__ai = { topic: ctx.topic, id: ctx.id, trigger: ctx.trigger && ctx.trigger.getAttribute('data-fk') };
     };
@@ -456,7 +477,11 @@ export default async function (t) {
   await page.waitForFunction(() => document.getElementById('tx-dialog').open);
   t.eq((await page.locator('[data-fk="txd-ask"]').innerText().then(nbsp)).trim(), 'Ask about this transaction', 'ask label');
   await page.click('[data-fk="txd-ask"]');
-  t.eq(await page.evaluate(() => window.__inq), [['TX-260918-2011', true]], 'inquiry.start called with id and trigger');
+  t.eq(await page.evaluate(() => window.__inq), [['TX-260918-2011', 'tx-open-TX-260918-2011', false]], 'the detail closes itself, then hands the inquiry the row to return to');
+  await waitClosed();
+  t.eq(await page.evaluate(() => [YES.state.selectedTx, location.hash]), [null, '#/transactions'], 'the hand-off steps back over the detail’s history entry');
+  await page.click('[data-tx-row="TX-260918-2011"] [data-tx-open]', { force: true });
+  await page.waitForFunction(() => document.getElementById('tx-dialog').open);
   await page.evaluate(() => {
     YES.inquiry.draftFor = (id) => (id === 'TX-260918-2011' ? { txId: id, step: 2, status: 'draft' } : null);
     YES.set({ inquiry: { txId: 'TX-260918-2011', step: 2, status: 'draft' } });
@@ -492,10 +517,26 @@ export default async function (t) {
   await page.evaluate(() => YES.explorer.openTx('TX-260930-2247'));
   const pd = await page.locator('#tx-dialog').innerText().then(nbsp);
   t.assert(pd.includes('Not included in statement balance') && pd.includes('Not posted'), 'pending detail is explicit');
+  t.assert(pd.includes('Redemption requested') && !pd.includes('Redeemed'), 'a pending redemption reads "Redemption requested"');
+  t.eq(await page.$eval('#tx-dialog .tx-kv .sr-only', (e) => e.textContent).catch(() => null), 'ending in 4821', 'masked counterparty spoken as "ending in 4821"');
   t.eq(await page.evaluate(() => location.hash), '#/transactions/TX-260930-2247', 'route follows openTx');
   await page.evaluate(() => YES.explorer.openTx('TX-260901-0418'));
   const pp = await page.locator('#tx-dialog').innerText().then(nbsp);
-  t.assert(pp.includes('Previous period') && pp.includes('Started on 31 August'), 'prior-period note');
+  // The note itself is statement data (01-data.js); the explorer shows it in full.
+  const ppNote = nbsp(await page.evaluate(() => YES.L(YES.calc.tx('TX-260901-0418').notes[0])));
+  t.assert(pp.includes('Previous period') && pp.includes(ppNote) && pp.includes('August 31'), 'prior-period note');
+  // Without a note of its own, the detail explains the prior-period initiation itself.
+  const ppFallback = await page.evaluate(() => {
+    const tx = YES.calc.tx('TX-260901-0418');
+    const keep = tx.notes;
+    tx.notes = [];
+    YES.explorer.openTx(tx.id);
+    const el = document.querySelector('#tx-dialog .tx-prevnote');
+    tx.notes = keep;
+    YES.explorer.openTx(tx.id);
+    return el ? el.textContent : null;
+  });
+  t.assert(/^Initiated in the previous period\./.test(ppFallback || ''), 'fallback note says "Initiated", like the field: ' + ppFallback);
   await page.evaluate(() => YES.explorer.closeTx());
   t.assert(!(await dialogOpen()), 'closeTx closes');
   t.eq(await page.evaluate(() => location.hash), '#/transactions', 'closeTx clears the route');
@@ -507,6 +548,26 @@ export default async function (t) {
   await page.evaluate(() => (location.hash = '#/transactions'));
   await waitClosed();
   t.assert(!(await dialogOpen()), 'hashchange away from the transaction closes it');
+
+  t.step('closing a detail never erases a newer transaction address');
+  await page.evaluate(() => YES.explorer.openTx('TX-260905-0733'));
+  // (An open right after a close waits for that close's native 'close' event.)
+  await page.waitForFunction(() => document.getElementById('tx-dialog').open && YES.state.selectedTx === 'TX-260905-0733', null, { timeout: 2000 }).catch(() => {});
+  t.eq(await page.evaluate(() => location.hash), '#/transactions/TX-260905-0733', 'detail open with its own address');
+  await page.evaluate(() => {
+    // A newer link is in the address bar but not applied yet, and the close
+    // (as by Escape) is handled first: neither stepping back nor a rewrite may erase it.
+    history.replaceState(null, '', '#/transactions/TX-260912-0805');
+    document.getElementById('tx-dialog').close();
+  });
+  await page.waitForFunction(() => YES.state.selectedTx === null, null, { timeout: 2000 });
+  await page.waitForTimeout(150);
+  t.eq(await page.evaluate(() => location.hash), '#/transactions/TX-260912-0805', 'the newer address is kept');
+  await page.evaluate(() => YES.nav.apply());
+  await page.waitForFunction(() => YES.state.selectedTx === 'TX-260912-0805', null, { timeout: 2000 }).catch(() => {});
+  t.assert((await dialogOpen()) && (await page.evaluate(() => YES.state.selectedTx)) === 'TX-260912-0805', 'and opens its transaction');
+  await page.evaluate(() => YES.explorer.closeTx());
+  await waitClosed();
 
   t.step('unknown transaction in the route');
   await fresh('#/transactions/TX-000000-0000');
@@ -544,6 +605,9 @@ export default async function (t) {
   t.assert((await page.locator('[data-tx-total]').innerText().then(nbsp)).includes('−450,00 EXUSD'), 'Spanish filtered total 450,00');
   t.eq((await page.locator('[data-tx-chip="step"]').innerText().then(nbsp)).trim(), 'Paso: Transferencias enviadas', 'Spanish chip');
   t.eq(await page.evaluate(() => YES.i18n.audit()), {}, 'i18n parity after switch');
+  // WCAG 3.1.2: the customer's own memo is not translated, so it keeps the statement's language.
+  t.eq(await page.evaluate(() => [...document.querySelectorAll('#tx-dialog .tx-kv span[lang], [data-tx-row="TX-260903-1127"] .tx-memo span[lang]')].map((e) => e.getAttribute('lang') + ':' + e.textContent)), ['en:Rent share', 'en:Rent share'], 'memo marked lang="en" in the Spanish detail and row');
+  t.assert(nbsp(await page.locator('#tx-dialog .tx-kv').innerText()).includes('«Rent share»'), 'memo quoted the Spanish way');
   t.eq((await page.locator('#tx-dialog .tag--illustrative').innerText().then(nbsp)).trim(), 'Datos ilustrativos de demostración', 'Spanish demo tag');
   await page.waitForTimeout(300);
   await t.shot('es-dialog');
@@ -713,6 +777,34 @@ export default async function (t) {
     await t.shot('narrow-dialog');
     await page.keyboard.press('Escape');
     await waitClosed();
+
+    t.step('short sheet (landscape phone): the footer actions share one row when they fit');
+    await page.setViewportSize({ width: 667, height: 375 });
+    await page.waitForTimeout(150);
+    for (const lang of ['en', 'es']) {
+      await page.evaluate((l) => {
+        YES.setLang(l);
+        YES.explorer.openTx('TX-260909-2051');
+      }, lang);
+      await page.waitForTimeout(350);
+      const foot = await page.evaluate(() => {
+        const d = document.getElementById('tx-dialog');
+        d.scrollTop = d.scrollHeight; // the whole sheet scrolls on short viewports
+        const mid = (s) => {
+          const r = d.querySelector(s).getBoundingClientRect();
+          return Math.round((r.top + r.bottom) / 2);
+        };
+        return { rows: [mid('.tx-pager'), mid('[data-fk="txd-explain"]'), mid('[data-fk="txd-ask"]')], scrolls: d.scrollHeight > d.clientHeight };
+      });
+      t.assert(Math.max(...foot.rows) - Math.min(...foot.rows) <= 6, `${lang}: pager, Explain and Ask on one row: ${foot.rows}`);
+      t.assert(foot.scrolls, `${lang}: the sheet scrolls as a whole`);
+      t.assert(await noHScroll(), `${lang}: no horizontal scroll on a short sheet`);
+      await page.waitForTimeout(150);
+      await t.shot('short-sheet-' + lang);
+      await page.keyboard.press('Escape');
+      await waitClosed();
+    }
+    await page.evaluate(() => YES.setLang('en'));
     await page.setViewportSize({ width: 390, height: 844 });
   } else {
     t.step('tablet widths');

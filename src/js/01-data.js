@@ -100,7 +100,7 @@
         fees: [],
         notes: [
           {
-            en: 'Started on 31 August (previous period) and posted on 1 September. Statements use the posted date, so it belongs to this statement.',
+            en: 'Initiated on August 31 (previous period) and posted on September 1. Statements use the posted date, so it belongs to this statement.',
             es: 'Se inició el 31 de agosto (período anterior) y se registró el 1 de septiembre. Los estados de cuenta usan la fecha de registro, por eso pertenece a este estado de cuenta.'
           }
         ],

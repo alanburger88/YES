@@ -167,6 +167,40 @@
   margin-bottom: var(--s6);
 }
 
+/* --------------------------------------------- Brand logo slot ([YES_LOGO]) */
+/* ui.logoHtml(): approved artwork, or the text placeholder outlined as one.
+   --logo-h sets the height (opts.size, or a rule on the module's own class);
+   the lettering and the artwork scale with it. */
+.yes-logo {
+  --logo-h: 36px;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  height: var(--logo-h);
+  line-height: 1;
+}
+.yes-logo--placeholder {
+  min-width: calc(var(--logo-h) * 1.45);
+  padding: 0 calc(var(--logo-h) * 0.27);
+  border-radius: calc(var(--logo-h) * 0.22);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: calc(var(--logo-h) * 0.47);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  outline: 1px dashed color-mix(in srgb, var(--primary) 60%, transparent);
+  outline-offset: 2px;
+}
+.yes-logo--art > svg,
+.yes-logo--art > img {
+  display: block;
+  width: auto;
+  height: 100%;
+  max-width: calc(var(--logo-h) * 5);
+}
+
 /* ------------------------------------------------------- Badges and tags */
 .demo-badge {
   display: inline-flex;
@@ -821,35 +855,44 @@ dialog.dlg::backdrop {
 }
 
 /* ---------------------------------------------------------------- Toast */
-/* A manual popover (top layer, above open dialogs): reset the UA popover box. */
+/* A manual popover (top layer, above open dialogs): reset the UA popover box.
+   Centred with auto margins between both edges, so a message may use the whole
+   width (less the gutters) before it wraps; a left: 50% box would wrap at half
+   the screen. One line is a pill; ui.toast() marks a wrapped message
+   .is-multiline, which takes the card radius instead of a stretched pill. */
 .toast {
   position: fixed;
-  inset: auto;
-  margin: 0;
+  inset: auto var(--gutter) calc(var(--s6) + env(safe-area-inset-bottom, 0px));
+  margin: 0 auto;
   border: 0;
   overflow: visible;
-  width: auto;
+  width: fit-content;
   height: auto;
-  left: 50%;
-  bottom: var(--s6);
-  transform: translate(-50%, 16px);
+  max-width: min(560px, calc(100vw - 2 * var(--gutter)));
+  transform: translateY(16px);
   background: var(--ink);
   color: var(--surface);
   padding: var(--s3) var(--s5);
   border-radius: 999px;
   font-size: var(--fs-sm);
   font-weight: 600;
+  line-height: 1.45;
   box-shadow: var(--shadow-2);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
   z-index: 2000;
-  max-width: calc(100vw - 32px);
   text-align: center;
+  overflow-wrap: anywhere;
+}
+.toast.is-multiline {
+  border-radius: var(--radius);
+  padding-inline: var(--s4);
+  text-align: start;
 }
 .toast.is-visible {
   opacity: 1;
-  transform: translate(-50%, 0);
+  transform: translateY(0);
 }
 
 /* ------------------------------------------------------- Check lists */

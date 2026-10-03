@@ -18,7 +18,9 @@
 
     /* Brand replacement slots (PRD 5.1). Values are placeholders, not YES assets. */
     slots: {
-      YES_LOGO: { text: 'YES', placeholder: true }, // replace with approved SVG markup or asset reference
+      // Replace with approved artwork: `svg` (SVG markup) or `src` (a data: image URI;
+      // the file fetches nothing). Rendered by YES.ui.logoHtml().
+      YES_LOGO: { text: 'YES', placeholder: true },
       YES_PRIMARY: '#0e5a8a',
       YES_PRIMARY_DARK: '#6cb4ee', // primary tuned for dark colour scheme
       YES_ACCENT: '#e8a33d',

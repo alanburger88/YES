@@ -679,16 +679,29 @@
     return '<span class="help-table__lbl" aria-hidden="true">' + esc(t(key)) + '</span>';
   }
 
+  /** What this file does for one connected enhancement ("In this file" column). */
+  function enhancementFileHtml(id) {
+    var uw = YES.config.userway || {};
+    if (id === 'userway') {
+      return (
+        esc(t('help.about.e.userway.file', { id: uw.accountId || '' })) +
+        ' <span data-help-uw-about>' +
+        esc(t('help.about.e.userway.now', { status: t('help.uw.status.' + uwStatus()) })) +
+        '</span>'
+      );
+    }
+    var text = t('help.about.e.' + id + '.file');
+    // The statement measures nothing, but the page must not claim that nothing
+    // leaves it while it loads a third-party widget: name the widget whenever it
+    // is enabled, in the same words as the footer's demo notice.
+    if (id === 'analytics' && uw.enabled) text += ' ' + t('footer.userwayNote');
+    return esc(text);
+  }
+
   function aboutHtml() {
     var cfg = YES.config;
     var rows = ENHANCEMENTS.map(function (e) {
-      var fileHtml =
-        e.id === 'userway'
-          ? esc(t('help.about.e.userway.file', { id: (cfg.userway && cfg.userway.accountId) || '' })) +
-            ' <span data-help-uw-about>' +
-            esc(t('help.about.e.userway.now', { status: t('help.uw.status.' + uwStatus()) })) +
-            '</span>'
-          : esc(t('help.about.e.' + e.id + '.file'));
+      var fileHtml = enhancementFileHtml(e.id);
       return (
         '<tr role="row" data-enh="' +
         e.id +
@@ -719,8 +732,11 @@
       return '<span class="help-swatch" aria-hidden="true" style="background-color:' + esc(color) + '"></span><span class="mono">' + esc(color) + '</span>';
     }
     var logo = slots.YES_LOGO || {};
+    // A miniature of the slot as rendered everywhere else; the words name its state.
+    var logoMini = ui.logoHtml({ cls: 'help-logo-mini', size: 24, decorative: true });
+    var logoArt = logoMini.indexOf('yes-logo--art') !== -1;
     var slotRows = [
-      ['YES_LOGO', logo.svg ? esc(t('help.slots.logoSvg')) : '<span class="help-logo-mini" aria-hidden="true">' + esc(logo.text || '') + '</span><span>' + esc(t('help.slots.logoText', { text: logo.text || '' })) + '</span>'],
+      ['YES_LOGO', logoMini + '<span>' + esc(logoArt ? t('help.slots.logoSvg') : t('help.slots.logoText', { text: logo.text || t('brand.logoAlt') })) + '</span>'],
       ['YES_PRIMARY', swatch(slots.YES_PRIMARY)],
       ['YES_ACCENT', swatch(slots.YES_ACCENT)],
       ['YES_FONT', '<span class="mono help-slot__font">' + esc(slots.YES_FONT) + '</span>'],
@@ -831,11 +847,13 @@
     return '<div class="print-watermark' + (text.length > 24 ? ' print-watermark--long' : '') + '" aria-hidden="true">' + span + span + span + '</div>';
   }
 
-  /** The [YES_LOGO] slot as the masthead shows it: approved artwork when supplied, else the text placeholder. */
+  /**
+   * The [YES_LOGO] slot exactly as the masthead shows it (ui.logoHtml): approved
+   * artwork (SVG or data: image) when supplied, else the text placeholder, which
+   * 90-print.css prints as a boxed wordmark without a background fill.
+   */
   function printLogoHtml() {
-    var slot = YES.config.slots.YES_LOGO || {};
-    if (slot.svg) return '<span class="pr-logo pr-logo--art" data-slot="YES_LOGO" role="img" aria-label="' + esc(t('brand.logoAlt')) + '">' + slot.svg + '</span>';
-    return '<span class="pr-logo" data-slot="YES_LOGO">' + esc(slot.text || 'YES') + '</span>';
+    return ui.logoHtml({ cls: 'pr-logo', size: '28pt' });
   }
 
   /** A CSS string literal that is also safe inside a <style> element. */
@@ -973,11 +991,11 @@
             '</td><td><span class="pr-desc">' +
             esc(YES.L(tx.description)) +
             '</span><span class="pr-sub">' +
-            esc(YES.L(tx.counterparty)) +
+            ui.maskedHtml(YES.L(tx.counterparty)) +
             '</span>' +
             (parent ? '<span class="pr-sub">' + esc(t('help.print.feeFor', { ref: parent.reference })) + '</span>' : '') +
             '</td><td>' +
-            esc(ui.typeLabel(tx.type)) +
+            esc(ui.typeLabel(tx)) +
             '</td><td class="mono">' +
             esc(tx.reference) +
             '</td><td class="num">' +
@@ -1014,9 +1032,9 @@
               '</td><td><span class="pr-desc">' +
               esc(YES.L(tx.description)) +
               '</span><span class="pr-sub">' +
-              esc(YES.L(tx.counterparty)) +
+              ui.maskedHtml(YES.L(tx.counterparty)) +
               '</span></td><td>' +
-              esc(ui.typeLabel(tx.type)) +
+              esc(ui.typeLabel(tx)) +
               '</td><td class="mono">' +
               esc(tx.reference) +
               '</td><td><strong>' +
@@ -1098,9 +1116,9 @@
       '</p><p>' +
       esc(YES.L(s.account.label)) +
       ' <span class="mono">' +
-      esc(s.account.maskedId) +
+      ui.maskedHtml(s.account.maskedId) +
       '</span>' +
-      (s.account.walletMasked ? '<br />' + esc(t('help.print.wallet')) + ' <span class="mono">' + esc(s.account.walletMasked) + '</span>' : '') +
+      (s.account.walletMasked ? '<br />' + esc(t('help.print.wallet')) + ' <span class="mono">' + ui.maskedHtml(s.account.walletMasked) + '</span>' : '') +
       '</p><p class="pr-sub">' +
       esc(t('help.print.masked')) +
       '</p></div>' +
@@ -1333,7 +1351,7 @@
 
         'help.contact.tag': 'Placeholder destinations',
         'help.contact.lede': 'How you would reach YES about this statement.',
-        'help.contact.notConnected': 'These support destinations are placeholders and are not connected in this demo. You cannot call, email or chat with anyone from this file, and nothing you do here is sent.',
+        'help.contact.notConnected': 'These support destinations are placeholders and are not connected in this demo. You cannot call, email or chat with anyone from this file, and nothing you do here reaches a support team.',
         'help.contact.phone': 'Phone',
         'help.contact.email': 'Email',
         'help.contact.hours': 'Hours',
@@ -1469,7 +1487,7 @@
         'help.about.e.feedback.file': 'Kept only in this browser session. Nothing is sent.',
         'help.about.e.feedback.prod': 'An approved feedback service.',
         'help.about.e.analytics': 'Analytics',
-        'help.about.e.analytics.file': 'Nothing you do on this page is measured or sent.',
+        'help.about.e.analytics.file': 'The statement itself measures and sends nothing.',
         'help.about.e.analytics.prod': 'Approved, minimized engagement measurement.',
         'help.about.e.evidence': 'Reserve and blockchain evidence',
         'help.about.e.evidence.file': 'Illustrative layout: no reserve assertion and no live blockchain verification.',
@@ -1546,7 +1564,7 @@
 
         'help.contact.tag': 'Destinos provisionales',
         'help.contact.lede': 'Cómo te pondrías en contacto con YES sobre este estado de cuenta.',
-        'help.contact.notConnected': 'Estos destinos de soporte son marcadores de posición y no están conectados en esta demostración. Desde este archivo no puedes llamar, escribir ni chatear con nadie, y nada de lo que hagas aquí se envía.',
+        'help.contact.notConnected': 'Estos destinos de soporte son marcadores de posición y no están conectados en esta demostración. Desde este archivo no puedes llamar, escribir ni chatear con nadie, y nada de lo que hagas aquí llega a un equipo de soporte.',
         'help.contact.phone': 'Teléfono',
         'help.contact.email': 'Correo electrónico',
         'help.contact.hours': 'Horario',
@@ -1682,7 +1700,7 @@
         'help.about.e.feedback.file': 'Se guardan solo en esta sesión del navegador. No se envía nada.',
         'help.about.e.feedback.prod': 'Un servicio de opiniones aprobado.',
         'help.about.e.analytics': 'Analítica',
-        'help.about.e.analytics.file': 'Nada de lo que haces en esta página se mide ni se envía.',
+        'help.about.e.analytics.file': 'El propio estado de cuenta no mide ni envía nada.',
         'help.about.e.analytics.prod': 'Medición de uso aprobada y con datos mínimos.',
         'help.about.e.evidence': 'Pruebas de reservas y de blockchain',
         'help.about.e.evidence.file': 'Diseño ilustrativo: sin afirmaciones sobre reservas y sin verificación de blockchain en vivo.',

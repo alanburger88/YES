@@ -127,6 +127,15 @@
   function noStop(text) {
     return String(text == null ? '' : text).replace(/\.\s*$/, '');
   }
+  /** A string in every shipped language ({ en, es }), for labels another module renders later. */
+  function localised(key) {
+    var out = {};
+    YES.config.languages.forEach(function (l) {
+      var table = YES.i18n.dict[l];
+      if (table && table[key] != null) out[l] = table[key];
+    });
+    return out;
+  }
   function sumOf(list) {
     var s = 0;
     for (var i = 0; i < list.length; i++) s += list[i].amount;
@@ -330,10 +339,12 @@
     );
   }
 
-  function maskedHtml(value) {
+  /** A masked identifier with its "Masked" tag. The bullets are hidden from
+      assistive technology, which hears "ending in 7316" instead (ui.maskedHtml). */
+  function maskedValueHtml(value) {
     return (
       '<span class="mono">' +
-      esc(value) +
+      ui.maskedHtml(value) +
       '</span> <span class="tag ov-masked">' +
       ui.icon('lock', { size: 12 }) +
       '<span>' +
@@ -363,8 +374,8 @@
       ['overview.details.version', esc(s.version)],
       ['overview.details.status', esc(t('overview.issue.' + (s.issueStatus === 'corrected' ? 'corrected' : 'original')))],
       ['overview.details.account', esc(YES.L(s.account.label))],
-      ['overview.details.accountId', maskedHtml(s.account.maskedId)],
-      ['overview.details.wallet', maskedHtml(s.account.walletMasked)],
+      ['overview.details.accountId', maskedValueHtml(s.account.maskedId)],
+      ['overview.details.wallet', maskedValueHtml(s.account.walletMasked)],
       ['overview.details.asset', esc(t('overview.details.assetValue', { name: YES.L(a.name), symbol: a.symbol, precision: YES.fmt.count(a.precision) }))]
     ];
     var right = [
@@ -1643,6 +1654,24 @@
   /* ------------------------------------------------------------------ */
   /* 5. Personalized video placeholder                                   */
   /* ------------------------------------------------------------------ */
+  /**
+   * The [YES_LOGO] slot in the poster's top-left corner. Approved artwork (SVG
+   * markup or a data: image) comes from the shared slot helper, like the
+   * masthead and the print header, and keeps its own aspect ratio, left-aligned
+   * at the poster's lettering height. Without it, the poster draws its own
+   * text placeholder, inverted on the poster colours.
+   */
+  function posterLogoHtml() {
+    var art = ui.logoHtml({ cls: 'ov-poster__art', size: 24, decorative: true });
+    if (/\bov-poster__art--art\b/.test(art)) return '<foreignObject class="ov-poster__artbox" x="20" y="18" width="120" height="24">' + art + '</foreignObject>';
+    return (
+      '<rect class="ov-poster__logo" x="20" y="18" width="48" height="24" rx="6"/>' +
+      '<text class="ov-poster__logotext" x="44" y="35" text-anchor="middle">' +
+      esc(YES.config.slots.YES_LOGO.text || 'YES') +
+      '</text>'
+    );
+  }
+
   function posterHtml() {
     var slot = YES.config.slots.VIDEO_POSTER;
     // An approved poster may be packaged as a data: URI; anything else would be a network request.
@@ -1668,10 +1697,7 @@
       '<svg class="ov-poster__svg" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">' +
       '<rect class="ov-poster__bg" width="320" height="180"/>' +
       '<circle class="ov-poster__glow" cx="300" cy="-10" r="150"/>' +
-      '<rect class="ov-poster__logo" x="20" y="18" width="48" height="24" rx="6"/>' +
-      '<text class="ov-poster__logotext" x="44" y="35" text-anchor="middle">' +
-      esc(YES.config.slots.YES_LOGO.text || 'YES') +
-      '</text>' +
+      posterLogoHtml() +
       '<text class="ov-poster__hello" x="20" y="76">' +
       esc(t('overview.video.posterHello', { name: st().customer.firstName })) +
       '</text>' +
@@ -1877,7 +1903,7 @@
       esc(ui.typeLabel(p.tx)) +
       '</span></p>' +
       '<p class="ov-tip__meta">' +
-      esc(YES.L(p.tx.counterparty)) +
+      ui.maskedHtml(YES.L(p.tx.counterparty)) +
       '</p>' +
       '<p class="ov-tip__meta">' +
       esc(YES.fmt.date(p.iso, 'datetime')) +
@@ -2004,8 +2030,39 @@
   /* ------------------------------------------------------------------ */
   /* Actions                                                             */
   /* ------------------------------------------------------------------ */
-  function openTx(id, trigger) {
-    YES.explorer.openTx(id, { trigger: trigger });
+  function idOf(tx) {
+    return tx.id;
+  }
+  /** Posted transactions in the chart's (chronological) order. */
+  function runningIds() {
+    return YES.calc.running().map(function (p) {
+      return p.txId;
+    });
+  }
+  /**
+   * The list a transaction is opened from, in display order, so the detail's
+   * Previous / Next stay within it: the selected step's rows, the fee lines, or
+   * the running balance (chart points, its table, the low-data list). A single
+   * transaction (the pending notice, the insight) has no list of its own.
+   */
+  function listFor(el) {
+    if (!el || !el.closest) return null;
+    if (el.closest('.ov-chart, .ov-ctable, .ov-lowlist')) return runningIds();
+    if (el.closest('#ov-panel-section')) {
+      var info = selectionInfo(YES.state.journeyStep);
+      return info ? rowsFor(info.txIds).map(idOf) : null;
+    }
+    if (el.closest('.ov-fees')) {
+      var cat = YES.calc.category('fees');
+      return cat ? rowsFor(cat.txIds).map(idOf) : null;
+    }
+    return null;
+  }
+  function openTx(id, trigger, list) {
+    var opts = { trigger: trigger };
+    list = list || listFor(trigger);
+    if (list && list.length) opts.list = list;
+    YES.explorer.openTx(id, opts);
   }
 
   /** Hand over to the Transactions view with the given filter (fresh, not merged). */
@@ -2073,7 +2130,7 @@
         'overview.notIn.pendingN': '{n} pending transactions ({amount} in total) are not included in this balance.',
         'overview.notIn.other1': '1 transaction that is not posted ({amount}) is not included in this balance.',
         'overview.notIn.otherN': '{n} transactions that are not posted ({amount} in total) are not included in this balance.',
-        'overview.notIn.detail': '{description} · started {date}',
+        'overview.notIn.detail': '{description} · initiated {date}',
         'overview.notIn.view': 'View transaction',
         'overview.notIn.viewAll': 'Show them in Transactions',
         'overview.notIn.listLabel': 'Not included in this balance',
@@ -2422,7 +2479,9 @@
         var ids = YES.calc.notInBalance().map(function (tx) {
           return tx.id;
         });
-        YES.explorer.showRows(ids, t('overview.notIn.listLabel'));
+        // A { en, es } label: the explorer resolves it when it renders, so the
+        // chip follows a later language switch.
+        YES.explorer.showRows(ids, localised('overview.notIn.listLabel'));
         if (YES.state.view !== 'transactions') YES.nav.go('transactions');
       });
       ui.delegate(el, 'click', '[data-ov-learn]', function (e, b) {
@@ -2464,7 +2523,14 @@
       ui.delegate(el, 'click', '[data-ov-plot]', function (e) {
         if (e.target.closest('[data-ov-tx]')) return;
         var i = nearestAt(e.clientX, e.clientY);
-        if (i !== -1) openTx(chart.pts[i].id, pointButton(i));
+        if (i !== -1)
+          openTx(
+            chart.pts[i].id,
+            pointButton(i),
+            chart.pts.map(function (p) {
+              return p.id;
+            })
+          );
       });
       ui.delegate(el, 'keydown', '[data-ov-pt]', onPointKey);
       el.addEventListener('focusin', function (e) {

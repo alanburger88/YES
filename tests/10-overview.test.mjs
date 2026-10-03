@@ -111,7 +111,8 @@ async function spy(page) {
   await page.evaluate(() => {
     window.__calls = [];
     const fk = (o) => (o && o.trigger && o.trigger.getAttribute ? o.trigger.getAttribute('data-fk') : null);
-    YES.explorer.openTx = (id, o) => __calls.push({ fn: 'openTx', id, fk: fk(o) });
+    // list: the ids Previous / Next stay within (null: the explorer's default).
+    YES.explorer.openTx = (id, o) => __calls.push({ fn: 'openTx', id, fk: fk(o), list: (o && o.list) || null });
     YES.explorer.applyFilter = (f, o) => __calls.push({ fn: 'applyFilter', f, o });
     YES.explorer.showRows = (ids, label) => __calls.push({ fn: 'showRows', ids, label });
     YES.assistant.open = (ctx) => __calls.push({ fn: 'assistant', topic: ctx.topic, id: ctx.id || null });
@@ -222,9 +223,33 @@ export default async function (t) {
   const notin = norm(await page.locator('.ov-notin').innerText());
   t.assert(notin.includes('1 pending transaction (−30.00 EXUSD) is not included in this balance.'), 'pending notice: ' + notin);
   t.assert(notin.includes('Pending'), 'status chip with label');
+  t.assert(notin.includes('Redemption request awaiting bank settlement · initiated Sep 30, 2026'), 'detail names the date with the "Initiated" field name used elsewhere: ' + notin);
   await spy(page);
   await page.click('[data-fk="ov-notin-view"]');
-  t.eq(await calls(page), [{ fn: 'openTx', id: 'TX-260930-2247', fk: 'ov-notin-view' }], 'pending notice opens the pending transaction');
+  t.eq(await calls(page), [{ fn: 'openTx', id: 'TX-260930-2247', fk: 'ov-notin-view', list: null }], 'pending notice opens the pending transaction (a single transaction: no list of its own)');
+  // Several transactions outside the balance: "Show them in Transactions" hands
+  // the explorer a localised chip label, so the chip follows a language switch.
+  await page.evaluate(() => {
+    window.__orig = YES.data;
+    const copy = JSON.parse(JSON.stringify(YES.data));
+    const extra = Object.assign(JSON.parse(JSON.stringify(copy.transactions.find((x) => x.status === 'pending'))), { id: 'TX-260930-2350', seq: 17, status: 'failed', reference: 'REF-T3ST-0002' });
+    copy.transactions.push(extra);
+    YES.data = copy;
+    YES.renderAll();
+  });
+  t.assert(norm(await page.locator('.ov-notin').innerText()).includes('2 transactions that are not posted (−60.00 EXUSD in total)'), 'notice counts both');
+  await spy(page);
+  await page.click('[data-fk="ov-notin-all"]');
+  t.eq(
+    (await calls(page))[0],
+    { fn: 'showRows', ids: ['TX-260930-2247', 'TX-260930-2350'], label: { en: 'Not included in this balance', es: 'No incluidos en este saldo' } },
+    'Show them in Transactions passes the ids and a { en, es } label'
+  );
+  await page.evaluate(() => {
+    YES.data = window.__orig;
+    YES.renderAll();
+  });
+  await page.click('.nav__link[data-nav="overview"]');
 
   t.step('statement details');
   const details = page.locator('.ov-details');
@@ -235,6 +260,10 @@ export default async function (t) {
   for (const s of ['YES-STM-202609-000184', '1.0', 'Original', 'Period start', 'Period end', 'Statement as of', 'Generated', 'Timezone', 'EDT (America/New_York)', '•••• 7316', '0x5A…E19C', 'Masked', 'Posted date', 'Dates and totals use the posted date.', 'masked to protect your account']) {
     t.assert(dtext.includes(s), 'details include ' + s);
   }
+  const masked = await page.$$eval('.ov-details dd .mono', (els) =>
+    els.map((e) => ({ hidden: (e.querySelector('[aria-hidden="true"]') || {}).textContent || null, spoken: (e.querySelector('.sr-only') || {}).textContent || null }))
+  );
+  t.eq(masked[1], { hidden: '•••• 7316', spoken: 'ending in 7316' }, 'masked account number: bullets hidden from assistive technology, "ending in 7316" spoken');
   t.eq(await page.evaluate(() => YES.state.overview.details), true, 'details open state kept in YES.state');
   t.assert(!(await page.locator('.ov-details [data-reveal], .ov-details button').count()), 'no reveal control (feature flag off)');
   await shot(t, 'details', { fullPage: false });
@@ -340,7 +369,7 @@ export default async function (t) {
   t.step('row opens the transaction');
   await spy(page);
   await page.click('#ov-panel-section [data-ov-tx="TX-260909-2051"]');
-  t.eq(await calls(page), [{ fn: 'openTx', id: 'TX-260909-2051', fk: 'ov-tx-TX-260909-2051' }], 'openTx called with id and trigger');
+  t.eq(await calls(page), [{ fn: 'openTx', id: 'TX-260909-2051', fk: 'ov-tx-TX-260909-2051', list: expectIds }], 'openTx called with id, trigger and the step’s rows in display order');
 
   t.step('panel actions');
   await page.click('[data-fk="ov-panel-explain"]');
@@ -432,6 +461,11 @@ export default async function (t) {
   const ovEs = await noHorizontalOverflow(page);
   t.assert(ovEs.scroll, 'no horizontal scroll in Spanish');
   t.eq(ovEs.offenders, [], 'nothing overflows in Spanish');
+  t.eq(
+    await page.$$eval('.ov-tablebox .table-wrap', (els) => els.map((w) => Math.max(0, w.scrollWidth - w.clientWidth))),
+    [0, 0],
+    'the journey and running-balance tables fit their width in Spanish (no sideways scroll, down to 320px)'
+  );
   t.eq(await brokenWords(page, '.ov-jtable th[scope="row"] .ov-table__label, .ov-jtable th[scope="row"] .ov-table__sub'), [], 'table row headers wrap between words in Spanish');
   const esJourney = await journeyLayout(page);
   t.eq([esJourney.broken, esJourney.overlaps, esJourney.spill], [[], [], []], 'Spanish journey: no broken labels, collisions or spills');
@@ -503,9 +537,11 @@ export default async function (t) {
   t.assert(dodge.every((d) => d >= 6), 'same-time markers are dodged so both show: ' + dodge.join(', '));
   await page.keyboard.press('End');
   t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-ov-pt')), '14', 'End moves to the last point');
+  // Previous / Next in the detail follow the chart: every posted transaction, oldest first.
+  const chartOrder = await page.evaluate(() => YES.calc.posted().map((x) => x.id));
   await spy(page);
   await page.keyboard.press('Enter');
-  t.eq(await calls(page), [{ fn: 'openTx', id: 'TX-260929-1952', fk: 'ov-pt-TX-260929-1952' }], 'activating a point opens that transaction');
+  t.eq(await calls(page), [{ fn: 'openTx', id: 'TX-260929-1952', fk: 'ov-pt-TX-260929-1952', list: chartOrder }], 'activating a point opens that transaction within the chart’s order');
   if (wide) {
     const pt = await page.locator('[data-ov-pt="3"]').boundingBox();
     await page.mouse.move(pt.x + pt.width / 2 + 3, pt.y + 40);
@@ -515,14 +551,16 @@ export default async function (t) {
     t.assert(norm(await page.locator('.ov-tip').innerText()).includes('+1 more at the same time'), 'tooltip notes same-time transactions');
     await shot(t, 'chart-hover');
     await page.mouse.click(pt.x + pt.width / 2 + 3, pt.y + 40);
-    t.eq((await calls(page))[0].id, 'TX-260909-2051', 'clicking the plot opens the nearest transaction');
+    const plotCall = (await calls(page))[0];
+    t.eq([plotCall.id, plotCall.list], ['TX-260909-2051', chartOrder], 'clicking the plot opens the nearest transaction, within the chart’s order');
     await page.mouse.move(5, 5);
   }
   await page.click('[data-fk="ov-ctable"]');
   const crow = await page.$$eval('.ov-ctable tbody tr', (rows) => rows.length);
   t.eq(crow, 16, 'chart table: opening row + 15 posted rows');
   await page.click('.ov-ctable [data-ov-tx="TX-260912-0806"]');
-  t.eq((await calls(page))[0].id, 'TX-260912-0806', 'table rows open their transaction');
+  const tableCall = (await calls(page))[0];
+  t.eq([tableCall.id, tableCall.list], ['TX-260912-0806', chartOrder], 'table rows open their transaction, within the same order');
   await page.click('[data-fk="ov-chart-explain"]');
   t.eq((await calls(page))[0], { fn: 'assistant', topic: 'chart', id: null }, 'chart Explain with AI');
 
@@ -530,6 +568,9 @@ export default async function (t) {
   const fees = norm(await page.locator('.ov-fees').innerText());
   t.assert(fees.includes('−2.50 EXUSD') && fees.includes('3 fees') && fees.includes('Fees in other assets: none'), 'fees summary: ' + fees);
   t.eq(await page.locator('.ov-fees [data-ov-tx]').count(), 3, 'three fee lines');
+  const feeIds = await page.$$eval('.ov-fees [data-ov-tx]', (els) => els.map((e) => e.getAttribute('data-ov-tx')));
+  await page.click(`.ov-fees [data-ov-tx="${feeIds[1]}"]`);
+  t.eq((await calls(page))[0], { fn: 'openTx', id: feeIds[1], fk: 'ov-fee-' + feeIds[1], list: feeIds }, 'a fee line opens within the fee lines');
   await page.click('[data-fk="ov-fees-explain"]');
   t.eq((await calls(page))[0], { fn: 'assistant', topic: 'fees', id: null }, 'fees Explain with AI');
   const insight = norm(await page.locator('.ov-insight').innerText());
@@ -537,7 +578,7 @@ export default async function (t) {
   t.assert(insight.includes('+250.00 EXUSD') && insight.includes('September 1, 2026'), 'insight from calc.largest(): ' + insight);
   t.eq(await page.locator('.ov-insight, .ov-education, [class*="promo"]').count(), 1, 'at most one insight card');
   await page.click('[data-fk="ov-insight-view"]');
-  t.eq((await calls(page))[0].id, largest, 'insight opens the largest transaction');
+  t.eq((await calls(page))[0], { fn: 'openTx', id: largest, fk: 'ov-insight-view', list: null }, 'insight opens the largest transaction (no list of its own)');
   await page.click('[data-fk="ov-insight-learn"]');
   t.eq(await calls(page), [{ fn: 'openTopic', id: 'token_units' }], 'education link opens token units');
   await page.click('[data-fk="ov-fees-show"]');
@@ -594,6 +635,62 @@ export default async function (t) {
   await play.click();
   await page.click('[data-fk="ov-video-done"]');
   t.eq(await dlg.evaluate((d) => d.open), false, 'Close button closes');
+
+  t.step('poster draws the approved [YES_LOGO] artwork, like the masthead and print header');
+  const posterLogo = () =>
+    page.evaluate(() => {
+      const poster = document.querySelector('.ov-video__poster');
+      const svg = poster.querySelector('.ov-poster__svg');
+      const art = svg.querySelector('foreignObject .yes-logo--art.ov-poster__art--art');
+      const hello = svg.querySelector('.ov-poster__hello').getBoundingClientRect();
+      const r = art && (art.querySelector('svg, img') || art).getBoundingClientRect();
+      // Poster units (viewBox 0 0 320 180) to page pixels.
+      const m = svg.getScreenCTM();
+      return {
+        placeholder: svg.querySelectorAll('.ov-poster__logo, .ov-poster__logotext').length,
+        art: art ? (art.querySelector('img') ? 'img' : art.querySelector('svg') ? 'svg' : 'empty') : null,
+        hidden: art ? art.getAttribute('aria-hidden') === 'true' && !art.hasAttribute('role') : null,
+        // In the placeholder's corner (20, 18), at the lettering height, above the greeting, with its own aspect ratio.
+        box: r && {
+          corner: Math.abs(r.left - (m.a * 20 + m.e)) <= 1 && Math.abs(r.top - (m.d * 18 + m.f)) <= 1,
+          height: Math.round(r.height / m.d),
+          above: r.bottom <= hello.top,
+          ratio: Math.round((r.width / r.height) * 10) / 10
+        },
+        ink: art ? getComputedStyle(art).color === getComputedStyle(svg.querySelector('.ov-poster__hello')).fill : null
+      };
+    });
+  t.eq(await posterLogo(), { placeholder: 2, art: null, hidden: null, box: null, ink: null }, 'without artwork: the poster’s own text placeholder');
+  const before = t.external.length;
+  await page.evaluate(() => {
+    YES.config.slots.YES_LOGO.svg = '<svg viewBox="0 0 120 40" aria-hidden="true" focusable="false"><rect width="120" height="40" rx="8" fill="currentColor"/></svg>';
+    YES.renderAll();
+  });
+  t.eq(
+    await posterLogo(),
+    { placeholder: 0, art: 'svg', hidden: true, box: { corner: true, height: 24, above: true, ratio: 3 }, ink: true },
+    'approved SVG replaces the placeholder: in its corner, 24 units high, 3:1 kept, poster ink for currentColor'
+  );
+  await page.evaluate(() => document.querySelector('.ov-video').scrollIntoView({ block: 'center' }));
+  await shot(t, 'poster-logo-art', { fullPage: false });
+  await page.evaluate(() => {
+    delete YES.config.slots.YES_LOGO.svg;
+    YES.config.slots.YES_LOGO.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 90 30%22%3E%3Crect width=%2290%22 height=%2230%22 fill=%22%23fff%22/%3E%3C/svg%3E';
+    YES.renderAll();
+  });
+  const dataLogo = await posterLogo();
+  t.eq([dataLogo.placeholder, dataLogo.art, dataLogo.box && dataLogo.box.height], [0, 'img', 24], 'a data: image is drawn the same way');
+  await page.evaluate(() => {
+    YES.config.slots.YES_LOGO.src = 'https://cdn.example.com/logo.png';
+    YES.renderAll();
+  });
+  t.eq((await posterLogo()).placeholder, 2, 'an image URL that would fetch is ignored: the placeholder stays');
+  await page.evaluate(() => {
+    delete YES.config.slots.YES_LOGO.src;
+    YES.renderAll();
+  });
+  t.eq(t.external.slice(before).filter((u) => /example\.com/.test(u)), [], 'no request for a logo URL');
+  t.eq((await posterLogo()).placeholder, 2, 'placeholder restored');
 
   /* ------------------------------------------------------------ layout & a11y */
   t.step('no horizontal scroll');
@@ -793,6 +890,22 @@ export default async function (t) {
       t.assert(card, 'balance card figures and actions stay inside the card at ' + where);
       t.eq(await axisCollisions(page), [], 'chart axis labels do not collide at ' + where);
     }
+    t.step('the narrowest waterfall (a 55rem column) keeps every label whole');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    for (const lang of ['en', 'es']) {
+      await fresh(t, '#/overview/transfers_out');
+      if (lang === 'es') await page.click('[data-lang="es"]');
+      await page.evaluate(() => (document.getElementById('ov-journey-body').style.width = '55rem'));
+      await page.waitForTimeout(200);
+      const L = await journeyLayout(page);
+      // spill: a label wider than its step's column would run into the next step.
+      t.eq([L.layout, L.broken, L.overlaps, L.spill, L.valueRows], ['waterfall', [], [], [], 1], `${lang}, ${L.width}px column: no broken labels, collisions or spills`);
+      if (lang === 'es') {
+        await page.evaluate(() => document.getElementById('ov-journey-title').scrollIntoView());
+        await shot(t, 'waterfall-narrowest-es', { fullPage: false });
+      }
+    }
+
     t.step('docking while the panel has focus keeps focus');
     await page.setViewportSize({ width: 1280, height: 900 });
     await fresh(t, '#/overview/transfers_out');

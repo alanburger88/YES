@@ -349,11 +349,17 @@
       '<span>' +
       esc(t('inquiry.backToTx')) +
       '</span></button>' +
+      // The page behind this modal is inert, so the inquiry carries its own
+      // language switch (handled globally): it re-renders in place, same step,
+      // same answers, focus kept on the pressed language.
+      '<div class="inq-head__tools">' +
+      ui.langSwitchHtml({ fk: 'inq-lang', compact: true }) +
       '<button type="button" class="btn btn--icon btn--ghost inq-head__close" data-inq-close data-fk="inq-close" aria-label="' +
       esc(t(done ? 'inquiry.closeDone' : 'inquiry.closeDraft')) +
       '">' +
       ui.icon('close', { size: 20 }) +
       '</button>' +
+      '</div>' +
       '</div>' +
       '<div class="inq-head__titlebar">' +
       '<h2 id="inquiry-dialog-title" class="dlg__title inq-head__title" tabindex="-1" data-fk="inq-title">' +
@@ -393,7 +399,8 @@
   /** The transaction carried into the inquiry: label, counterparty, date, signed amount, reference. */
   function txCardHtml(tx) {
     var pending = !YES.calc.inBalance(tx);
-    var rows = kvRow(t('inquiry.tx.counterparty'), esc(YES.L(tx.counterparty)));
+    // Masked identifiers ("•••• 4821") are heard as "ending in 4821", never as bullets.
+    var rows = kvRow(t('inquiry.tx.counterparty'), ui.maskedHtml(YES.L(tx.counterparty)));
     if (tx.postedAt) {
       rows += kvRow(t('term.postedDate'), esc(dateTime(tx.postedAt)));
     } else {
@@ -416,7 +423,7 @@
     }
     if (tx.parentId) {
       var parent = YES.calc.tx(tx.parentId);
-      if (parent) rows += kvRow(t('inquiry.tx.feeFor'), esc(YES.L(parent.description)));
+      if (parent) rows += kvRow(t('inquiry.tx.feeFor'), ui.maskedHtml(YES.L(parent.description)));
     }
     rows += kvRow(t('inquiry.tx.reference'), '<span class="mono" data-inq-txref>' + esc(tx.reference || '') + '</span>');
     rows += kvRow(t('inquiry.tx.id'), '<span class="mono">' + esc(tx.id) + '</span>');
@@ -433,9 +440,9 @@
       ui.icon(ui.typeIcon(tx.type), { size: 18 }) +
       '</span>' +
       '<div class="inq-tx__name" id="inq-tx-name"><span class="inq-tx__type">' +
-      esc(ui.typeLabel(tx.type)) +
+      esc(ui.typeLabel(tx)) +
       '<span class="sr-only">: </span></span><span class="inq-tx__desc">' +
-      esc(YES.L(tx.description)) +
+      ui.maskedHtml(YES.L(tx.description)) +
       '</span></div>' +
       '<p class="inq-tx__amount">' +
       ui.amountHtml(tx.amount) +
@@ -716,9 +723,9 @@
   function txSummaryHtml(tx) {
     return (
       '<span class="inq-review__strong">' +
-      esc(ui.typeLabel(tx.type)) +
+      esc(ui.typeLabel(tx)) +
       ' · ' +
-      esc(YES.L(tx.description)) +
+      ui.maskedHtml(YES.L(tx.description)) +
       '</span><span>' +
       ui.amountHtml(tx.amount) +
       '<span class="inq-sep" aria-hidden="true"> · </span><span class="sr-only">, </span>' +
@@ -1184,6 +1191,9 @@
       }
     }
     els.dlg.removeAttribute('data-step');
+    // No stale controls (a second language switch) or old-language text left in
+    // the closed dialog: start() renders it afresh from state.
+    if (els.shell) els.shell.textContent = '';
     // If focus was not returned (trigger hidden or gone), land on the current view's heading.
     setTimeout(function () {
       var a = doc.activeElement;

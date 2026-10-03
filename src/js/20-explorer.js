@@ -1465,6 +1465,12 @@
   /* ------------------------------------------------------------------ */
   /* Public filter API                                                   */
   /* ------------------------------------------------------------------ */
+  /**
+   * opts: reset (start from the default filters), navigate (default true: go to
+   * Transactions), focus ('results' | 'heading' | false), announce (default
+   * true: announce the result count; false for a caller that announces its own
+   * summary, so the count does not talk over it).
+   */
   function applyFilter(partial, opts) {
     partial = partial || {};
     opts = opts || {};
@@ -1491,7 +1497,8 @@
       if (focus === 'results') focusResults();
       else if (focus === 'heading') ui.focusView('transactions');
     }
-    announceCount(navigate ? 120 : 0);
+    if (opts.announce !== false) announceCount(navigate ? 120 : 0);
+    else clearTimeout(timers.announce); // nor may a count still queued from earlier typing talk over the caller
     return filtered();
   }
 
@@ -1834,7 +1841,8 @@
       '<div class="dlg__head tx-dlg__head">' +
       dirIcon(tx) +
       '<div class="tx-dlg__headtext"><p class="tx-dlg__eyebrow">' +
-      esc(t('explorer.dlg.eyebrow', { type: ui.typeLabel(tx), date: tx.postedAt ? YES.fmt.date(tx.postedAt, 'medium') : statusLabel(statusOf(tx)) })) +
+      // The date never splits across lines beside the language switch on a narrow sheet.
+      esc(t('explorer.dlg.eyebrow', { type: ui.typeLabel(tx), date: tx.postedAt ? YES.fmt.date(tx.postedAt, 'medium').replace(/\s/g, ' ') : statusLabel(statusOf(tx)) })) +
       '</p><h2 id="tx-dialog-title" class="dlg__title" tabindex="-1" data-fk="txd-title">' +
       esc(YES.L(tx.description)) +
       '</h2></div>' +
@@ -1951,10 +1959,14 @@
    *                   if opening it added a history entry, step back over it, so
    *                   the browser's Back and the close button agree;
    *   how 'replace' — closed by code or by a navigation: rewrite the address.
+   * Either way only the closed transaction's own address is touched: one that
+   * names another transaction (a newer link still waiting for its 'hashchange')
+   * belongs to that navigation and is left for it to open.
    */
   function settleClosed(how) {
     if (!els.dlg || els.dlg.open) return; // re-opened before a late 'close' event arrived
     if (YES.state.selectedTx === null && !els.dlg.hasAttribute('data-tx')) return;
+    var closedId = els.dlg.getAttribute('data-tx') || YES.state.selectedTx;
     YES.set({ selectedTx: null });
     els.dlg.removeAttribute('data-tx');
     // No stale controls (language switch, copy buttons) linger in the closed dialog.
@@ -1964,7 +1976,7 @@
     var pushed = hist.pushed;
     hist.pushed = false;
     var cur = YES.nav.current();
-    if (cur.view !== 'transactions' || !cur.param) return;
+    if (cur.view !== 'transactions' || !cur.param || cur.param !== closedId) return;
     if (how === 'back' && pushed && root.history && typeof root.history.back === 'function') root.history.back();
     else YES.nav.setParam(null);
   }
@@ -2351,23 +2363,30 @@
         var v = k === 'ref' ? tx.reference : k === 'id' ? tx.id : k === 'hash' && tx.onchain ? tx.onchain.hash : '';
         if (v) ui.copy(v);
       });
-      ui.delegate(d, 'click', '[data-txd-ask]', function (e, b) {
-        YES.inquiry.start(b.getAttribute('data-txd-ask'), { trigger: b });
-      });
-      // "Explain with AI" hands over to the assistant: the detail closes first so the
-      // drawer is never left behind a modal, and closing the drawer returns focus to
-      // the row that opened the detail.
-      ui.delegate(d, 'click', '[data-explain]', function (e, b) {
-        e.preventDefault();
-        e.stopPropagation();
-        var ctx = { topic: b.getAttribute('data-explain'), id: b.getAttribute('data-explain-id') || null };
+      // "Ask about this transaction" and "Explain with AI" hand over to another
+      // dialog: the detail closes itself first (stepping back over its history
+      // entry, as when the customer closes it), so the next dialog is never left
+      // behind a modal, and focus later returns to the control that opened the
+      // detail, or else to the transaction's row ("Back to transaction" in the
+      // inquiry reopens the detail from there).
+      var handOver = function (id) {
         var back = ui.dialogTrigger(d);
-        var row = rowButton(ctx.id);
+        var row = rowButton(id);
         if (!visible(back) && visible(row)) back = row;
         closing = true;
         ui.closeDialog(d, { returnFocus: false });
         settleClosed('back');
-        YES.assistant.open({ topic: ctx.topic, id: ctx.id, trigger: visible(back) ? back : null });
+        return visible(back) ? back : null;
+      };
+      ui.delegate(d, 'click', '[data-txd-ask]', function (e, b) {
+        var id = b.getAttribute('data-txd-ask');
+        YES.inquiry.start(id, { trigger: handOver(id) });
+      });
+      ui.delegate(d, 'click', '[data-explain]', function (e, b) {
+        e.preventDefault();
+        e.stopPropagation();
+        var ctx = { topic: b.getAttribute('data-explain'), id: b.getAttribute('data-explain-id') || null };
+        YES.assistant.open({ topic: ctx.topic, id: ctx.id, trigger: handOver(ctx.id) });
       });
     }
 
@@ -2587,7 +2606,7 @@
         'explorer.dlg.posted': 'Posted',
         'explorer.dlg.notPosted': 'Not posted — pending at the statement cut-off',
         'explorer.dlg.initiated': 'Initiated',
-        'explorer.dlg.prevPeriodNote': 'Started in the previous period. It belongs to this statement because statements use the posted date.',
+        'explorer.dlg.prevPeriodNote': 'Initiated in the previous period. It belongs to this statement because statements use the posted date.',
         'explorer.dlg.type': 'Type',
         'explorer.dlg.eventType': 'Event type',
         'explorer.dlg.rail': 'Rail and method',

@@ -60,7 +60,7 @@ To see the reconciliation guard at work, open `dist/yes-statement.html#/overview
 
 All brand, legal, support and integration values live in `src/js/00-config.js`:
 
-- **Brand and legal slots:** `YES_LOGO`, `YES_PRIMARY`, `YES_ACCENT`, `YES_FONT`, `PRODUCT_NAME`, `ISSUER_OR_PARTNER`, `VIDEO_POSTER` and `DISCLOSURES`.
+- **Brand and legal slots:** `YES_LOGO`, `YES_PRIMARY`, `YES_ACCENT`, `YES_FONT`, `PRODUCT_NAME`, `ISSUER_OR_PARTNER`, `VIDEO_POSTER` and `DISCLOSURES`. For the logo, set `YES_LOGO.svg` to approved SVG markup, or `YES_LOGO.src` to a `data:` image. Until then, a text placeholder is shown. The shared helper `YES.ui.logoHtml()` renders the slot.
 - **Support destinations:** fictional placeholders for now.
 - **Feature flags**
 - **Locale tags:** Spanish defaults to `es-ES` formatting. Change it to `es-US` or `es-MX` for audiences in the Americas.

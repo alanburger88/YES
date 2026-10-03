@@ -77,6 +77,13 @@ export default async function (t) {
     if ((await more.count()) && (await more.getAttribute('aria-expanded')) === 'false') await more.click();
     return latestRows();
   };
+  // Text as assistive technology gets it: aria-hidden parts left out, sr-only kept.
+  const spokenText = (sel) =>
+    page.$eval(sel, (el) => {
+      const c = el.cloneNode(true);
+      c.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove());
+      return c.textContent.replace(/\s+/g, ' ');
+    });
   const ctxText = async () => norm(await page.locator('#assistant-drawer [data-asst-ctx] [aria-hidden="true"], #assistant-drawer [data-asst-ctx]').first().textContent());
   const openCtx = async (topic, id) => {
     await page.evaluate(([tp, i]) => YES.assistant.open({ topic: tp, id: i, trigger: document.querySelector('[data-ask]') }), [topic, id || null]);
@@ -146,7 +153,7 @@ export default async function (t) {
         draftFor: YES.inquiry.draftFor
       };
       const fk = (o) => (o && o.trigger && o.trigger.getAttribute ? o.trigger.getAttribute('data-fk') : null);
-      YES.explorer.openTx = (id, o) => __calls.push({ fn: 'openTx', id, fk: fk(o) });
+      YES.explorer.openTx = (id, o) => __calls.push({ fn: 'openTx', id, fk: fk(o), list: o && o.list ? o.list : null });
       YES.inquiry.start = (id, o) => __calls.push({ fn: 'inquiry', id, fk: fk(o) });
       YES.explorer.showRows = (ids, label) => __calls.push({ fn: 'showRows', ids, label });
       YES.help.open = (s) => __calls.push({ fn: 'help', s });
@@ -196,6 +203,15 @@ export default async function (t) {
     });
     t.eq([r.x, r.y, r.w, r.h], [0, 0, r.vw, r.vh], 'sheet covers the full viewport');
   }
+  const headSwitch = page.locator('#assistant-drawer .asst__head [data-lang]');
+  if (wide) t.eq(await headSwitch.count(), 0, "docked: no second language switch (the masthead's is beside the drawer)");
+  else {
+    t.eq(await headSwitch.count(), 2, 'modal sheet: the header has its own language switch (the masthead behind it is inert)');
+    t.assert(await page.locator('#assistant-drawer [data-lang="es"]').isVisible(), 'the switch is visible');
+    t.eq(await page.getAttribute('#assistant-drawer [data-lang="en"]', 'aria-pressed'), 'true', 'the current language is pressed');
+    t.eq(await page.getAttribute('#assistant-drawer .asst__head .seg', 'aria-label'), await page.evaluate(() => YES.t('lang.label')), 'the switch is a named group');
+    t.eq(await page.locator('#assistant-drawer').getByRole('button', { name: 'Español', exact: true }).count(), 1, 'its buttons are named by the language');
+  }
   const head = norm(await page.locator('#assistant-drawer .asst__head').innerText());
   t.assert(head.includes('Demo explanation'), 'header shows the "Demo explanation" label');
   t.assert(await page.locator('#assistant-drawer .asst__head .tag--ai').isVisible(), 'demo tag visible');
@@ -233,6 +249,7 @@ export default async function (t) {
   t.assert(!(await page.evaluate(() => document.documentElement.classList.contains('assistant-docked'))), 'docked class removed');
   t.assert(!(await page.evaluate(() => document.documentElement.classList.contains('has-modal'))), 'has-modal cleared');
   t.eq(await page.evaluate(() => YES.state.assistant.open), false, 'state records closed');
+  t.eq(await page.locator('#assistant-drawer [data-lang]').count(), 0, 'no language controls are left in the closed drawer');
 
   t.step('close button');
   await page.click('[data-ask]');
@@ -265,6 +282,20 @@ export default async function (t) {
     t.assert((await latestText()).includes('Illustrative reference — no live blockchain verification'), '"Explain with AI" from the detail adds the transaction answer');
     t.assert(await activeInDrawer(), 'focus is in the drawer after the hand-off');
     await page.keyboard.press('Escape');
+    await waitClosed();
+
+    // Previous / Next in the detail walk the explanation's rows, also those behind "Show all".
+    await openCtx('balance');
+    const postedIds = await page.evaluate(() => YES.calc.posted().map((x) => x.id));
+    t.eq((await latestRows()).length, 6, 'the balance answer previews six of its rows');
+    await page.click(`${LATEST} [data-asst-tx="${postedIds[5]}"]`);
+    await page.waitForFunction(() => document.getElementById('tx-dialog').open, null, { timeout: 3000 });
+    await page.click('#tx-dialog [data-fk="txd-next"]');
+    await page.waitForFunction((id) => YES.state.selectedTx === id, postedIds[6], { timeout: 3000 }).catch(() => {});
+    t.eq(await page.evaluate(() => YES.state.selectedTx), postedIds[6], 'Next from the sixth row goes on to the seventh supporting row');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.getElementById('tx-dialog').open, null, { timeout: 3000 });
+    await page.evaluate(() => YES.assistant.close({ returnFocus: false }));
     await waitClosed();
 
     // The rows chip in Transactions follows a later language switch.
@@ -333,7 +364,11 @@ export default async function (t) {
 
   await page.click(LATEST + ' [data-asst-tx="TX-260903-1127"]');
   let c = await calls();
-  t.eq(c, [{ fn: 'openTx', id: 'TX-260903-1127', fk: `asst-${sid}-tx-TX-260903-1127` }], 'supporting row opens the transaction with the row as trigger');
+  t.eq(
+    c,
+    [{ fn: 'openTx', id: 'TX-260903-1127', fk: `asst-${sid}-tx-TX-260903-1127`, list: TRANSFERS_OUT }],
+    "supporting row opens the transaction with the row as trigger, and the explanation's rows as its Previous / Next list"
+  );
   t.assert(await isOpen(), 'drawer stays open behind the transaction detail');
   await page.click(LATEST + ' [data-asst-rows]');
   c = await calls();
@@ -359,6 +394,18 @@ export default async function (t) {
   t.eq(await latestRows(), ['TX-260909-2051', 'TX-260909-2052'], 'rows: the transfer and its fee');
   t.assert(await page.locator(LATEST + ' .tag--illustrative').isVisible(), 'illustrative tag on on-chain details');
   t.assert((await ctxText()).includes('Sent to an external wallet on a blockchain network · Sep 9 · −200.00 EXUSD'), 'context chip names the transaction, date and amount');
+  await calls();
+  await page.click(LATEST + ' [data-asst-tx="TX-260909-2052"]');
+  t.eq((await calls()).map((x) => x.list), [['TX-260909-2051', 'TX-260909-2052']], 'the fee row opens with the transfer and its fee as the list');
+
+  t.step('transaction: memo and a lone row');
+  await openCtx('transaction', 'TX-260903-1127');
+  const mid = await lastId();
+  t.assert((await latestText()).includes('Your note on it: “Rent share”.'), "the customer's own note, as written");
+  t.eq(await page.locator(LATEST + ' .asst-ans__text [lang]').count(), 0, 'no lang attribute while the page is in the statement language');
+  t.eq(await latestRows(), ['TX-260903-1127'], 'one supporting row');
+  await page.click(LATEST + ' [data-asst-tx="TX-260903-1127"]');
+  t.eq(await calls(), [{ fn: 'openTx', id: 'TX-260903-1127', fk: `asst-${mid}-tx-TX-260903-1127`, list: null }], 'a lone row passes no list (the detail keeps its own order)');
 
   t.step('transaction: inquiry route');
   await openCtx('transaction', 'TX-260924-1327');
@@ -401,6 +448,8 @@ export default async function (t) {
   t.assert(tx.includes('still pending at the statement cut-off'), 'pending at cut-off');
   t.assert(tx.includes('not included in the statement balance of 1,147.50 EXUSD'), 'not in balance');
   t.assert(tx.includes('Pending, not included in statement balance'), 'row states pending explicitly');
+  const pmeta = norm(await page.locator(LATEST + ' [data-asst-tx="TX-260930-2247"] .asst-row__meta').innerText());
+  t.assert(pmeta.includes('Redemption requested') && !pmeta.includes('Redeemed'), `a pending redemption is "Redemption requested", not "Redeemed" (${pmeta})`);
   t.assert(tx.includes('was initiated on September 30, 2026'), 'initiated date named as in Transactions');
   const pfigs = await page.$$eval(LATEST + ' .asst-figs th', (els) => els.map((e) => e.textContent.trim()));
   t.assert(pfigs.includes('Initiated') && pfigs.includes('Rail and method'), `figure labels match Transactions: "Initiated", "Rail and method" (${pfigs.join(' | ')})`);
@@ -410,6 +459,15 @@ export default async function (t) {
   await openCtx('transaction', 'TX-260901-0418');
   tx = await latestText();
   t.assert(tx.includes('in the previous period') && tx.includes('Statements use the posted date'), 'posted-date rule');
+  t.assert(tx.includes('Linked bank account •••• 4821'), 'the masked account is shown as on the statement');
+  const cpCell = await page.$eval(LATEST + ' .asst-figs', (el) => {
+    const row = Array.from(el.querySelectorAll('tr')).find((r) => r.querySelector('th').textContent.trim() === 'Counterparty');
+    const td = row && row.querySelector('td');
+    return td ? { hidden: (td.querySelector('[aria-hidden="true"]') || {}).textContent, spoken: (td.querySelector('.sr-only') || {}).textContent } : null;
+  });
+  t.eq(cpCell, { hidden: '•••• 4821', spoken: 'ending in 4821' }, 'bullets hidden from assistive technology, "ending in 4821" spoken');
+  const sp = await spokenText(LATEST);
+  t.assert(sp.includes('Linked bank account ending in 4821') && !sp.includes('•'), 'screen readers hear "Linked bank account ending in 4821", never the bullets');
 
   t.step('transaction: unknown id');
   await openCtx('transaction', 'TX-999999-9999');
@@ -426,6 +484,11 @@ export default async function (t) {
   t.assert(bal.includes('1 transaction of 30.00 EXUSD was still pending'), 'pending excluded');
   t.assert(norm(await page.locator(LATEST + ' .asst-sum').textContent()).includes('1,000.00 + 500.00 + 200.00 − 450.00 − 100.00 − 2.50 = 1,147.50 EXUSD'), 'bridge arithmetic');
   t.eq((await latestRows()).length, 6, 'first six of the posted rows shown');
+  const posted = await page.evaluate(() => YES.calc.posted().map((x) => x.id));
+  const sixth = (await latestRows())[5];
+  await calls();
+  await page.click(`${LATEST} [data-asst-tx="${sixth}"]`);
+  t.eq((await calls()).map((x) => x.list), [posted], 'the list holds all 15 rows, also those not shown yet, so Next goes on to the seventh');
   t.eq(await page.getAttribute(LATEST + ' [data-asst-more]', 'aria-expanded'), 'false', 'more rows collapsed');
   await page.click(LATEST + ' [data-asst-more]');
   t.eq((await latestRows()).length, 15, 'all 15 posted rows after expanding');
@@ -471,6 +534,9 @@ export default async function (t) {
   t.assert((await latestText()).includes('TX-260901-0418 was initiated on August 31, 2026, in the previous period'), 'deposits explain the prior-period posting');
   await openCtx('step', 'redemptions');
   t.assert((await latestText()).includes('A further 30.00 EXUSD (1 transaction) was pending'), 'redemptions mention the pending one');
+  t.assert(norm(await page.locator(LATEST + ' [data-asst-tx="TX-260920-0900"] .asst-row__meta').innerText()).includes('Redeemed'), 'a posted redemption is "Redeemed"');
+  const thread = await spokenText('#assistant-drawer .asst-thread');
+  t.assert(!thread.includes('•') && thread.includes('ending in 4821'), 'no masked identifier anywhere in the thread is read out as bullets');
 
   /* ------------------------------------------------------------------ */
   t.step('education topics');
@@ -730,6 +796,9 @@ export default async function (t) {
   t.eq(norm(await page.locator(`#asst-turn-${esId} .asst-ans__title`).innerText()).trim(), 'What you paid in fees', 'an explicit language choice wins: every answer follows the page');
   t.eq(await page.getAttribute(`#asst-turn-${esId} .asst-you`, 'lang'), 'es', "the visitor's own Spanish words keep lang=\"es\"");
   t.eq(await page.locator('#assistant-drawer [data-asst-lang]').count(), 0, 'no offer after an explicit switch');
+  await typeAsk('¿Qué es TX-260903-1127?');
+  t.eq(await page.getAttribute(LATEST, 'lang'), 'es', 'a Spanish question about a transaction is answered in Spanish');
+  t.eq(norm(await page.locator(LATEST + ' .asst-ans__text [lang="en"]').innerText()), 'Rent share', 'inside it, the English note keeps lang="en"');
 
   /* ------------------------------------------------------------------ */
   t.step('language switch re-renders the thread');
@@ -741,9 +810,17 @@ export default async function (t) {
   await page.evaluate(() => document.querySelector('#assistant-drawer .asst__body').scrollTo(0, 0));
   const idsBefore = await page.evaluate(() => YES.state.assistant.thread.map((e) => e.id));
   if (wide) await page.click('[data-lang="es"]');
-  else await page.evaluate(() => YES.setLang('es'));
+  else await page.click('#assistant-drawer [data-lang="es"]'); // the masthead is inert behind the sheet
   await page.waitForFunction(() => document.documentElement.lang === 'es');
   t.assert(await isOpen(), 'drawer stays open');
+  if (!wide) {
+    await waitFocusFk('asst-lang-es');
+    t.eq(await activeFk(), 'asst-lang-es', 'focus stays on the switch in the drawer');
+    t.eq(await page.getAttribute('#assistant-drawer [data-lang="es"]', 'aria-pressed'), 'true', 'Español is pressed');
+    const changed = await page.evaluate(() => YES.t('lang.changed'));
+    await page.waitForFunction((m) => window.__politeText() === m, changed, { timeout: 2000 }).catch(() => {});
+    t.eq(await page.evaluate(() => window.__politeText()), changed, 'the change is announced inside the drawer');
+  }
   t.eq(await page.evaluate(() => YES.state.assistant.thread.map((e) => e.id)), idsBefore, 'thread preserved');
   t.eq(norm(await page.locator('#asst-title').innerText()).trim(), 'Pregunta a YES', 'heading translated');
   t.assert(norm(await page.locator('#assistant-drawer .asst__head').innerText()).includes('Explicación de demostración'), 'demo label translated');
@@ -751,6 +828,7 @@ export default async function (t) {
   t.assert(all.includes('Transferencias enviadas: −450,00 EXUSD'), 'earlier step answer re-rendered with 450,00');
   t.assert(all.includes('No puedo mover dinero ni iniciar movimientos'), 'refusal re-rendered in Spanish');
   t.assert(all.includes('send 50 to Daniel'), "visitor's own words kept verbatim");
+  t.eq(norm(await page.locator('#assistant-drawer .asst-thread .asst-ans__text [lang="en"]').first().innerText()), 'Rent share', 'in Spanish, the customer\'s English note is marked lang="en"');
   t.assert(!all.includes('Outgoing transfers:'), 'no English answer left behind');
   t.eq(await page.inputValue('#asst-input'), 'draft question', 'draft survives the switch');
   t.eq(await page.getAttribute(`[data-fk="asst-${fid2}-fb-no"]`, 'aria-pressed'), 'true', 'feedback survives the switch');
@@ -765,7 +843,7 @@ export default async function (t) {
   await axeOk('Spanish');
   await shot('es');
   if (wide) await page.click('[data-lang="en"]');
-  else await page.evaluate(() => YES.setLang('en'));
+  else await page.click('#assistant-drawer [data-lang="en"]');
   await page.waitForFunction(() => document.documentElement.lang === 'en');
   t.assert(norm(await page.locator('#assistant-drawer .asst-thread').innerText()).includes('Outgoing transfers: −450.00 EXUSD'), 'back to English');
 
@@ -813,7 +891,7 @@ export default async function (t) {
     d.id = 'probe-dlg';
     d.className = 'dlg';
     d.setAttribute('aria-labelledby', 'probe-h');
-    d.innerHTML = '<div class="dlg__body"><h2 id="probe-h">Probe dialog</h2><button type="button" class="btn" id="probe-explain" data-explain="transaction" data-explain-id="TX-260909-2051">Explain</button></div>';
+    d.innerHTML = '<div class="dlg__body"><h2 id="probe-h">Probe dialog</h2><button type="button" class="btn" id="probe-explain" data-fk="probe-explain" data-explain="transaction" data-explain-id="TX-260909-2051">Explain</button></div>';
     document.body.appendChild(d);
     YES.ui.openDialog(d, { trigger: document.querySelector('[data-ask]'), initialFocus: '#probe-explain' });
   });
@@ -823,11 +901,24 @@ export default async function (t) {
   t.assert(await isModal(), 'stacked drawer is modal (interactive above the other dialog)');
   t.assert(await activeInDrawer(), 'focus inside the stacked drawer');
   t.assert((await latestText()).includes('Illustrative reference — no live blockchain verification'), 'stacked drawer shows the transaction answer');
+  t.eq(await page.locator('#assistant-drawer .asst__head [data-lang]').count(), 2, 'stacked: the drawer carries its own language switch');
   await page.keyboard.press('Escape');
   await waitClosed();
   t.assert(await page.evaluate(() => document.getElementById('probe-dlg').open), 'the underlying dialog stays open');
   await page.waitForFunction(() => document.activeElement && document.activeElement.id === 'probe-explain', null, { timeout: 2000 }).catch(() => {});
   t.eq(await page.evaluate(() => document.activeElement.id), 'probe-explain', 'focus returns inside the underlying dialog');
+  // A supporting row hands back to the dialog beneath, with the explanation's rows.
+  await page.click('#probe-explain');
+  await waitOpen();
+  await calls();
+  await page.click(LATEST + ' [data-asst-tx="TX-260909-2052"]');
+  await waitClosed();
+  t.eq(
+    await calls(),
+    [{ fn: 'openTx', id: 'TX-260909-2052', fk: 'probe-explain', list: ['TX-260909-2051', 'TX-260909-2052'] }],
+    'stacked: a row closes the drawer and opens the detail with the same list, returning to the dialog beneath'
+  );
+  await page.focus('#probe-explain');
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => !document.getElementById('probe-dlg').open);
   await page.evaluate(() => document.getElementById('probe-dlg').remove());
@@ -852,6 +943,16 @@ export default async function (t) {
     t.assert(await activeInDrawer(), 'focus moves into the modal drawer');
     await axeOk('900px modal');
     await shot('tablet');
+    t.eq(await page.locator('#assistant-drawer .asst__head [data-lang]').count(), 2, 'the modal drawer has its own language switch');
+    await page.click('#assistant-drawer [data-lang="es"]');
+    await page.waitForFunction(() => document.documentElement.lang === 'es');
+    t.eq(norm(await page.locator('#asst-title').innerText()).trim(), 'Pregunta a YES', 'switching inside the drawer translates it in place');
+    t.eq(await mode(), 'modal', 'the drawer stays open, still modal');
+    await waitFocusFk('asst-lang-es');
+    t.eq(await activeFk(), 'asst-lang-es', 'focus stays on the switch');
+    await shot('tablet-es');
+    await page.click('#assistant-drawer [data-lang="en"]');
+    await page.waitForFunction(() => document.documentElement.lang === 'en');
     await page.keyboard.press('Escape');
     await waitClosed();
     await waitFocusFk('ask-yes');
@@ -867,16 +968,20 @@ export default async function (t) {
     t.step('resizing switches between docked and modal');
     await page.click('[data-ask]');
     await waitOpen();
+    await page.focus('#assistant-drawer [data-lang="en"]');
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.waitForFunction(() => YES.assistant.mode() === 'docked', null, { timeout: 2000 }).catch(() => {});
     t.eq(await mode(), 'docked', 'docks when widened');
     t.assert(await page.evaluate(() => document.documentElement.classList.contains('assistant-docked')), 'docked class applied');
     t.assert(await activeInDrawer(), 'focus kept in the drawer');
+    t.eq(await page.locator('#assistant-drawer [data-lang]').count(), 0, 'docked: the header switch is gone');
+    t.eq(await activeFk(), 'asst-title', 'focus on it moves to the drawer heading');
     await page.setViewportSize({ width: 900, height: 900 });
     await page.waitForFunction(() => YES.assistant.mode() === 'modal', null, { timeout: 2000 }).catch(() => {});
     t.eq(await mode(), 'modal', 'becomes modal when narrowed');
     t.assert(await isModal(), 'is :modal again');
     t.assert(await activeInDrawer(), 'focus kept in the drawer after narrowing');
+    t.eq(await page.locator('#assistant-drawer .asst__head [data-lang]').count(), 2, 'modal again: the header switch is back');
     await page.keyboard.press('Escape');
     await waitClosed();
     await page.setViewportSize({ width: 1280, height: 900 });
@@ -975,7 +1080,9 @@ export default async function (t) {
     await settle(page);
     f = await frame();
     t.assert(!f.scrolls, 'the frame stays fixed and only the conversation scrolls');
-    t.assert(f.body.h >= 380, `conversation area (${f.body.h}px)`);
+    // The header carries its own language switch while modal, so the demo label takes a row of its own here.
+    t.assert(f.body.h >= 350 && f.body.h >= f.vh * 0.6, `conversation area (${f.body.h}px)`);
+    t.assert(f.head.h <= 150, `header (${f.head.h}px)`);
     t.assert(f.hint.w <= 1, 'the composer hint is visually hidden');
     t.eq(await page.getAttribute('#asst-input', 'aria-describedby'), 'asst-hint', 'and still describes the input');
     t.assert(/no live AI model/i.test(await page.locator('#asst-hint').textContent()), 'hint text kept');

@@ -284,6 +284,7 @@ export default async function (t) {
       posted: posted.length,
       pending: YES.fmt.amount(pend.reduce((a, x) => a + x.amount, 0)),
       pendingAbs: YES.fmt.amount(Math.abs(pend.reduce((a, x) => a + x.amount, 0))),
+      pendingInitiated: pend.length ? YES.fmt.date(pend[0].initiatedAt, 'medium') : '',
       redeemed: YES.fmt.amount(c.category('redemptions').total, { sign: 'always' }),
       fiat: YES.fmt.fiat(c.fiat(s.closing), 'USD'),
       rateSource: YES.L(c.asset().fiat.source),
@@ -329,6 +330,9 @@ export default async function (t) {
   const red = await panel('redemption');
   t.assert(red.includes(expect.redeemed) && red.includes(expect.pending) && red.includes('Not included in statement balance'), 'redemption: posted amount and excluded pending request');
   t.assert(red.includes(expect.issuer), 'redemption: ISSUER_OR_PARTNER slot shown as placeholder');
+  // The pending request has no posted date: it uses the Transactions field name, "Initiated".
+  const redPending = await text('#und-panel-redemption .und-line--pending .und-line__meta');
+  t.assert(redPending.includes(`Initiated ${expect.pendingInitiated}`) && !/\bStarted\b/.test(red), `pending redemption reads "Initiated ${expect.pendingInitiated}" (${redPending})`);
   const svl = await panel('statement_vs_live');
   t.assert(svl.includes(expect.closing) && svl.includes(expect.pending), 'statement vs live: closing balance and pending item');
   const peg = await page.evaluate(() => document.getElementById('understand-root').innerText);
@@ -408,6 +412,19 @@ export default async function (t) {
   t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-fk')), 'und-full-hash', 'focus kept on the toggle');
   await page.click('[data-fk="und-oc-opentx"]');
   t.eq(await calls(), [{ fn: 'openTx', id: 'TX-260909-2051', trigger: true }], 'open this transaction calls explorer.openTx with a trigger');
+  // Status-aware type label (ui.typeLabel(tx)): a request that has not posted never reads as completed.
+  const ocType = await page.evaluate(() => {
+    const label = () => document.querySelector('#und-onchain .und-oc__txmeta > span').textContent;
+    const tx = YES.calc.tx('TX-260909-2051');
+    const posted = label();
+    tx.status = 'pending';
+    YES.renderAll();
+    const pending = label();
+    tx.status = 'posted';
+    YES.renderAll();
+    return [posted, pending, label()];
+  });
+  t.eq(ocType, ['Sent', 'Send requested', 'Sent'], 'on-chain sample type label follows the status ("Send requested" until posted)');
 
   t.step('illustrative reserve / transparency panel');
   t.eq((await text('[data-und-label="transparency"] strong')).trim(), TP_LABEL, 'exact transparency label');
@@ -500,6 +517,13 @@ export default async function (t) {
   t.assert(esFees.includes(esExpect) && esFees.includes('3 líneas de comisión'), 'fees example localised (' + esExpect + ')');
   t.assert((await text('#und-panel-fees details.und-meta')).includes('Texto de demostración — pendiente de aprobación de YES'), 'content record localised');
   t.eq(await page.getAttribute('[data-explain-id="fees"]', 'aria-label'), 'Explicar con IA: Comisiones', 'Explain label localised');
+  const esPend = await page.evaluate(() => {
+    const x = YES.calc.notInBalance().find((y) => y.type === 'redemption');
+    const p = document.querySelector('#und-panel-redemption .und-line--pending .und-line__meta');
+    return { want: YES.fmt.date(x.initiatedAt, 'medium'), got: p ? p.textContent : '', oc: document.querySelector('#und-onchain .und-oc__txmeta > span').textContent };
+  });
+  t.assert(nbsp(esPend.got).includes('Iniciado el ' + nbsp(esPend.want)), `pending redemption reads "Iniciado el …" in Spanish (${nbsp(esPend.got)})`);
+  t.eq(esPend.oc, 'Enviado', 'on-chain sample type label localised');
   t.eq(await page.evaluate(() => YES.i18n.audit()), {}, 'i18n parity');
   await checkLayout('Spanish');
   await settle(200);

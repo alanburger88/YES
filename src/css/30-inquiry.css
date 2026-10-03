@@ -23,15 +23,43 @@
 }
 .inq-head__bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--s2);
   margin-left: calc(-1 * var(--s3));
 }
+/*
+ * Back to transaction takes the room the language switch and Close leave, up
+ * to its one-line width. On a narrow sheet its label takes two lines, next to
+ * its arrow; with very large text, the switch and Close move to a row of their
+ * own instead of running off the screen.
+ */
 .btn.inq-head__back {
+  flex: 1 1 0%;
+  max-width: max-content;
   padding-inline: var(--s3) var(--s4);
   color: var(--primary-ink);
   font-weight: 650;
+  justify-content: flex-start;
+  text-align: left;
+}
+/* Language switch + close: the page behind the modal is inert, so the inquiry
+   carries its own switch (the same pair as the transaction detail and the
+   assistant drawer). */
+.inq-head__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.inq-head__tools .seg {
+  padding: 2px;
+}
+.inq-head__tools .seg__btn {
+  min-height: 44px; /* a full touch target, like every control in the dialog */
+  padding: 0 10px;
 }
 .inq-head__close {
   flex-shrink: 0;
@@ -59,7 +87,8 @@
 
 /* --------------------------------------------------------------- Body */
 .dlg__body.inq-body {
-  padding: var(--s5) var(--s5) var(--s6);
+  /* Side padding from the shared .dlg__body (16px on phones); a little more room below the last block. */
+  padding-bottom: var(--s6);
   /* A control scrolled into view on focus keeps clear of the header and footer edges. */
   scroll-padding-block: var(--s4);
 }
@@ -566,19 +595,13 @@ fieldset.inq-group > .inq-hint {
   .inq-head__titlebar {
     gap: var(--s2);
   }
-  .inq-head__bar {
-    margin-left: calc(-1 * var(--s3));
-  }
   .inq-head__titlebar,
   .steps.inq-steps {
     padding-right: var(--s2);
     margin-right: 0;
   }
   .dlg__body.inq-body {
-    padding: var(--s4) var(--s4) var(--s5);
-  }
-  .dlg__foot.inq-foot {
-    padding: var(--s3) var(--s4);
+    padding-bottom: var(--s5);
   }
   .inq-receipt {
     padding: var(--s4);

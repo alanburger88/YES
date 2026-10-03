@@ -327,6 +327,43 @@ export default async function (t) {
   t.eq(enh, ['userway', 'ai', 'inquiry', 'video', 'feedback', 'analytics', 'evidence', 'liveBalance'], 'enhancement rows');
   const about = await text('#help-about');
   for (const x of ['Online only', 'Local demo', 'Local mock', 'Placeholder', 'Session only', 'None', 'Illustrative only', 'Not connected', 'no live blockchain verification', 'no reserve assertion']) t.assert(about.includes(x), `about mentions ${x}`);
+  // Analytics: the statement measures nothing, but while it loads the
+  // third-party UserWay widget it must not say that nothing leaves the page.
+  const analytics = () => text('[data-enh="analytics"] td:first-of-type .help-enh__text');
+  t.eq(
+    await analytics(),
+    'The statement itself measures and sends nothing. When you are online, the page also loads the UserWay accessibility widget, a third-party service with its own privacy terms.',
+    'analytics row is qualified while UserWay is enabled'
+  );
+  t.assert(!(await text('#help-root')).includes('Nothing you do on this page is measured or sent'), 'no unqualified "nothing is sent" claim');
+  t.assert(!/nothing you do here is sent/i.test(contact), 'contact notice is scoped to support, not the whole page');
+  await page.evaluate(() => {
+    YES.config.userway.enabled = false;
+    YES.renderAll();
+  });
+  t.eq(await analytics(), 'The statement itself measures and sends nothing.', 'no widget mention when UserWay is turned off');
+  await page.evaluate(() => {
+    YES.config.userway.enabled = true;
+    YES.renderAll();
+  });
+  t.assert((await analytics()).includes('UserWay'), 'widget named again when enabled');
+  // The logo slot shows a miniature of the real slot rendering, hidden from AT (the words describe it).
+  t.eq(
+    await page.$eval('[data-slot-row="YES_LOGO"] .help-logo-mini', (e) => ({ cls: e.className, hidden: e.getAttribute('aria-hidden'), slot: e.getAttribute('data-slot'), text: e.textContent })),
+    { cls: 'yes-logo yes-logo--placeholder help-logo-mini help-logo-mini--placeholder', hidden: 'true', slot: 'YES_LOGO', text: 'YES' },
+    'logo slot miniature uses ui.logoHtml'
+  );
+  t.assert((await text('[data-slot-row="YES_LOGO"]')).includes('Text “YES” in a placeholder box'), 'logo slot described as a text placeholder');
+  const logoArtRow = await page.evaluate(() => {
+    YES.config.slots.YES_LOGO.svg = '<svg viewBox="0 0 120 40" focusable="false" aria-hidden="true"><rect width="120" height="40" rx="8"/></svg>';
+    YES.renderAll();
+    const row = document.querySelector('[data-slot-row="YES_LOGO"]');
+    const out = { svg: !!row.querySelector('.help-logo-mini--art svg'), text: row.querySelector('.help-slot__value').textContent };
+    delete YES.config.slots.YES_LOGO.svg;
+    YES.renderAll();
+    return out;
+  });
+  t.eq(logoArtRow, { svg: true, text: 'Logo artwork supplied' }, 'supplied logo artwork is shown and named in the slot table');
   const slots = await page.$$eval('[data-help-slots] tbody tr', (els) => els.map((e) => e.getAttribute('data-slot-row')));
   t.eq(slots, ['YES_LOGO', 'YES_PRIMARY', 'YES_ACCENT', 'YES_FONT', 'PRODUCT_NAME', 'ISSUER_OR_PARTNER', 'VIDEO_POSTER', 'DISCLOSURES', 'SUPPORT'], 'replacement slots');
   const slotsCfg = await page.evaluate(() => YES.config.slots);
@@ -441,6 +478,27 @@ export default async function (t) {
   const tx1 = await text('[data-print-tx="TX-260901-0418"]');
   t.assert(tx1.includes('REF-D7K2-9QW4') && tx1.includes('+250.00') && tx1.includes('Deposit') && tx1.includes('Linked bank account'), 'row has reference, signed amount, type label and counterparty');
   t.assert(!(await page.$$eval('#print-root .amount, #print-root [style*="color"]', (els) => els.length)), 'no colour-coded amounts in print');
+  // Status-aware type labels: a pending redemption never reads as completed.
+  const typeCell = (sel) => text(`${sel} td:nth-child(${sel.includes('pending') ? 3 : 4})`);
+  t.eq(await typeCell('[data-print-tx="TX-260920-0900"]'), 'Redeemed', 'posted redemption reads "Redeemed"');
+  t.eq(await typeCell('[data-print-pending="TX-260930-2247"]'), 'Redemption requested', 'pending redemption reads "Redemption requested"');
+  // Masked identifiers: bullets stay visible but are hidden from assistive
+  // technology, which hears "ending in …" instead.
+  const masked = await page.$$eval('#print-root .pr-meta .mono, #print-root .pr-sub', (els) =>
+    els
+      .filter((e) => e.textContent.includes('•'))
+      .map((e) => {
+        const hidden = e.querySelector('[aria-hidden="true"]');
+        const sr = e.querySelector('.sr-only');
+        return { visible: hidden && hidden.textContent, spoken: sr && sr.textContent };
+      })
+  );
+  t.eq(masked[0], { visible: '•••• 7316', spoken: 'ending in 7316' }, 'account identifier is spoken as "ending in 7316"');
+  const maskedTx = await page.evaluate(() => YES.calc.posted().concat(YES.calc.notInBalance()).filter((x) => YES.L(x.counterparty).includes('•')).length);
+  t.assert(maskedTx >= 2, `demo data has masked counterparties (${maskedTx})`);
+  t.eq(masked.length, maskedTx + 1, 'the account and every masked counterparty use the masked markup');
+  t.assert(masked.every((m) => m.visible && /^ending in \w+$/.test(m.spoken || '')), 'no masked identifier reads as bullets');
+  t.assert(!(await page.$$eval('#print-root .sr-only', (els) => els.some((e) => e.getBoundingClientRect().width > 1))), 'spoken text never prints visibly');
   await settle(100);
   await t.shot('print', { fullPage: true });
   if (!mobile) {
@@ -463,6 +521,9 @@ export default async function (t) {
       pages.forEach((p, i) => t.assert(p.includes(`Page ${i + 1} of ${pages.length}`) && p.includes(s.id), `page ${i + 1} carries the statement ID and "Page ${i + 1} of ${pages.length}"`));
       const last = pages[pages.length - 1];
       t.assert(last.includes('Disclosures') && last.includes('Interactive statement delivered via InfoSlips'), 'last page has the disclosures with the footer');
+      // The spoken form of masked identifiers is for assistive technology only.
+      t.assert(all.includes('•••• 7316') && !/ending in/.test(all), 'PDF text shows the masked identifier, never the spoken form');
+      t.assert(/Redemption\s+requested/.test(all), 'PDF names the pending redemption as requested');
     } else {
       console.log('    (pdftotext not available: paginated print checks skipped)');
     }
@@ -483,6 +544,9 @@ export default async function (t) {
   const pageCssEs = await page.evaluate(() => document.getElementById('help-print-page').textContent);
   t.assert(pageCssEs.includes('"Estado de cuenta ' + s.id + ' · versión 1.0"') && pageCssEs.includes('"Página " counter(page) " de " counter(pages)'), 'running footer in Spanish');
   t.assert(/Saldo final/.test(await text('[data-print-ledger-closing]')), 'Spanish ledger closing row');
+  t.eq(await typeCell('[data-print-pending="TX-260930-2247"]'), 'Canje solicitado', 'Spanish pending redemption reads "Canje solicitado"');
+  t.eq(await typeCell('[data-print-tx="TX-260920-0900"]'), 'Canjeado', 'Spanish posted redemption reads "Canjeado"');
+  t.eq(await page.$eval('#print-root .pr-meta .mono .sr-only', (e) => e.textContent), 'que termina en 7316', 'Spanish spoken account identifier');
   await t.shot('print-es');
   await page.emulateMedia({ media: 'screen' });
   await setLang('en');
@@ -508,6 +572,36 @@ export default async function (t) {
     return out;
   });
   t.eq(logo, { art: true, svg: true, role: 'img', label: 'YES', slot: 'YES_LOGO', text: '' }, 'approved [YES_LOGO] artwork replaces the text placeholder in print');
+  // Same slot rendering as the masthead (ui.logoHtml): a data: image is used,
+  // a URL that would fetch is ignored, and the placeholder is a named image.
+  const logoVariants = await page.evaluate(() => {
+    const slot = YES.config.slots.YES_LOGO;
+    const read = () => {
+      window.dispatchEvent(new Event('beforeprint'));
+      const el = document.querySelector('#print-root .pr-logo');
+      const img = el.querySelector('img');
+      return { cls: el.className, img: img ? img.getAttribute('src').slice(0, 15) : null, text: el.textContent, label: el.getAttribute('aria-label'), h: el.style.getPropertyValue('--logo-h') };
+    };
+    const out = { placeholder: read() };
+    slot.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    out.dataImage = read();
+    slot.src = 'https://example.invalid/logo.png';
+    out.url = read();
+    delete slot.src;
+    read();
+    return out;
+  });
+  t.eq(logoVariants.placeholder, { cls: 'yes-logo yes-logo--placeholder pr-logo pr-logo--placeholder', img: null, text: 'YES', label: 'YES', h: '28pt' }, 'print placeholder via ui.logoHtml at 28pt');
+  t.eq([logoVariants.dataImage.cls.includes('pr-logo--art'), logoVariants.dataImage.img], [true, 'data:image/png;'], 'a data: image logo prints');
+  t.eq([logoVariants.url.cls.includes('pr-logo--placeholder'), logoVariants.url.img], [true, null], 'a logo URL that would fetch is ignored in print');
+  await page.emulateMedia({ media: 'print' });
+  const logoBox = await page.$eval('#print-root .pr-logo', (e) => {
+    const cs = getComputedStyle(e);
+    return { bg: cs.backgroundColor, color: cs.color, border: cs.borderTopStyle, h: Math.round(e.getBoundingClientRect().height) };
+  });
+  t.eq([logoBox.bg, logoBox.color, logoBox.border], ['rgba(0, 0, 0, 0)', 'rgb(0, 0, 0)', 'solid'], 'placeholder prints as a boxed black wordmark without a fill');
+  t.assert(logoBox.h >= 34 && logoBox.h <= 40, `print logo is 28pt tall (${logoBox.h}px)`);
+  await page.emulateMedia({ media: 'screen' });
 
   /* ------------------------------------------------------------------ */
   t.step('dark colour scheme');

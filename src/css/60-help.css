@@ -738,20 +738,10 @@
   margin-right: var(--s2);
   box-shadow: inset 0 0 0 1px var(--line-strong);
 }
+/* The [YES_LOGO] slot in miniature (ui.logoHtml: placeholder or artwork). */
 .help-logo-mini {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 8px;
+  vertical-align: middle;
   margin-right: var(--s2);
-  border-radius: 5px;
-  background: var(--primary);
-  color: var(--on-primary);
-  font-weight: 800;
-  font-size: var(--fs-xs);
-  letter-spacing: 0.04em;
-  outline: 1px dashed color-mix(in srgb, var(--primary) 60%, transparent);
-  outline-offset: 2px;
 }
 
 /* Small screens: tables become labelled stacks (roles keep table semantics). */
@@ -848,27 +838,15 @@
     align-items: center;
     gap: 10pt;
   }
-  #print-root .pr-logo {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 4pt 9pt;
-    border: 1.5pt solid var(--ink);
+  /* [YES_LOGO] via ui.logoHtml at 28pt: the placeholder prints as a boxed
+     wordmark (90-print.css drops its fill); approved artwork replaces it. */
+  #print-root .pr-logo--placeholder {
+    border-color: var(--ink);
     border-radius: 4pt;
-    font-size: 15pt;
-    font-weight: 800;
     letter-spacing: 0.05em;
   }
-  /* Approved [YES_LOGO] artwork replaces the boxed text placeholder. */
-  #print-root .pr-logo--art {
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-  }
-  #print-root .pr-logo--art svg {
-    display: block;
-    width: auto;
-    height: 28pt;
+  #print-root .pr-logo--art > svg,
+  #print-root .pr-logo--art > img {
     max-width: 120pt;
   }
   #print-root .pr-kicker {

@@ -268,7 +268,8 @@ border: 0 !important;
 .skip-link {
 position: absolute;
 left: var(--s4);
-top: -100px;
+top: var(--s3);
+transform: translateY(calc(-100% - var(--s3) - 24px));
 z-index: 1000;
 background: var(--surface);
 color: var(--ink);
@@ -278,7 +279,7 @@ box-shadow: var(--shadow-2);
 font-weight: 600;
 }
 .skip-link:focus {
-top: var(--s3);
+transform: none;
 }
 .container {
 width: 100%;
@@ -510,6 +511,35 @@ margin: var(--s6) 0 var(--s2);
 color: var(--ink-2);
 max-width: 65ch;
 margin-bottom: var(--s6);
+}
+.yes-logo {
+--logo-h: 36px;
+display: inline-flex;
+flex: none;
+align-items: center;
+justify-content: center;
+height: var(--logo-h);
+line-height: 1;
+}
+.yes-logo--placeholder {
+min-width: calc(var(--logo-h) * 1.45);
+padding: 0 calc(var(--logo-h) * 0.27);
+border-radius: calc(var(--logo-h) * 0.22);
+background: var(--primary);
+color: var(--on-primary);
+font-size: calc(var(--logo-h) * 0.47);
+font-weight: 800;
+letter-spacing: 0.04em;
+white-space: nowrap;
+outline: 1px dashed color-mix(in srgb, var(--primary) 60%, transparent);
+outline-offset: 2px;
+}
+.yes-logo--art > svg,
+.yes-logo--art > img {
+display: block;
+width: auto;
+height: 100%;
+max-width: calc(var(--logo-h) * 5);
 }
 .demo-badge {
 display: inline-flex;
@@ -1129,32 +1159,37 @@ margin-bottom: var(--s2);
 }
 .toast {
 position: fixed;
-inset: auto;
-margin: 0;
+inset: auto var(--gutter) calc(var(--s6) + env(safe-area-inset-bottom, 0px));
+margin: 0 auto;
 border: 0;
 overflow: visible;
-width: auto;
+width: fit-content;
 height: auto;
-left: 50%;
-bottom: var(--s6);
-transform: translate(-50%, 16px);
+max-width: min(560px, calc(100vw - 2 * var(--gutter)));
+transform: translateY(16px);
 background: var(--ink);
 color: var(--surface);
 padding: var(--s3) var(--s5);
 border-radius: 999px;
 font-size: var(--fs-sm);
 font-weight: 600;
+line-height: 1.45;
 box-shadow: var(--shadow-2);
 opacity: 0;
 pointer-events: none;
 transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
 z-index: 2000;
-max-width: calc(100vw - 32px);
 text-align: center;
+overflow-wrap: anywhere;
+}
+.toast.is-multiline {
+border-radius: var(--radius);
+padding-inline: var(--s4);
+text-align: start;
 }
 .toast.is-visible {
 opacity: 1;
-transform: translate(-50%, 0);
+transform: translateY(0);
 }
 .checks {
 list-style: none;
@@ -1227,6 +1262,10 @@ backdrop-filter: saturate(1.4) blur(8px);
 -webkit-backdrop-filter: saturate(1.4) blur(8px);
 border-bottom: 1px solid var(--line);
 }
+.masthead.is-unpinned {
+position: relative;
+top: auto;
+}
 @media (max-height: 500px) {
 .masthead {
 position: relative;
@@ -1252,22 +1291,7 @@ min-height: 44px;
 min-width: 0;
 }
 .brand__logo {
-display: inline-flex;
-align-items: center;
-justify-content: center;
-height: 36px;
-min-width: 52px;
-padding: 0 10px;
-border-radius: 8px;
-background: var(--primary);
-color: var(--on-primary);
-font-weight: 800;
-letter-spacing: 0.04em;
-font-size: 1.05rem;
-}
-.brand__logo--placeholder {
-outline: 1px dashed color-mix(in srgb, var(--primary) 60%, transparent);
-outline-offset: 2px;
+--logo-h: 36px;
 }
 .brand__text {
 display: flex;
@@ -1290,9 +1314,12 @@ display: none;
 }
 .masthead__actions {
 display: flex;
+flex-wrap: wrap;
+justify-content: flex-end;
 align-items: center;
 gap: var(--s2);
 margin-left: auto;
+min-width: 0;
 }
 .btn--ask {
 min-height: 42px;
@@ -1355,10 +1382,21 @@ mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
 mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
 }
 @container mast (max-width: 999px) {
+.masthead__bar.has-demo {
+padding-top: 0;
+row-gap: 6px;
+}
 .demo-badge {
 order: -1;
-flex-basis: 100%;
+flex: 0 0 calc(100% + 2 * var(--gutter));
+margin-inline: calc(-1 * var(--gutter));
 justify-content: center;
+padding: 2px var(--gutter);
+border-width: 0 0 1px;
+border-radius: 0;
+line-height: 1.5;
+text-align: center;
+white-space: normal;
 }
 }
 @container mast (max-width: 719px) {
@@ -1367,14 +1405,19 @@ min-height: 0;
 gap: var(--s2);
 padding-block: var(--s2) 6px;
 }
+.masthead__bar.has-demo {
+row-gap: 6px;
+padding-block: 0 4px;
+}
 .brand {
 gap: var(--s2);
 }
 .brand__logo {
-height: 34px;
+--logo-h: 34px;
+}
+.brand__logo--placeholder {
 min-width: 44px;
 padding: 0 6px;
-font-size: 1rem;
 }
 .brand__title,
 .brand__period {
@@ -2244,6 +2287,11 @@ border-color: transparent;
 }
 .jr-step[aria-pressed='true'] {
 background: color-mix(in srgb, var(--primary) 9%, transparent);
+border-color: transparent;
+box-shadow: 0 0 0 2px var(--primary);
+}
+.jr-step[aria-pressed='true']:focus-visible {
+box-shadow: 0 0 0 2px var(--primary), 0 0 0 4px var(--surface), 0 0 0 6px var(--focus);
 }
 .jr-step.is-member {
 background: color-mix(in srgb, var(--primary) 5%, transparent);
@@ -3180,6 +3228,14 @@ font-family: var(--yes-font);
 font-size: 13px;
 font-weight: 800;
 letter-spacing: 0.04em;
+}
+.ov-poster__artbox {
+overflow: hidden;
+}
+.ov-poster__art {
+display: flex;
+justify-content: flex-start;
+color: var(--poster-ink);
 }
 .ov-poster__hello {
 fill: var(--poster-ink);
@@ -4517,7 +4573,6 @@ grid-template-columns: minmax(0, 1fr) auto;
 grid-template-areas: 'eyebrow tools' 'title title';
 align-items: center;
 gap: 2px var(--s2);
-padding-left: var(--s4);
 }
 .tx-dlg__head > .tx-dir {
 display: none;
@@ -4541,9 +4596,6 @@ gap: var(--s1);
 .tx-dlg__tools .seg__btn {
 min-height: 40px;
 }
-.dlg__body.tx-dlg__body {
-padding: var(--s4);
-}
 .tx-dlg__hero {
 padding: var(--s4);
 }
@@ -4558,7 +4610,6 @@ margin-left: 0;
 flex-wrap: wrap;
 justify-content: space-between;
 gap: var(--s2);
-padding: var(--s3) var(--s4);
 }
 .tx-pager {
 gap: 0;
@@ -4601,6 +4652,11 @@ min-height: 44px;
 display: none;
 }
 }
+@media (max-width: 719px) and (max-height: 520px) {
+.dlg__foot.tx-dlg__foot .btn--primary {
+flex: 1 1 auto;
+}
+}
 @media (forced-colors: active) {
 .tx-check:has(input:checked) {
 outline: 2px solid Highlight;
@@ -4631,15 +4687,34 @@ padding: var(--s2) var(--s3) var(--s4) var(--s5);
 }
 .inq-head__bar {
 display: flex;
+flex-wrap: wrap;
 align-items: center;
 justify-content: space-between;
 gap: var(--s2);
 margin-left: calc(-1 * var(--s3));
 }
 .btn.inq-head__back {
+flex: 1 1 0%;
+max-width: max-content;
 padding-inline: var(--s3) var(--s4);
 color: var(--primary-ink);
 font-weight: 650;
+justify-content: flex-start;
+text-align: left;
+}
+.inq-head__tools {
+display: flex;
+align-items: center;
+gap: var(--s1);
+flex-shrink: 0;
+margin-left: auto;
+}
+.inq-head__tools .seg {
+padding: 2px;
+}
+.inq-head__tools .seg__btn {
+min-height: 44px;
+padding: 0 10px;
 }
 .inq-head__close {
 flex-shrink: 0;
@@ -4665,7 +4740,7 @@ overflow-wrap: anywhere;
 color: var(--ink-2);
 }
 .dlg__body.inq-body {
-padding: var(--s5) var(--s5) var(--s6);
+padding-bottom: var(--s6);
 scroll-padding-block: var(--s4);
 }
 .inq-body[tabindex='0']:focus-visible {
@@ -5155,19 +5230,13 @@ padding: var(--s1) var(--s2) var(--s3) var(--s4);
 .inq-head__titlebar {
 gap: var(--s2);
 }
-.inq-head__bar {
-margin-left: calc(-1 * var(--s3));
-}
 .inq-head__titlebar,
 .steps.inq-steps {
 padding-right: var(--s2);
 margin-right: 0;
 }
 .dlg__body.inq-body {
-padding: var(--s4) var(--s4) var(--s5);
-}
-.dlg__foot.inq-foot {
-padding: var(--s3) var(--s4);
+padding-bottom: var(--s5);
 }
 .inq-receipt {
 padding: var(--s4);
@@ -5286,7 +5355,7 @@ background: var(--surface);
 display: grid;
 grid-template-columns: auto minmax(0, 1fr) auto;
 grid-template-areas:
-'mark title close'
+'mark title tools'
 'mark tag tag';
 align-items: center;
 column-gap: var(--s3);
@@ -5313,8 +5382,20 @@ overflow-wrap: anywhere;
 grid-area: tag;
 margin: 0;
 }
+.asst__tools {
+grid-area: tools;
+display: flex;
+align-items: center;
+gap: var(--s1);
+}
+.asst__tools .seg {
+padding: 2px;
+}
+.asst__tools .seg__btn {
+min-height: 44px;
+padding: 0 10px;
+}
 .asst__close {
-grid-area: close;
 color: var(--ink-2);
 }
 .asst__ctx {
@@ -5831,18 +5912,20 @@ color: var(--muted);
 margin-top: 2px;
 flex: none;
 }
-@media (max-width: 379px) {
-.asst__head {
-padding-left: var(--s4);
-}
+@media (max-width: 479px) {
 .asst__mark {
 display: none;
 }
 .asst__bar {
 grid-template-columns: minmax(0, 1fr) auto;
 grid-template-areas:
-'title close'
+'title tools'
 'tag tag';
+}
+}
+@media (max-width: 379px) {
+.asst__head {
+padding-left: var(--s4);
 }
 .asst__body {
 padding-inline: var(--s3);
@@ -5880,8 +5963,8 @@ display: none;
 .asst__bar {
 grid-template-columns: minmax(0, 1fr) auto;
 grid-template-areas:
-'title close'
-'tag close';
+'title tools'
+'tag tools';
 row-gap: 0;
 }
 .asst__title {
@@ -5912,6 +5995,13 @@ overflow: hidden;
 clip: rect(0, 0, 0, 0);
 white-space: nowrap;
 border: 0;
+}
+}
+@media (max-height: 640px) and (max-width: 479px) {
+.asst__bar {
+grid-template-areas:
+'title tools'
+'tag tag';
 }
 }
 @media (max-height: 520px) {
@@ -7638,19 +7728,8 @@ margin-right: var(--s2);
 box-shadow: inset 0 0 0 1px var(--line-strong);
 }
 .help-logo-mini {
-display: inline-flex;
-align-items: center;
-height: 24px;
-padding: 0 8px;
+vertical-align: middle;
 margin-right: var(--s2);
-border-radius: 5px;
-background: var(--primary);
-color: var(--on-primary);
-font-weight: 800;
-font-size: var(--fs-xs);
-letter-spacing: 0.04em;
-outline: 1px dashed color-mix(in srgb, var(--primary) 60%, transparent);
-outline-offset: 2px;
 }
 @media (max-width: 719px) {
 .help-table--stack thead {
@@ -7741,26 +7820,13 @@ display: flex;
 align-items: center;
 gap: 10pt;
 }
-#print-root .pr-logo {
-display: inline-flex;
-align-items: center;
-justify-content: center;
-padding: 4pt 9pt;
-border: 1.5pt solid var(--ink);
+#print-root .pr-logo--placeholder {
+border-color: var(--ink);
 border-radius: 4pt;
-font-size: 15pt;
-font-weight: 800;
 letter-spacing: 0.05em;
 }
-#print-root .pr-logo--art {
-padding: 0;
-border: 0;
-border-radius: 0;
-}
-#print-root .pr-logo--art svg {
-display: block;
-width: auto;
-height: 28pt;
+#print-root .pr-logo--art > svg,
+#print-root .pr-logo--art > img {
 max-width: 120pt;
 }
 #print-root .pr-kicker {
@@ -8052,6 +8118,12 @@ color: rgba(0, 0, 0, 0.07);
 white-space: nowrap;
 letter-spacing: 0.06em;
 }
+.yes-logo--placeholder {
+background: none;
+color: #000;
+outline: 0;
+border: 1.5pt solid #000;
+}
 a {
 color: #000;
 text-decoration: none;
@@ -8264,7 +8336,7 @@ reference: 'REF-D7K2-9QW4',
 fees: [],
 notes: [
 {
-en: 'Started on 31 August (previous period) and posted on 1 September. Statements use the posted date, so it belongs to this statement.',
+en: 'Initiated on August 31 (previous period) and posted on September 1. Statements use the posted date, so it belongs to this statement.',
 es: 'Se inició el 31 de agosto (período anterior) y se registró el 1 de septiembre. Los estados de cuenta usan la fecha de registro, por eso pertenece a este estado de cuenta.'
 }
 ],
@@ -9374,7 +9446,9 @@ rails: [],
 min: '',
 max: '',
 step: null,
-ids: null
+ids: null,
+idsLabel: null,
+amountLang: null
 };
 };
 YES.state = {
@@ -9724,11 +9798,23 @@ return !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)')
 ui.isNarrow = function () {
 return !!(root.matchMedia && root.matchMedia('(max-width: 719px)').matches);
 };
+function wrapsText(el) {
+var node = el.firstChild;
+if (!node || !doc.createRange) return false;
+var range = doc.createRange();
+range.selectNodeContents(el);
+var rects = range.getClientRects();
+for (var i = 1; i < rects.length; i++) {
+if (rects[i].top >= rects[0].bottom - 1) return true;
+}
+return false;
+}
 var toastTimer = null;
 ui.toast = function (msg) {
 var el = doc.getElementById('toast');
 if (!el) return;
 el.textContent = msg;
+el.classList.remove('is-multiline');
 if (typeof el.showPopover === 'function') {
 try {
 if (el.matches(':popover-open')) el.hidePopover();
@@ -9737,6 +9823,7 @@ void el.offsetWidth;
 } catch (e) {
 }
 }
+el.classList.toggle('is-multiline', wrapsText(el));
 el.classList.add('is-visible');
 clearTimeout(toastTimer);
 toastTimer = setTimeout(function () {
@@ -9995,6 +10082,29 @@ buttons +
 '</div>'
 );
 };
+var LOGO_SRC_RE = /^data:image\/(?:png|jpeg|gif|webp|avif|svg\+xml)[;,]/i;
+var LOGO_SIZE_RE = /^\d+(?:\.\d+)?(?:px|pt|rem|em|mm)$/;
+ui.logoHtml = function (opts) {
+opts = opts || {};
+var slot = (YES.config && YES.config.slots && YES.config.slots.YES_LOGO) || {};
+var src = typeof slot.src === 'string' && LOGO_SRC_RE.test(slot.src) ? slot.src : null;
+var kind = slot.svg || src ? 'art' : 'placeholder';
+var extra = String(opts.cls || '')
+.split(/\s+/)
+.filter(Boolean);
+var classes = ['yes-logo', 'yes-logo--' + kind].concat(extra);
+if (extra.length) classes.push(extra[0] + '--' + kind);
+var size = typeof opts.size === 'number' && opts.size > 0 ? opts.size + 'px' : LOGO_SIZE_RE.test(String(opts.size || '')) ? String(opts.size) : '';
+var name = YES.t('brand.logoAlt');
+var html = '<span class="' + ui.esc(classes.join(' ')) + '" data-slot="YES_LOGO"' + (size ? ' style="--logo-h: ' + size + '"' : '');
+html += opts.decorative ? ' aria-hidden="true"' : ' role="img" aria-label="' + ui.esc(name) + '"';
+if (kind === 'placeholder' && !opts.decorative) html += ' title="' + ui.esc(YES.t('brand.logoPlaceholder')) + '"';
+html += '>';
+if (slot.svg) html += String(slot.svg);
+else if (src) html += '<img src="' + ui.esc(src) + '" alt="" />';
+else html += ui.esc(slot.text || name);
+return html + '</span>';
+};
 ui.illustrativeTag = function (textKey) {
 return '<span class="tag tag--illustrative">' + ui.icon('info', { size: 14 }) + '<span>' + ui.esc(YES.t(textKey || 'common.illustrative')) + '</span></span>';
 };
@@ -10050,19 +10160,6 @@ var doc = root.document;
 function withheld() {
 return !!(YES.integrity && !YES.integrity.ok);
 }
-function logoHtml() {
-var slot = YES.config.slots.YES_LOGO;
-if (slot.svg) return '<span class="brand__logo" role="img" aria-label="' + esc(t('brand.logoAlt')) + '">' + slot.svg + '</span>';
-return (
-'<span class="brand__logo brand__logo--placeholder" role="img" aria-label="' +
-esc(t('brand.logoAlt')) +
-'" title="' +
-esc(t('brand.logoPlaceholder')) +
-'" data-slot="YES_LOGO">' +
-esc(slot.text) +
-'</span>'
-);
-}
 function periodLabel() {
 return YES.fmt.date(YES.data.statement.periodEnd, 'monthYear');
 }
@@ -10084,9 +10181,11 @@ esc(t('nav.' + v)) +
 );
 }).join('');
 var html =
-'<div class="masthead__bar container">' +
+'<div class="masthead__bar container' +
+(YES.config.demo ? ' has-demo' : '') +
+'">' +
 '<a class="brand" href="#/overview" data-nav="overview" data-fk="brand">' +
-logoHtml() +
+ui.logoHtml({ cls: 'brand__logo' }) +
 '<span class="brand__text"><span class="brand__title">' +
 esc(t('brand.statement')) +
 '</span><span class="brand__period">' +
@@ -10156,22 +10255,25 @@ var heading = doc.querySelector('#view-' + YES.state.view + ' [data-view-heading
 if (heading) ui.focusView(YES.state.view);
 else doc.getElementById('main').focus();
 }
+var MAX_PINNED_SHARE = 0.3;
 function syncMastheadMetrics() {
 var mast = doc.getElementById('masthead');
 if (!mast) return;
 var rootStyle = doc.documentElement.style;
-var sticky = root.getComputedStyle(mast).position === 'sticky';
 var mr = mast.getBoundingClientRect();
 var skip = 0;
 var badge = mast.querySelector('.demo-badge');
 var brand = mast.querySelector('.brand');
 var actions = mast.querySelector('.masthead__actions');
-if (sticky && badge && brand && actions) {
+if (badge && brand && actions) {
 var rowTop = Math.min(brand.getBoundingClientRect().top, actions.getBoundingClientRect().top);
 if (badge.getBoundingClientRect().bottom <= rowTop) skip = Math.max(0, Math.floor(rowTop - mr.top) - 4);
 }
-rootStyle.setProperty('--mast-skip', skip + 'px');
-rootStyle.setProperty('--masthead-h', (sticky ? Math.ceil(mr.height - skip) : 0) + 'px');
+var pinned = Math.ceil(mr.height - skip);
+mast.classList.toggle('is-unpinned', pinned > (root.innerHeight || 0) * MAX_PINNED_SHARE);
+var sticky = root.getComputedStyle(mast).position === 'sticky';
+rootStyle.setProperty('--mast-skip', (sticky ? skip : 0) + 'px');
+rootStyle.setProperty('--masthead-h', (sticky ? pinned : 0) + 'px');
 }
 function fitMasthead() {
 var bar = doc.querySelector('#masthead .masthead__bar');
@@ -10448,6 +10550,14 @@ return root.getComputedStyle(jr).getPropertyValue('--jr-layout').trim() === 'wat
 function noStop(text) {
 return String(text == null ? '' : text).replace(/\.\s*$/, '');
 }
+function localised(key) {
+var out = {};
+YES.config.languages.forEach(function (l) {
+var table = YES.i18n.dict[l];
+if (table && table[key] != null) out[l] = table[key];
+});
+return out;
+}
 function sumOf(list) {
 var s = 0;
 for (var i = 0; i < list.length; i++) s += list[i].amount;
@@ -10625,10 +10735,10 @@ action +
 '</div></div></div>'
 );
 }
-function maskedHtml(value) {
+function maskedValueHtml(value) {
 return (
 '<span class="mono">' +
-esc(value) +
+ui.maskedHtml(value) +
 '</span> <span class="tag ov-masked">' +
 ui.icon('lock', { size: 12 }) +
 '<span>' +
@@ -10656,8 +10766,8 @@ var left = [
 ['overview.details.version', esc(s.version)],
 ['overview.details.status', esc(t('overview.issue.' + (s.issueStatus === 'corrected' ? 'corrected' : 'original')))],
 ['overview.details.account', esc(YES.L(s.account.label))],
-['overview.details.accountId', maskedHtml(s.account.maskedId)],
-['overview.details.wallet', maskedHtml(s.account.walletMasked)],
+['overview.details.accountId', maskedValueHtml(s.account.maskedId)],
+['overview.details.wallet', maskedValueHtml(s.account.walletMasked)],
 ['overview.details.asset', esc(t('overview.details.assetValue', { name: YES.L(a.name), symbol: a.symbol, precision: YES.fmt.count(a.precision) }))]
 ];
 var right = [
@@ -11848,6 +11958,16 @@ insightHtml() +
 '</div></div></section>'
 );
 }
+function posterLogoHtml() {
+var art = ui.logoHtml({ cls: 'ov-poster__art', size: 24, decorative: true });
+if (/\bov-poster__art--art\b/.test(art)) return '<foreignObject class="ov-poster__artbox" x="20" y="18" width="120" height="24">' + art + '</foreignObject>';
+return (
+'<rect class="ov-poster__logo" x="20" y="18" width="48" height="24" rx="6"/>' +
+'<text class="ov-poster__logotext" x="44" y="35" text-anchor="middle">' +
+esc(YES.config.slots.YES_LOGO.text || 'YES') +
+'</text>'
+);
+}
 function posterHtml() {
 var slot = YES.config.slots.VIDEO_POSTER;
 if (typeof slot === 'string' && /^data:image\//.test(slot)) return '<img class="ov-poster__img" src="' + esc(slot) + '" alt="">';
@@ -11869,10 +11989,7 @@ return (
 '<svg class="ov-poster__svg" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">' +
 '<rect class="ov-poster__bg" width="320" height="180"/>' +
 '<circle class="ov-poster__glow" cx="300" cy="-10" r="150"/>' +
-'<rect class="ov-poster__logo" x="20" y="18" width="48" height="24" rx="6"/>' +
-'<text class="ov-poster__logotext" x="44" y="35" text-anchor="middle">' +
-esc(YES.config.slots.YES_LOGO.text || 'YES') +
-'</text>' +
+posterLogoHtml() +
 '<text class="ov-poster__hello" x="20" y="76">' +
 esc(t('overview.video.posterHello', { name: st().customer.firstName })) +
 '</text>' +
@@ -12069,7 +12186,7 @@ esc(amt(p.delta, 'always')) +
 esc(ui.typeLabel(p.tx)) +
 '</span></p>' +
 '<p class="ov-tip__meta">' +
-esc(YES.L(p.tx.counterparty)) +
+ui.maskedHtml(YES.L(p.tx.counterparty)) +
 '</p>' +
 '<p class="ov-tip__meta">' +
 esc(YES.fmt.date(p.iso, 'datetime')) +
@@ -12184,8 +12301,32 @@ setRoving(j);
 var next = pointButton(j);
 if (next) next.focus();
 }
-function openTx(id, trigger) {
-YES.explorer.openTx(id, { trigger: trigger });
+function idOf(tx) {
+return tx.id;
+}
+function runningIds() {
+return YES.calc.running().map(function (p) {
+return p.txId;
+});
+}
+function listFor(el) {
+if (!el || !el.closest) return null;
+if (el.closest('.ov-chart, .ov-ctable, .ov-lowlist')) return runningIds();
+if (el.closest('#ov-panel-section')) {
+var info = selectionInfo(YES.state.journeyStep);
+return info ? rowsFor(info.txIds).map(idOf) : null;
+}
+if (el.closest('.ov-fees')) {
+var cat = YES.calc.category('fees');
+return cat ? rowsFor(cat.txIds).map(idOf) : null;
+}
+return null;
+}
+function openTx(id, trigger, list) {
+var opts = { trigger: trigger };
+list = list || listFor(trigger);
+if (list && list.length) opts.list = list;
+YES.explorer.openTx(id, opts);
 }
 function showInTransactions(partial) {
 YES.explorer.applyFilter(partial, { reset: true });
@@ -12239,7 +12380,7 @@ en: {
 'overview.notIn.pendingN': '{n} pending transactions ({amount} in total) are not included in this balance.',
 'overview.notIn.other1': '1 transaction that is not posted ({amount}) is not included in this balance.',
 'overview.notIn.otherN': '{n} transactions that are not posted ({amount} in total) are not included in this balance.',
-'overview.notIn.detail': '{description} · started {date}',
+'overview.notIn.detail': '{description} · initiated {date}',
 'overview.notIn.view': 'View transaction',
 'overview.notIn.viewAll': 'Show them in Transactions',
 'overview.notIn.listLabel': 'Not included in this balance',
@@ -12569,7 +12710,7 @@ ui.delegate(el, 'click', '[data-ov-notin-all]', function () {
 var ids = YES.calc.notInBalance().map(function (tx) {
 return tx.id;
 });
-YES.explorer.showRows(ids, t('overview.notIn.listLabel'));
+YES.explorer.showRows(ids, localised('overview.notIn.listLabel'));
 if (YES.state.view !== 'transactions') YES.nav.go('transactions');
 });
 ui.delegate(el, 'click', '[data-ov-learn]', function (e, b) {
@@ -12609,7 +12750,14 @@ if (!pointFocused()) hideTip();
 ui.delegate(el, 'click', '[data-ov-plot]', function (e) {
 if (e.target.closest('[data-ov-tx]')) return;
 var i = nearestAt(e.clientX, e.clientY);
-if (i !== -1) openTx(chart.pts[i].id, pointButton(i));
+if (i !== -1)
+openTx(
+chart.pts[i].id,
+pointButton(i),
+chart.pts.map(function (p) {
+return p.id;
+})
+);
 });
 ui.delegate(el, 'keydown', '[data-ov-pt]', onPointKey);
 el.addEventListener('focusin', function (e) {
@@ -13996,7 +14144,8 @@ if (navigate) {
 if (focus === 'results') focusResults();
 else if (focus === 'heading') ui.focusView('transactions');
 }
-announceCount(navigate ? 120 : 0);
+if (opts.announce !== false) announceCount(navigate ? 120 : 0);
+else clearTimeout(timers.announce);
 return filtered();
 }
 function showRows(ids, labelText) {
@@ -14313,7 +14462,7 @@ return (
 '<div class="dlg__head tx-dlg__head">' +
 dirIcon(tx) +
 '<div class="tx-dlg__headtext"><p class="tx-dlg__eyebrow">' +
-esc(t('explorer.dlg.eyebrow', { type: ui.typeLabel(tx), date: tx.postedAt ? YES.fmt.date(tx.postedAt, 'medium') : statusLabel(statusOf(tx)) })) +
+esc(t('explorer.dlg.eyebrow', { type: ui.typeLabel(tx), date: tx.postedAt ? YES.fmt.date(tx.postedAt, 'medium').replace(/\s/g, ' ') : statusLabel(statusOf(tx)) })) +
 '</p><h2 id="tx-dialog-title" class="dlg__title" tabindex="-1" data-fk="txd-title">' +
 esc(YES.L(tx.description)) +
 '</h2></div>' +
@@ -14418,6 +14567,7 @@ if (nb && same) nb.scrollTop = scroll;
 function settleClosed(how) {
 if (!els.dlg || els.dlg.open) return;
 if (YES.state.selectedTx === null && !els.dlg.hasAttribute('data-tx')) return;
+var closedId = els.dlg.getAttribute('data-tx') || YES.state.selectedTx;
 YES.set({ selectedTx: null });
 els.dlg.removeAttribute('data-tx');
 els.dlg.textContent = '';
@@ -14426,7 +14576,7 @@ dlgCtx.list = null;
 var pushed = hist.pushed;
 hist.pushed = false;
 var cur = YES.nav.current();
-if (cur.view !== 'transactions' || !cur.param) return;
+if (cur.view !== 'transactions' || !cur.param || cur.param !== closedId) return;
 if (how === 'back' && pushed && root.history && typeof root.history.back === 'function') root.history.back();
 else YES.nav.setParam(null);
 }
@@ -14762,20 +14912,24 @@ var k = b.getAttribute('data-txd-copy');
 var v = k === 'ref' ? tx.reference : k === 'id' ? tx.id : k === 'hash' && tx.onchain ? tx.onchain.hash : '';
 if (v) ui.copy(v);
 });
+var handOver = function (id) {
+var back = ui.dialogTrigger(d);
+var row = rowButton(id);
+if (!visible(back) && visible(row)) back = row;
+closing = true;
+ui.closeDialog(d, { returnFocus: false });
+settleClosed('back');
+return visible(back) ? back : null;
+};
 ui.delegate(d, 'click', '[data-txd-ask]', function (e, b) {
-YES.inquiry.start(b.getAttribute('data-txd-ask'), { trigger: b });
+var id = b.getAttribute('data-txd-ask');
+YES.inquiry.start(id, { trigger: handOver(id) });
 });
 ui.delegate(d, 'click', '[data-explain]', function (e, b) {
 e.preventDefault();
 e.stopPropagation();
 var ctx = { topic: b.getAttribute('data-explain'), id: b.getAttribute('data-explain-id') || null };
-var back = ui.dialogTrigger(d);
-var row = rowButton(ctx.id);
-if (!visible(back) && visible(row)) back = row;
-closing = true;
-ui.closeDialog(d, { returnFocus: false });
-settleClosed('back');
-YES.assistant.open({ topic: ctx.topic, id: ctx.id, trigger: visible(back) ? back : null });
+YES.assistant.open({ topic: ctx.topic, id: ctx.id, trigger: handOver(ctx.id) });
 });
 }
 YES.on('route', onRoute);
@@ -14968,7 +15122,7 @@ en: {
 'explorer.dlg.posted': 'Posted',
 'explorer.dlg.notPosted': 'Not posted — pending at the statement cut-off',
 'explorer.dlg.initiated': 'Initiated',
-'explorer.dlg.prevPeriodNote': 'Started in the previous period. It belongs to this statement because statements use the posted date.',
+'explorer.dlg.prevPeriodNote': 'Initiated in the previous period. It belongs to this statement because statements use the posted date.',
 'explorer.dlg.type': 'Type',
 'explorer.dlg.eventType': 'Event type',
 'explorer.dlg.rail': 'Rail and method',
@@ -15511,11 +15665,14 @@ ui.icon('arrow-left', { size: 18 }) +
 '<span>' +
 esc(t('inquiry.backToTx')) +
 '</span></button>' +
+'<div class="inq-head__tools">' +
+ui.langSwitchHtml({ fk: 'inq-lang', compact: true }) +
 '<button type="button" class="btn btn--icon btn--ghost inq-head__close" data-inq-close data-fk="inq-close" aria-label="' +
 esc(t(done ? 'inquiry.closeDone' : 'inquiry.closeDraft')) +
 '">' +
 ui.icon('close', { size: 20 }) +
 '</button>' +
+'</div>' +
 '</div>' +
 '<div class="inq-head__titlebar">' +
 '<h2 id="inquiry-dialog-title" class="dlg__title inq-head__title" tabindex="-1" data-fk="inq-title">' +
@@ -15550,7 +15707,7 @@ return tx.amount < 0 ? 'out' : tx.amount > 0 ? 'in' : 'neutral';
 }
 function txCardHtml(tx) {
 var pending = !YES.calc.inBalance(tx);
-var rows = kvRow(t('inquiry.tx.counterparty'), esc(YES.L(tx.counterparty)));
+var rows = kvRow(t('inquiry.tx.counterparty'), ui.maskedHtml(YES.L(tx.counterparty)));
 if (tx.postedAt) {
 rows += kvRow(t('term.postedDate'), esc(dateTime(tx.postedAt)));
 } else {
@@ -15573,7 +15730,7 @@ rows += kvRow(t('inquiry.tx.fee'), ui.amountHtml(feeSum));
 }
 if (tx.parentId) {
 var parent = YES.calc.tx(tx.parentId);
-if (parent) rows += kvRow(t('inquiry.tx.feeFor'), esc(YES.L(parent.description)));
+if (parent) rows += kvRow(t('inquiry.tx.feeFor'), ui.maskedHtml(YES.L(parent.description)));
 }
 rows += kvRow(t('inquiry.tx.reference'), '<span class="mono" data-inq-txref>' + esc(tx.reference || '') + '</span>');
 rows += kvRow(t('inquiry.tx.id'), '<span class="mono">' + esc(tx.id) + '</span>');
@@ -15590,9 +15747,9 @@ dirClass(tx) +
 ui.icon(ui.typeIcon(tx.type), { size: 18 }) +
 '</span>' +
 '<div class="inq-tx__name" id="inq-tx-name"><span class="inq-tx__type">' +
-esc(ui.typeLabel(tx.type)) +
+esc(ui.typeLabel(tx)) +
 '<span class="sr-only">: </span></span><span class="inq-tx__desc">' +
-esc(YES.L(tx.description)) +
+ui.maskedHtml(YES.L(tx.description)) +
 '</span></div>' +
 '<p class="inq-tx__amount">' +
 ui.amountHtml(tx.amount) +
@@ -15850,9 +16007,9 @@ esc(t(key)) +
 function txSummaryHtml(tx) {
 return (
 '<span class="inq-review__strong">' +
-esc(ui.typeLabel(tx.type)) +
+esc(ui.typeLabel(tx)) +
 ' · ' +
-esc(YES.L(tx.description)) +
+ui.maskedHtml(YES.L(tx.description)) +
 '</span><span>' +
 ui.amountHtml(tx.amount) +
 '<span class="inq-sep" aria-hidden="true"> · </span><span class="sr-only">, </span>' +
@@ -16253,6 +16410,7 @@ write(best ? clean(normalize(best)) : null, others);
 }
 }
 els.dlg.removeAttribute('data-step');
+if (els.shell) els.shell.textContent = '';
 setTimeout(function () {
 var a = doc.activeElement;
 if (a && a !== doc.body && a !== doc.documentElement) return;
@@ -16579,6 +16737,7 @@ var YES = root.YES;
 var ui = YES.ui;
 var t = YES.t;
 var esc = ui.esc;
+var mask = ui.maskedHtml || esc;
 var doc = root.document;
 var calc = YES.calc;
 var fmt = YES.fmt;
@@ -16638,7 +16797,7 @@ var m = '\u0001' + n++ + '\u0002';
 v[k] = m;
 marks[m] = html[k];
 }
-var s = esc(t(key, v));
+var s = mask(t(key, v));
 Object.keys(marks).forEach(function (mk) {
 s = s.split(mk).join(marks[mk]);
 });
@@ -16771,7 +16930,18 @@ function fig(label, minor, sign, total) {
 return { label: label, html: samt(minor, sign), total: !!total };
 }
 function figText(label, text, opts) {
-return { label: label, html: esc(text), txt: true, mono: !!(opts && opts.mono) };
+return { label: label, html: mask(text), txt: true, mono: !!(opts && opts.mono) };
+}
+function memoHtml(memo) {
+if (memo && typeof memo === 'object') return mask(YES.L(memo));
+var l = String(st().language || '');
+var h = mask(memo);
+return l && l.split('-')[0].toLowerCase() !== YES.i18n.lang ? '<span lang="' + esc(l) + '">' + h + '</span>' : h;
+}
+function supportRows(m) {
+return (m.rows || []).filter(function (r, i, a) {
+return a.indexOf(r) === i && !!calc.tx(r);
+});
 }
 function copy(o) {
 var out = {};
@@ -17232,7 +17402,7 @@ figs.push(fig(idLabel('assistant.fig.parent', p.id), p.amount));
 rows.push(p.id);
 }
 }
-if (tx.memo) paras.push(P('assistant.tx.memo', { memo: tx.memo }));
+if (tx.memo) paras.push(P('assistant.tx.memo', {}, { memo: memoHtml(tx.memo) }));
 figs.push(figText(t('assistant.fig.counterparty'), YES.L(tx.counterparty)));
 figs.push(figText(t('assistant.fig.rail'), railLabel(tx.rail) + ' · ' + methodLabel(tx.method)));
 figs.push(figText(t('assistant.fig.reference'), tx.reference, { mono: true }));
@@ -17706,7 +17876,7 @@ return { label: t('assistant.subject.general', { period: period() }) };
 }
 }
 function subjectHtml(sub) {
-return esc(sub.label) + (sub.amount != null ? ' · ' + samt(sub.amount, sub.sign || 'always') : '');
+return mask(sub.label) + (sub.amount != null ? ' · ' + samt(sub.amount, sub.sign || 'always') : '');
 }
 function subjectText(sub) {
 return sub.label + (sub.amount != null ? ' · ' + fmt.amount(sub.amount, { sign: sub.sign || 'always' }) : '');
@@ -17732,13 +17902,13 @@ dir +
 '">' +
 ui.icon(ui.typeIcon(x.type), { size: 16 }) +
 '</span><span class="asst-row__main"><span class="asst-row__top"><span class="asst-row__desc">' +
-esc(YES.L(x.description)) +
+mask(YES.L(x.description)) +
 '</span><span class="asst-row__amt">' +
 samt(x.amount) +
 '</span></span><span class="asst-row__meta">' +
 esc(dShort(dateIso)) +
 ' · ' +
-esc(ui.typeLabel(x.type)) +
+esc(ui.typeLabel(x)) +
 ' · <span class="asst-row__id">' +
 esc(x.id) +
 '</span>' +
@@ -17792,7 +17962,7 @@ function answerHtml(e, m, s, offerLang) {
 var id = 'asst-' + esc(e.id);
 var h = '<article class="asst-ans' + (m.policy ? ' asst-ans--policy' : '') + (m.plain ? ' asst-ans--welcome' : '') + '" aria-labelledby="' + id + '-h">';
 h += '<p class="asst-ans__tags">' + demoTag(id + '-tag') + (m.policy ? '<span class="tag asst-tag-policy">' + ui.icon('shield', { size: 14 }) + '<span>' + esc(t('assistant.policyTag')) + '</span></span>' : '') + (m.illustrative ? ui.illustrativeTag('assistant.illustrativeTag') : '') + '</p>';
-h += '<h3 id="' + id + '-h" class="asst-ans__title" tabindex="-1" data-fk="' + id + '-h" aria-describedby="' + id + '-tag">' + esc(m.title) + '</h3>';
+h += '<h3 id="' + id + '-h" class="asst-ans__title" tabindex="-1" data-fk="' + id + '-h" aria-describedby="' + id + '-tag">' + mask(m.title) + '</h3>';
 h += '<div class="asst-ans__text">';
 (m.paras || []).forEach(function (p) {
 h += '<p>' + p + '</p>';
@@ -17814,9 +17984,7 @@ h += '<tr' + (f.total ? ' class="is-total"' : '') + '><th scope="row">' + (f.lab
 });
 h += '</tbody></table>' + (m.sum || '') + '</div>';
 }
-var rowIds = (m.rows || []).filter(function (r, i, a) {
-return a.indexOf(r) === i && calc.tx(r);
-});
+var rowIds = supportRows(m);
 if (rowIds.length) {
 var expanded = !!s.expanded[e.id];
 var shown = expanded || rowIds.length <= ROW_PREVIEW + 1 ? rowIds : rowIds.slice(0, ROW_PREVIEW);
@@ -17937,6 +18105,9 @@ answerHtml(e, m, s, offer ? lang : null) +
 '</li>'
 );
 }
+function langSwitchShown() {
+return (mode === 'modal' || mode === 'stacked') && typeof ui.langSwitchHtml === 'function';
+}
 function drawerHtml() {
 var s = S();
 var last = s.thread[s.thread.length - 1];
@@ -17944,7 +18115,8 @@ var sub = subject(last || { topic: 'general' });
 var h = '';
 h += '<div class="asst__head"><div class="asst__bar"><span class="asst__mark">' + ui.icon('chat', { size: 20 }) + '</span>';
 h += '<h2 id="asst-title" class="asst__title" tabindex="-1" data-fk="asst-title">' + esc(t('assistant.title')) + '</h2>';
-h += '<button type="button" class="btn btn--icon btn--ghost asst__close" data-asst-close data-fk="asst-close" aria-label="' + esc(t('assistant.close')) + '">' + ui.icon('close', { size: 20 }) + '</button>';
+h += '<div class="asst__tools">' + (langSwitchShown() ? ui.langSwitchHtml({ fk: 'asst-lang', compact: true }) : '');
+h += '<button type="button" class="btn btn--icon btn--ghost asst__close" data-asst-close data-fk="asst-close" aria-label="' + esc(t('assistant.close')) + '">' + ui.icon('close', { size: 20 }) + '</button></div>';
 h += '<p class="asst__tagline">' + demoTag() + '</p></div>';
 h += '<p class="asst__ctx" data-asst-ctx><span class="asst__ctx-k">' + esc(t('assistant.about')) + '</span> <span class="asst__ctx-v">' + subjectHtml(sub) + '</span></p></div>';
 h += '<div class="asst__body">';
@@ -17998,7 +18170,11 @@ function render() {
 if (!els.dlg) return;
 var b = scrollerEl();
 var top = b ? b.scrollTop : 0;
+var live = ui.$$(':scope > .dlg-live--polite, :scope > .dlg-live--assertive', els.dlg);
 ui.render(els.dlg, drawerHtml());
+live.forEach(function (r) {
+els.dlg.appendChild(r);
+});
 inqSig = inquirySig();
 animateId = null;
 b = scrollerEl();
@@ -18058,6 +18234,8 @@ if (title) title.focus({ preventScroll: true });
 function finishClose(opts) {
 if (mode === null) return;
 mode = null;
+var sw = els.dlg.querySelector('.asst__tools .seg');
+if (sw) sw.parentNode.removeChild(sw);
 var html = doc.documentElement;
 html.classList.remove('assistant-docked');
 html.classList.toggle('has-modal', ui.anyModalOpen());
@@ -18107,10 +18285,11 @@ var top = b ? b.scrollTop : 0;
 d.close();
 openAs(want);
 if (want === 'docked') doc.documentElement.classList.toggle('has-modal', ui.anyModalOpen());
+render();
 b = scrollerEl();
 if (b) b.scrollTop = top;
 var target = fk ? d.querySelector(fkSel(fk)) : null;
-(target || d.querySelector('#asst-title')).focus({ preventScroll: true });
+(target && visible(target) ? target : d.querySelector('#asst-title')).focus({ preventScroll: true });
 }
 function open(opts) {
 opts = opts || {};
@@ -18180,6 +18359,15 @@ render();
 focusEntry(eid);
 ui.announce(t('assistant.cleared'));
 }
+function entryOf(el) {
+var turn = el && el.closest ? el.closest('.asst-turn') : null;
+return turn ? findEntry(turn.id.replace(/^asst-turn-/, '')) : null;
+}
+function rowsAround(btn, id) {
+var en = entryOf(btn);
+var rows = en ? supportRows(model(en)) : [];
+return rows.length > 1 && rows.indexOf(id) !== -1 ? rows : undefined;
+}
 function bind() {
 var d = els.dlg;
 d.addEventListener('close', function () {
@@ -18206,21 +18394,19 @@ ask(b.getAttribute('data-asst-q'));
 });
 ui.delegate(d, 'click', '[data-asst-tx]', function (e, b) {
 var id = b.getAttribute('data-asst-tx');
+var rows = rowsAround(b, id);
 if (mode === 'stacked') {
 var back = returnTo;
 close({ returnFocus: false });
-YES.explorer.openTx(id, { trigger: back && visible(back) ? back : null });
+YES.explorer.openTx(id, { trigger: back && visible(back) ? back : null, list: rows });
 } else {
-YES.explorer.openTx(id, { trigger: b });
+YES.explorer.openTx(id, { trigger: b, list: rows });
 }
 });
 ui.delegate(d, 'click', '[data-asst-rows]', function (e, b) {
 var en = findEntry(b.getAttribute('data-asst-rows'));
 if (!en) return;
-var m = model(en);
-var rowIds = (m.rows || []).filter(function (r, i, a) {
-return a.indexOf(r) === i && calc.tx(r);
-});
+var rowIds = supportRows(model(en));
 var label = localized(function () {
 var lm = model(en);
 return t('assistant.rowsChip', { subject: lm.rowsSubject || lm.title });
@@ -19686,7 +19872,7 @@ icon(ui.typeIcon(tx.type), { size: 18 }) +
 '<span class="und-oc__txmain"><span class="und-oc__desc">' +
 esc(YES.L(tx.description)) +
 '</span><span class="und-oc__txmeta"><span>' +
-esc(ui.typeLabel(tx.type)) +
+esc(ui.typeLabel(tx)) +
 '</span> · <span>' +
 esc(YES.fmt.date(tx.postedAt || tx.initiatedAt, 'medium')) +
 '</span> · <span>' +
@@ -20061,7 +20247,7 @@ en: {
 'understand.ex.feesTotal': 'Total fees',
 'understand.ex.noFees': 'No fees were charged this period.',
 'understand.ex.postedOn': 'Posted {date}',
-'understand.ex.startedOn': 'Started {date}',
+'understand.ex.startedOn': 'Initiated {date}',
 'understand.ex.withFee': 'fee {amount} on its own line',
 'understand.ex.noRedemptions': 'No redemptions this period.',
 'understand.ex.provider': 'Redemption provider',
@@ -21082,16 +21268,24 @@ esc(t('help.a11y.review')) +
 function cellLabel(key) {
 return '<span class="help-table__lbl" aria-hidden="true">' + esc(t(key)) + '</span>';
 }
-function aboutHtml() {
-var cfg = YES.config;
-var rows = ENHANCEMENTS.map(function (e) {
-var fileHtml =
-e.id === 'userway'
-? esc(t('help.about.e.userway.file', { id: (cfg.userway && cfg.userway.accountId) || '' })) +
+function enhancementFileHtml(id) {
+var uw = YES.config.userway || {};
+if (id === 'userway') {
+return (
+esc(t('help.about.e.userway.file', { id: uw.accountId || '' })) +
 ' <span data-help-uw-about>' +
 esc(t('help.about.e.userway.now', { status: t('help.uw.status.' + uwStatus()) })) +
 '</span>'
-: esc(t('help.about.e.' + e.id + '.file'));
+);
+}
+var text = t('help.about.e.' + id + '.file');
+if (id === 'analytics' && uw.enabled) text += ' ' + t('footer.userwayNote');
+return esc(text);
+}
+function aboutHtml() {
+var cfg = YES.config;
+var rows = ENHANCEMENTS.map(function (e) {
+var fileHtml = enhancementFileHtml(e.id);
 return (
 '<tr role="row" data-enh="' +
 e.id +
@@ -21121,8 +21315,10 @@ function swatch(color) {
 return '<span class="help-swatch" aria-hidden="true" style="background-color:' + esc(color) + '"></span><span class="mono">' + esc(color) + '</span>';
 }
 var logo = slots.YES_LOGO || {};
+var logoMini = ui.logoHtml({ cls: 'help-logo-mini', size: 24, decorative: true });
+var logoArt = logoMini.indexOf('yes-logo--art') !== -1;
 var slotRows = [
-['YES_LOGO', logo.svg ? esc(t('help.slots.logoSvg')) : '<span class="help-logo-mini" aria-hidden="true">' + esc(logo.text || '') + '</span><span>' + esc(t('help.slots.logoText', { text: logo.text || '' })) + '</span>'],
+['YES_LOGO', logoMini + '<span>' + esc(logoArt ? t('help.slots.logoSvg') : t('help.slots.logoText', { text: logo.text || t('brand.logoAlt') })) + '</span>'],
 ['YES_PRIMARY', swatch(slots.YES_PRIMARY)],
 ['YES_ACCENT', swatch(slots.YES_ACCENT)],
 ['YES_FONT', '<span class="mono help-slot__font">' + esc(slots.YES_FONT) + '</span>'],
@@ -21226,9 +21422,7 @@ var span = '<span>' + esc(text) + '</span>';
 return '<div class="print-watermark' + (text.length > 24 ? ' print-watermark--long' : '') + '" aria-hidden="true">' + span + span + span + '</div>';
 }
 function printLogoHtml() {
-var slot = YES.config.slots.YES_LOGO || {};
-if (slot.svg) return '<span class="pr-logo pr-logo--art" data-slot="YES_LOGO" role="img" aria-label="' + esc(t('brand.logoAlt')) + '">' + slot.svg + '</span>';
-return '<span class="pr-logo" data-slot="YES_LOGO">' + esc(slot.text || 'YES') + '</span>';
+return ui.logoHtml({ cls: 'pr-logo', size: '28pt' });
 }
 function cssStr(s) {
 return (
@@ -21346,11 +21540,11 @@ dt(tx.initiatedAt) +
 '</td><td><span class="pr-desc">' +
 esc(YES.L(tx.description)) +
 '</span><span class="pr-sub">' +
-esc(YES.L(tx.counterparty)) +
+ui.maskedHtml(YES.L(tx.counterparty)) +
 '</span>' +
 (parent ? '<span class="pr-sub">' + esc(t('help.print.feeFor', { ref: parent.reference })) + '</span>' : '') +
 '</td><td>' +
-esc(ui.typeLabel(tx.type)) +
+esc(ui.typeLabel(tx)) +
 '</td><td class="mono">' +
 esc(tx.reference) +
 '</td><td class="num">' +
@@ -21386,9 +21580,9 @@ dt(tx.initiatedAt) +
 '</td><td><span class="pr-desc">' +
 esc(YES.L(tx.description)) +
 '</span><span class="pr-sub">' +
-esc(YES.L(tx.counterparty)) +
+ui.maskedHtml(YES.L(tx.counterparty)) +
 '</span></td><td>' +
-esc(ui.typeLabel(tx.type)) +
+esc(ui.typeLabel(tx)) +
 '</td><td class="mono">' +
 esc(tx.reference) +
 '</td><td><strong>' +
@@ -21466,9 +21660,9 @@ esc(t('help.print.account')) +
 '</p><p>' +
 esc(YES.L(s.account.label)) +
 ' <span class="mono">' +
-esc(s.account.maskedId) +
+ui.maskedHtml(s.account.maskedId) +
 '</span>' +
-(s.account.walletMasked ? '<br />' + esc(t('help.print.wallet')) + ' <span class="mono">' + esc(s.account.walletMasked) + '</span>' : '') +
+(s.account.walletMasked ? '<br />' + esc(t('help.print.wallet')) + ' <span class="mono">' + ui.maskedHtml(s.account.walletMasked) + '</span>' : '') +
 '</p><p class="pr-sub">' +
 esc(t('help.print.masked')) +
 '</p></div>' +
@@ -21670,7 +21864,7 @@ en: {
 'help.ask.body': 'Get a short explanation of your balance, a transaction or a fee. In this demo, answers are curated demo explanations computed from this statement — not a live AI service.',
 'help.contact.tag': 'Placeholder destinations',
 'help.contact.lede': 'How you would reach YES about this statement.',
-'help.contact.notConnected': 'These support destinations are placeholders and are not connected in this demo. You cannot call, email or chat with anyone from this file, and nothing you do here is sent.',
+'help.contact.notConnected': 'These support destinations are placeholders and are not connected in this demo. You cannot call, email or chat with anyone from this file, and nothing you do here reaches a support team.',
 'help.contact.phone': 'Phone',
 'help.contact.email': 'Email',
 'help.contact.hours': 'Hours',
@@ -21800,7 +21994,7 @@ en: {
 'help.about.e.feedback.file': 'Kept only in this browser session. Nothing is sent.',
 'help.about.e.feedback.prod': 'An approved feedback service.',
 'help.about.e.analytics': 'Analytics',
-'help.about.e.analytics.file': 'Nothing you do on this page is measured or sent.',
+'help.about.e.analytics.file': 'The statement itself measures and sends nothing.',
 'help.about.e.analytics.prod': 'Approved, minimized engagement measurement.',
 'help.about.e.evidence': 'Reserve and blockchain evidence',
 'help.about.e.evidence.file': 'Illustrative layout: no reserve assertion and no live blockchain verification.',
@@ -21873,7 +22067,7 @@ es: {
 'help.ask.body': 'Obtén una explicación breve de tu saldo, de un movimiento o de una comisión. En esta demostración, las respuestas son explicaciones de demostración preparadas a partir de este estado de cuenta, no un servicio de IA en vivo.',
 'help.contact.tag': 'Destinos provisionales',
 'help.contact.lede': 'Cómo te pondrías en contacto con YES sobre este estado de cuenta.',
-'help.contact.notConnected': 'Estos destinos de soporte son marcadores de posición y no están conectados en esta demostración. Desde este archivo no puedes llamar, escribir ni chatear con nadie, y nada de lo que hagas aquí se envía.',
+'help.contact.notConnected': 'Estos destinos de soporte son marcadores de posición y no están conectados en esta demostración. Desde este archivo no puedes llamar, escribir ni chatear con nadie, y nada de lo que hagas aquí llega a un equipo de soporte.',
 'help.contact.phone': 'Teléfono',
 'help.contact.email': 'Correo electrónico',
 'help.contact.hours': 'Horario',
@@ -22003,7 +22197,7 @@ es: {
 'help.about.e.feedback.file': 'Se guardan solo en esta sesión del navegador. No se envía nada.',
 'help.about.e.feedback.prod': 'Un servicio de opiniones aprobado.',
 'help.about.e.analytics': 'Analítica',
-'help.about.e.analytics.file': 'Nada de lo que haces en esta página se mide ni se envía.',
+'help.about.e.analytics.file': 'El propio estado de cuenta no mide ni envía nada.',
 'help.about.e.analytics.prod': 'Medición de uso aprobada y con datos mínimos.',
 'help.about.e.evidence': 'Pruebas de reservas y de blockchain',
 'help.about.e.evidence.file': 'Diseño ilustrativo: sin afirmaciones sobre reservas y sin verificación de blockchain en vivo.',

@@ -128,10 +128,13 @@ th.num {
   white-space: nowrap !important;
   border: 0 !important;
 }
+/* Off screen by its own height (plus its shadow) until focused, so it never
+   peeks over the masthead, however large the text or long the language. */
 .skip-link {
   position: absolute;
   left: var(--s4);
-  top: -100px;
+  top: var(--s3);
+  transform: translateY(calc(-100% - var(--s3) - 24px));
   z-index: 1000;
   background: var(--surface);
   color: var(--ink);
@@ -141,7 +144,7 @@ th.num {
   font-weight: 600;
 }
 .skip-link:focus {
-  top: var(--s3);
+  transform: none;
 }
 .container {
   width: 100%;

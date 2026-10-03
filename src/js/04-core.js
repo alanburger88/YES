@@ -39,8 +39,10 @@
   YES.defaultFilters = function () {
     return {
       q: '', // free-text search
-      from: '', // YYYY-MM-DD, inclusive, on the active date basis
-      to: '', // YYYY-MM-DD, inclusive
+      // YYYY-MM-DD, inclusive, on the statement's date basis
+      // (YES.data.statement.dateBasis); sorting never changes it
+      from: '',
+      to: '',
       direction: 'all', // all | in | out
       types: [], // canonical types: deposit, transfer_in, transfer_out, redemption, fee
       statuses: [], // posted, pending, failed, unknown
@@ -48,7 +50,9 @@
       min: '', // absolute amount, major units as typed by the customer
       max: '',
       step: null, // balance-journey step id or group id (incoming/outgoing) that scoped the list
-      ids: null // explicit transaction id list (e.g. "rows used" from an explanation)
+      ids: null, // explicit transaction id list (e.g. "rows used" from an explanation)
+      idsLabel: null, // name of that list for its chip: a string or a localised { en, es } object
+      amountLang: null // language min/max were typed in ("1,000" vs "1.000"); set by the explorer
     };
   };
 
@@ -492,16 +496,32 @@
     return !!(root.matchMedia && root.matchMedia('(max-width: 719px)').matches);
   };
 
+  /** True when an element's text runs over more than one line. */
+  function wrapsText(el) {
+    var node = el.firstChild;
+    if (!node || !doc.createRange) return false;
+    var range = doc.createRange();
+    range.selectNodeContents(el);
+    var rects = range.getClientRects();
+    for (var i = 1; i < rects.length; i++) {
+      if (rects[i].top >= rects[0].bottom - 1) return true;
+    }
+    return false;
+  }
+
   /**
    * Short visual confirmation (also announced). The toast is a manual popover:
    * re-showing it puts it at the top of the top layer, above any open modal
-   * dialog or sheet, so a confirmation is never painted underneath one.
+   * dialog or sheet, so a confirmation is never painted underneath one. One line
+   * is a pill; a message that wraps (a long confirmation on a phone) becomes a
+   * rounded rectangle, never a stretched pill.
    */
   var toastTimer = null;
   ui.toast = function (msg) {
     var el = doc.getElementById('toast');
     if (!el) return;
     el.textContent = msg;
+    el.classList.remove('is-multiline');
     if (typeof el.showPopover === 'function') {
       try {
         if (el.matches(':popover-open')) el.hidePopover();
@@ -511,6 +531,7 @@
         /* popover unsupported in this context: the fixed toast still shows */
       }
     }
+    el.classList.toggle('is-multiline', wrapsText(el));
     el.classList.add('is-visible');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () {
@@ -833,6 +854,44 @@
       buttons +
       '</div>'
     );
+  };
+
+  /**
+   * The [YES_LOGO] brand slot (YES.config.slots.YES_LOGO) as one element, for
+   * every place that shows the logo (masthead, video poster, print header):
+   *   slot.svg — approved SVG markup (trusted configuration, inserted as is)
+   *   slot.src — approved image as a data: URI (a URL that would fetch is ignored:
+   *              the file makes no network request for its own assets)
+   *   neither  — the text placeholder (slot.text), outlined as a placeholder
+   * The element is an image named by 'brand.logoAlt' ("YES"), or hidden from
+   * assistive technology with opts.decorative (when nearby text already names YES).
+   *   opts.cls  — class name(s) to add; the first also gets the state modifier,
+   *               like yes-logo itself: <cls>--art or <cls>--placeholder
+   *   opts.size — height: a number (px) or a CSS length ('28pt', '2.5rem'); the
+   *               placeholder lettering and the artwork scale with it
+   */
+  var LOGO_SRC_RE = /^data:image\/(?:png|jpeg|gif|webp|avif|svg\+xml)[;,]/i;
+  var LOGO_SIZE_RE = /^\d+(?:\.\d+)?(?:px|pt|rem|em|mm)$/;
+  ui.logoHtml = function (opts) {
+    opts = opts || {};
+    var slot = (YES.config && YES.config.slots && YES.config.slots.YES_LOGO) || {};
+    var src = typeof slot.src === 'string' && LOGO_SRC_RE.test(slot.src) ? slot.src : null;
+    var kind = slot.svg || src ? 'art' : 'placeholder';
+    var extra = String(opts.cls || '')
+      .split(/\s+/)
+      .filter(Boolean);
+    var classes = ['yes-logo', 'yes-logo--' + kind].concat(extra);
+    if (extra.length) classes.push(extra[0] + '--' + kind);
+    var size = typeof opts.size === 'number' && opts.size > 0 ? opts.size + 'px' : LOGO_SIZE_RE.test(String(opts.size || '')) ? String(opts.size) : '';
+    var name = YES.t('brand.logoAlt');
+    var html = '<span class="' + ui.esc(classes.join(' ')) + '" data-slot="YES_LOGO"' + (size ? ' style="--logo-h: ' + size + '"' : '');
+    html += opts.decorative ? ' aria-hidden="true"' : ' role="img" aria-label="' + ui.esc(name) + '"';
+    if (kind === 'placeholder' && !opts.decorative) html += ' title="' + ui.esc(YES.t('brand.logoPlaceholder')) + '"';
+    html += '>';
+    if (slot.svg) html += String(slot.svg);
+    else if (src) html += '<img src="' + ui.esc(src) + '" alt="" />';
+    else html += ui.esc(slot.text || name);
+    return html + '</span>';
   };
 
   /** "Illustrative" tag used on fictional blockchain / reserve / rate content. */
