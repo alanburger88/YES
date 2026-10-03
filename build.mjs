@@ -2,13 +2,18 @@
 /*
  * Builds the single distributable file: dist/yes-statement.html
  *
- *   node build.mjs [--out path/to/file.html]
+ *   node build.mjs [--out path/to/file.html] [--modules overview,explorer] [--no-minify]
  *
  * - Inlines every src/css/*.css and src/js/*.js (sorted by filename) into
  *   src/index.html. No external CSS, fonts, scripts or media are referenced.
  * - Release gate: evaluates the data + reconciliation code and refuses to build
  *   if the statement does not reconcile (PRD 5.2, 6).
- * - Generates a static <noscript> summary from the same data object.
+ * - Generates a static, bilingual <noscript> summary from the same data object
+ *   and the shipped EN/ES strings.
+ * - Strips comments and indentation from the inlined CSS and JS (never inside
+ *   strings, template literals or regular expressions; line breaks are kept, so
+ *   automatic semicolon insertion is unchanged). --no-minify keeps the sources
+ *   verbatim for debugging.
  */
 import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -20,6 +25,7 @@ const SRC = join(ROOT, 'src');
 const args = process.argv.slice(2);
 const outArg = args.indexOf('--out');
 const OUT = resolve(outArg !== -1 ? args[outArg + 1] : join(ROOT, 'dist', 'yes-statement.html'));
+const MINIFY = !args.includes('--no-minify');
 
 // --modules overview,explorer → build only the foundation plus the named feature
 // modules (lets several modules be developed and tested in isolation).
@@ -35,15 +41,24 @@ const list = (dir, ext) =>
 
 const cssFiles = list('css', '.css');
 const jsFiles = list('js', '.js');
+const fail = (msg) => {
+  console.error(msg);
+  process.exit(1);
+};
+
+/* --------------------------------------------------------- Foundation sandbox */
+// Config, data, arithmetic and localisation have no DOM dependency, so the build
+// runs the very code the page runs.
+function foundation(files) {
+  const sandbox = { console, Intl, Date, Math, JSON };
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  for (const f of files.filter((f) => /^js\/0[0-3]-/.test(f.name))) vm.runInContext(f.body, sandbox, { filename: f.name });
+  return sandbox.YES;
+}
+const YES = foundation(jsFiles);
 
 // ---------------------------------------------------------------- Release gate
-const sandbox = { console, Intl, Date, Math, JSON };
-sandbox.globalThis = sandbox;
-vm.createContext(sandbox);
-for (const f of jsFiles.filter((f) => /^js\/0[0-2]-/.test(f.name))) {
-  vm.runInContext(f.body, sandbox, { filename: f.name });
-}
-const YES = sandbox.YES;
 const result = YES.calc.reconcile(YES.data);
 if (!result.ok) {
   console.error('\n✖ Release gate: statement does not reconcile. Build refused.\n');
@@ -51,56 +66,306 @@ if (!result.ok) {
   process.exit(1);
 }
 
+/* ------------------------------------------------------------------ Minifier */
+/*
+ * Conservative: removes comments, leading indentation, trailing spaces and blank
+ * lines. Everything inside strings, template literals and regular-expression
+ * literals is copied verbatim. File markers ("/* ---- js/… ---- *\/") are kept.
+ */
+const KEEP_COMMENT = /^\/\* ---- [\w./-]+ ---- \*\/$/;
+const REGEX_AFTER_WORD = new Set(['return', 'typeof', 'case', 'do', 'else', 'in', 'instanceof', 'new', 'delete', 'void', 'throw', 'yield', 'await', 'of']);
+
+function minifyJs(src, tokens) {
+  let out = '';
+  let i = 0;
+  const n = src.length;
+  let lastSig = ''; // last significant character emitted outside comments
+  let lastWord = '';
+  const braces = []; // template-literal nesting: 'tpl' marks a ${ … } expression
+  const isIdent = (c) => /[\w$]/.test(c);
+  const emit = (s, token = true) => {
+    out += s;
+    if (tokens && token && !/^\s+$/.test(s)) tokens.push(s);
+  };
+  const newline = () => {
+    out = out.replace(/[ \t]+$/, '');
+    if (!out.endsWith('\n')) out += '\n';
+    while (i < n && (src[i] === ' ' || src[i] === '\t')) i++;
+  };
+  const regexAllowed = () => {
+    if (!lastSig) return true;
+    if (isIdent(lastSig)) return REGEX_AFTER_WORD.has(lastWord);
+    return !/[)\]]/.test(lastSig) && lastSig !== '`' && lastSig !== '"' && lastSig !== "'";
+  };
+  const readString = (q) => {
+    let s = q;
+    i++;
+    while (i < n) {
+      const c = src[i];
+      s += c;
+      i++;
+      if (c === '\\') {
+        s += src[i];
+        i++;
+      } else if (c === q) break;
+      else if (c === '\n') throw new Error('unterminated string near ' + JSON.stringify(src.slice(i - 40, i)));
+    }
+    return s;
+  };
+  const readTemplateChunk = () => {
+    // From just after ` or } (of ${…}) to the closing ` or the next ${.
+    let s = '';
+    while (i < n) {
+      const c = src[i];
+      if (c === '\\') {
+        s += c + src[i + 1];
+        i += 2;
+        continue;
+      }
+      if (c === '`') {
+        s += c;
+        i++;
+        return { s, open: false };
+      }
+      if (c === '$' && src[i + 1] === '{') {
+        s += '${';
+        i += 2;
+        return { s, open: true };
+      }
+      s += c;
+      i++;
+    }
+    throw new Error('unterminated template literal');
+  };
+  const readRegex = () => {
+    let s = '/';
+    i++;
+    let inClass = false;
+    while (i < n) {
+      const c = src[i];
+      s += c;
+      i++;
+      if (c === '\\') {
+        s += src[i];
+        i++;
+      } else if (c === '[') inClass = true;
+      else if (c === ']') inClass = false;
+      else if (c === '/' && !inClass) break;
+      else if (c === '\n') throw new Error('unterminated regex near ' + JSON.stringify(src.slice(i - 40, i)));
+    }
+    while (i < n && /[a-z]/i.test(src[i])) s += src[i++];
+    return s;
+  };
+
+  while (i < n) {
+    const c = src[i];
+    const d = src[i + 1];
+    if (c === '\n') {
+      i++;
+      newline();
+      continue;
+    }
+    if (c === '/' && d === '/') {
+      while (i < n && src[i] !== '\n') i++;
+      continue;
+    }
+    if (c === '/' && d === '*') {
+      const end = src.indexOf('*/', i + 2);
+      if (end === -1) throw new Error('unterminated comment');
+      const body = src.slice(i, end + 2);
+      i = end + 2;
+      if (KEEP_COMMENT.test(body)) emit(body, false);
+      else if (body.includes('\n')) newline();
+      else if (isIdent(out.slice(-1)) && isIdent(src[i] || '')) emit(' ');
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      emit(readString(c));
+      lastSig = c;
+      continue;
+    }
+    if (c === '`') {
+      i++;
+      const chunk = readTemplateChunk();
+      emit('`' + chunk.s);
+      if (chunk.open) braces.push('tpl');
+      else lastSig = '`';
+      if (chunk.open) lastSig = '{';
+      continue;
+    }
+    if (c === '{') {
+      braces.push('{');
+      emit(c);
+      lastSig = c;
+      i++;
+      continue;
+    }
+    if (c === '}') {
+      const top = braces.pop();
+      i++;
+      if (top === 'tpl') {
+        const chunk = readTemplateChunk();
+        emit('}' + chunk.s);
+        if (chunk.open) {
+          braces.push('tpl');
+          lastSig = '{';
+        } else lastSig = '`';
+      } else {
+        emit(c);
+        lastSig = c;
+      }
+      continue;
+    }
+    if (c === '/' && regexAllowed()) {
+      emit(readRegex());
+      lastSig = '/';
+      lastWord = '';
+      continue;
+    }
+    if (isIdent(c)) {
+      let w = '';
+      while (i < n && isIdent(src[i])) w += src[i++];
+      emit(w);
+      lastSig = w[w.length - 1];
+      lastWord = w;
+      continue;
+    }
+    emit(c);
+    i++;
+    if (c !== ' ' && c !== '\t' && c !== '\r') {
+      lastSig = c;
+      lastWord = '';
+    }
+  }
+  return out.replace(/[ \t]+$/gm, '').replace(/^\n+/, '');
+}
+
+function minifyCss(src) {
+  let out = '';
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    const c = src[i];
+    if (c === '/' && src[i + 1] === '*') {
+      const end = src.indexOf('*/', i + 2);
+      const body = src.slice(i, end + 2);
+      i = end + 2;
+      if (KEEP_COMMENT.test(body)) out += body;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      let s = c;
+      i++;
+      while (i < n) {
+        const ch = src[i++];
+        s += ch;
+        if (ch === '\\') s += src[i++];
+        else if (ch === c) break;
+      }
+      out += s;
+      continue;
+    }
+    if (c === '\n') {
+      out = out.replace(/[ \t]+$/, '');
+      if (!out.endsWith('\n')) out += '\n';
+      i++;
+      while (i < n && (src[i] === ' ' || src[i] === '\t')) i++;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out.replace(/^\n+/, '');
+}
+
+/* Token stream of a JS source (strings, template chunks, regular expressions,
+   words and punctuation; no whitespace or comments). Minifying must not change
+   it by a single token. */
+function jsTokens(src) {
+  const tokens = [];
+  minifyJs(src, tokens);
+  return tokens;
+}
+
 // -------------------------------------------------------------- Syntax check
-const js = jsFiles.map((f) => `/* ---- ${f.name} ---- */\n${f.body}`).join('\n');
+const jsSource = jsFiles.map((f) => `/* ---- ${f.name} ---- */\n${f.body}`).join('\n');
 try {
-  new vm.Script(js, { filename: 'bundle.js' });
+  new vm.Script(jsSource, { filename: 'bundle.js' });
 } catch (e) {
-  console.error('✖ JavaScript syntax error:', e.message);
-  process.exit(1);
+  fail('✖ JavaScript syntax error: ' + e.message);
 }
-if (/<\/script/i.test(js)) {
-  console.error('✖ A JS source contains "</script" — escape it (e.g. "<\\/script").');
-  process.exit(1);
-}
-const css = cssFiles.map((f) => `/* ---- ${f.name} ---- */\n${f.body}`).join('\n');
-if (/@import|url\((?!\s*['"]?data:)/i.test(css)) {
-  console.error('✖ CSS references an external resource (@import or url()). Inline it as a data: URI.');
-  process.exit(1);
+if (/<\/script/i.test(jsSource)) fail('✖ A JS source contains "</script" — escape it (e.g. "<\\/script").');
+const cssSource = cssFiles.map((f) => `/* ---- ${f.name} ---- */\n${f.body}`).join('\n');
+if (/@import|url\((?!\s*['"]?data:)/i.test(cssSource)) fail('✖ CSS references an external resource (@import or url()). Inline it as a data: URI.');
+
+let js = jsSource;
+let css = cssSource;
+if (MINIFY) {
+  try {
+    js = minifyJs(jsSource);
+    css = minifyCss(cssSource);
+  } catch (e) {
+    fail('✖ Minifier: ' + e.message + ' (build with --no-minify to inspect)');
+  }
+  try {
+    new vm.Script(js, { filename: 'bundle.min.js' });
+  } catch (e) {
+    fail('✖ Minified JavaScript does not parse: ' + e.message + ' (build with --no-minify to inspect)');
+  }
+  if (minifyJs(js) !== js || minifyCss(css) !== css) fail('✖ Minifier is not stable: re-minifying changed the output.');
+  const before = jsTokens(jsSource);
+  const after = jsTokens(js);
+  const at = before.findIndex((tok, k) => tok !== after[k]);
+  if (at !== -1 || before.length !== after.length) fail('✖ Minifier changed the JavaScript token stream near ' + JSON.stringify(before.slice(Math.max(0, at - 3), at + 3)));
+  // The foundation must behave identically: same data, same strings, same gate.
+  const min = foundation(js.split(/(?=\/\* ---- js\/)/).map((body) => ({ name: body.match(/^\/\* ---- (js\/[^ ]+) ----/)[1], body })));
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  if (!same(min.data, YES.data) || !same(min.config, YES.config) || !same(min.i18n.dict, YES.i18n.dict) || !same(min.calc.reconcile(min.data), result)) {
+    fail('✖ Minified foundation differs from the source (data, config, strings or release gate).');
+  }
 }
 
 // ------------------------------------------------------------ Noscript summary
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const s = YES.data.statement;
-const asset = YES.data.assets[s.assetId];
-const amt = (m, sign = false) => {
-  const v = (Math.abs(m) / 10 ** asset.precision).toLocaleString('en-US', { minimumFractionDigits: asset.precision, maximumFractionDigits: asset.precision });
-  return (m < 0 ? '−' : sign && m > 0 ? '+' : '') + v + ' ' + asset.symbol;
-};
-const day = (iso) => new Date(iso).toLocaleDateString('en-US', { timeZone: s.timezone, day: 'numeric', month: 'short', year: 'numeric' });
-const label = { deposit: 'Deposit', transfer_in: 'Received', transfer_out: 'Sent', redemption: 'Redeemed', fee: 'Fee' };
-const catLabel = { deposits: 'Deposits', transfers_in: 'Incoming transfers', transfers_out: 'Outgoing transfers', redemptions: 'Redemptions', fees: 'Fees' };
-const rows = YES.calc
-  .posted(YES.data)
-  .map((t) => `<tr><td>${esc(day(t.postedAt))}</td><td>${esc(label[t.type])}</td><td>${esc(t.description.en)}</td><td>${esc(t.counterparty.en)}</td><td style="text-align:right">${esc(amt(t.amount, true))}</td><td style="text-align:right">${esc(amt(t.balanceAfter))}</td></tr>`)
-  .join('');
-const pending = YES.calc
-  .notInBalance(YES.data)
-  .map((t) => `<li>${esc(day(t.initiatedAt))} — ${esc(t.description.en)}: ${esc(amt(t.amount, true))} (${esc(t.status)}, not included in the statement balance)</li>`)
-  .join('');
-const cats = YES.calc
-  .categories(YES.data)
-  .map((c) => `<li>${esc(catLabel[c.id])}: ${esc(amt(c.total, true))}</li>`)
-  .join('');
-const noscript = `<div class="noscript-summary">
-<p><strong>ILLUSTRATIVE DEMO DATA.</strong> This interactive statement needs JavaScript. A static summary follows.</p>
-<h1>YES statement — ${esc(day(s.periodStart))} to ${esc(day(s.periodEnd))}</h1>
-<p>Statement ${esc(s.id)}, version ${esc(s.version)}. Account ${esc(s.account.maskedId)}. Dates use the posted date; times in ${esc(s.timezone)}.</p>
-<p>Opening balance ${esc(amt(s.opening))}. Closing statement balance <strong>${esc(amt(s.closing))}</strong>.</p>
+const { t, fmt, L } = { t: YES.t, fmt: YES.fmt, L: YES.L };
+const tzShort = (iso) => fmt.tz(iso).split(' (')[0];
+function summary(lang, level) {
+  YES.i18n.lang = lang;
+  const h = (k) => `h${level + k}`;
+  const amt = (m, sign) => fmt.amount(m, { sign: sign ? 'always' : 'auto' });
+  const rows = YES.calc
+    .posted(YES.data)
+    .map(
+      (x) =>
+        `<tr><td>${esc(fmt.date(x.postedAt, 'medium'))}</td><td>${esc(t('type.' + x.type))}</td><td>${esc(L(x.description))}</td><td>${esc(L(x.counterparty))}</td><td style="text-align:right">${esc(amt(x.amount, true))}</td><td style="text-align:right">${esc(amt(x.balanceAfter))}</td></tr>`
+    )
+    .join('');
+  const pending = YES.calc
+    .notInBalance(YES.data)
+    .map((x) => `<li>${esc(t('noscript.pendingItem', { date: fmt.date(x.initiatedAt, 'medium'), description: L(x.description), amount: amt(x.amount, true), status: t('status.' + x.status) }))}</li>`)
+    .join('');
+  const cats = YES.calc
+    .categories(YES.data)
+    .map((c) => `<li>${esc(t('cat.' + c.id))}: ${esc(amt(c.total, true))}</li>`)
+    .join('');
+  return `<section lang="${lang}">
+<p><strong>${esc(t('demo.watermark'))}.</strong> ${esc(t('app.noscript'))}</p>
+<${h(0)}>${esc(t('noscript.heading', { period: fmt.range(s.periodStart, s.periodEnd) }))}</${h(0)}>
+<p>${esc(t('noscript.ids', { id: s.id, version: s.version, account: s.account.maskedId }))}</p>
+<p>${esc(t('noscript.times', { asOf: fmt.date(s.asOf, 'datetime') + ' ' + tzShort(s.asOf), generated: fmt.date(s.generatedAt, 'datetime') + ' ' + tzShort(s.generatedAt) }))}</p>
+<p>${esc(t('noscript.basis', { tz: fmt.tz(s.asOf) }))}</p>
+<p>${esc(t('noscript.balances', { opening: amt(s.opening), closing: amt(s.closing) }))}</p>
 <ul>${cats}</ul>
-<table><caption>Posted transactions</caption><thead><tr><th>Posted</th><th>Type</th><th>Description</th><th>Counterparty</th><th>Amount</th><th>Balance after</th></tr></thead><tbody>${rows}</tbody></table>
-${pending ? `<h2>Not included in the statement balance</h2><ul>${pending}</ul>` : ''}
+<table><caption>${esc(t('noscript.posted'))}</caption><thead><tr><th>${esc(t('term.postedDate'))}</th><th>${esc(t('noscript.type'))}</th><th>${esc(t('noscript.description'))}</th><th>${esc(t('noscript.counterparty'))}</th><th>${esc(t('noscript.amount'))}</th><th>${esc(t('noscript.balanceAfter'))}</th></tr></thead><tbody>${rows}</tbody></table>
+${pending ? `<${h(1)}>${esc(t('noscript.notInBalance'))}</${h(1)}><ul>${pending}</ul>` : ''}
+</section>`;
+}
+const langs = [s.language || YES.config.defaultLanguage, ...YES.config.languages.filter((l) => l !== (s.language || YES.config.defaultLanguage))];
+const noscript = `<div class="noscript-summary">
+${langs.map((l, k) => summary(l, k === 0 ? 1 : 2)).join('\n<hr>\n')}
 </div>`;
+YES.i18n.lang = YES.config.defaultLanguage;
 
 // ------------------------------------------------------------------- Assemble
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
@@ -112,12 +377,10 @@ html = html
   .replace('{{VERSION}}', () => pkg.version);
 
 const leftovers = html.match(/\{\{[A-Z]+\}\}/g);
-if (leftovers) {
-  console.error('✖ Unreplaced template markers:', leftovers.join(', '));
-  process.exit(1);
-}
+if (leftovers) fail('✖ Unreplaced template markers: ' + leftovers.join(', '));
 mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(OUT, html);
-const kb = (Buffer.byteLength(html) / 1024).toFixed(1);
+const kb = (b) => (b / 1024).toFixed(1);
+const saved = MINIFY ? ` (comments and indentation stripped: −${kb(Buffer.byteLength(jsSource + cssSource) - Buffer.byteLength(js + css))} KB)` : ' (not minified)';
 console.log(`✔ Release gate passed (${result.summary.postedCount} posted, ${result.summary.pendingCount} not in balance; ${result.checks.length} checks).`);
-console.log(`✔ Built ${OUT.replace(ROOT + '/', '')} — ${kb} KB, ${cssFiles.length} CSS + ${jsFiles.length} JS sources inlined.`);
+console.log(`✔ Built ${OUT.replace(ROOT + '/', '')} — ${kb(Buffer.byteLength(html))} KB, ${cssFiles.length} CSS + ${jsFiles.length} JS sources inlined${saved}.`);

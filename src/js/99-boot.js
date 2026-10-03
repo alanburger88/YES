@@ -46,15 +46,10 @@
     doc.documentElement.classList.toggle('is-withheld', withheld);
     if (withheld && root.console) console[YES.data.simulated ? 'warn' : 'error']('[YES] statement withheld: reconciliation failed', YES.integrity);
 
-    YES.modules().forEach(function (m) {
-      if (withheld && m.name !== 'shell') return;
-      if (m.init) {
-        try {
-          m.init();
-        } catch (e) {
-          if (root.console) console.error('[YES] init failed in module ' + m.name, e);
-        }
-      }
+    // While withheld only the shell runs: feature modules are never initialised
+    // or rendered, so no withheld figure reaches the DOM (not even on a language switch).
+    YES.initModules(function (m) {
+      return !withheld || m.name === 'shell';
     });
 
     if (withheld) {
@@ -70,6 +65,7 @@
 
     // Re-boot when the integrity preview is toggled through the address bar.
     root.addEventListener('hashchange', function () {
+      if (!YES.nav.isRouteHash(root.location.hash)) return;
       var now = YES.nav.current().params.simulate || null;
       if ((now || null) !== (simulate || null)) root.location.reload();
     });

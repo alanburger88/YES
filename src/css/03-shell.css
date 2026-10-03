@@ -1,17 +1,36 @@
 /* Shell: masthead, navigation, views, footer, withheld state. */
+/*
+ * The masthead is a size container: its layout follows the space it actually
+ * has, so the docked assistant (which narrows #app) needs no special case.
+ *   ≥1000px  one row: brand · demo badge · language · Ask YES
+ *   <1000px  the demo badge becomes a strip above the brand row; that strip
+ *            scrolls away (negative sticky top, set from 05-shell.js) and only
+ *            the brand row and the navigation stay pinned
+ *   <720px   compact language switch (EN/ES; names stay in the accessibility
+ *            tree), short "Ask" label, short period, four tabs sharing the width
+ */
 .masthead {
   position: sticky;
-  top: 0;
+  top: calc(-1 * var(--mast-skip, 0px));
   z-index: 100;
+  container: mast / inline-size;
   background: color-mix(in srgb, var(--surface) 94%, transparent);
   backdrop-filter: saturate(1.4) blur(8px);
   -webkit-backdrop-filter: saturate(1.4) blur(8px);
   border-bottom: 1px solid var(--line);
 }
+/* Short viewports (landscape phones, 400% zoom): nothing pinned, so content
+   gets the whole screen. */
+@media (max-height: 500px) {
+  .masthead {
+    position: relative;
+    top: auto;
+  }
+}
 .masthead__bar {
   display: flex;
   align-items: center;
-  gap: var(--s3);
+  gap: var(--s2) var(--s3);
   min-height: 60px;
   flex-wrap: wrap;
   padding-block: var(--s2);
@@ -24,6 +43,7 @@
   text-decoration: none;
   border-radius: var(--radius-sm);
   min-height: 44px;
+  min-width: 0;
 }
 .brand__logo {
   display: inline-flex;
@@ -47,14 +67,20 @@
   display: flex;
   flex-direction: column;
   line-height: 1.2;
+  min-width: 0;
 }
 .brand__title {
   font-weight: 700;
   font-size: var(--fs-sm);
 }
-.brand__period {
+.brand__period,
+.brand__period-short {
   font-size: var(--fs-xs);
   color: var(--muted);
+  white-space: nowrap;
+}
+.brand__period-short {
+  display: none;
 }
 .masthead__actions {
   display: flex;
@@ -65,7 +91,11 @@
 .btn--ask {
   min-height: 42px;
 }
+.btn--ask .btn__label--short {
+  display: none;
+}
 .nav {
+  position: relative;
   border-top: 1px solid var(--line);
 }
 .nav__list {
@@ -78,6 +108,9 @@
 }
 .nav__list::-webkit-scrollbar {
   display: none;
+}
+.nav__list > li {
+  display: flex;
 }
 .nav__link {
   display: inline-flex;
@@ -103,62 +136,124 @@
 .nav__link:focus-visible {
   outline-offset: -4px;
 }
+/* Last resort (very large text): the row scrolls, and an edge fade says so. */
+.nav.has-more-right .nav__list {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+}
+.nav.has-more-left .nav__list {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+}
+.nav.has-more-left.has-more-right .nav__list {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+}
 
-@media (max-width: 719px) {
-  .masthead__bar {
-    gap: var(--s2);
-  }
+@container mast (max-width: 999px) {
+  /* Demo badge: a centred strip above the brand row. */
   .demo-badge {
-    order: 3;
+    order: -1;
     flex-basis: 100%;
     justify-content: center;
-    margin-top: -2px;
   }
-  .seg__long {
-    display: none;
+}
+
+@container mast (max-width: 719px) {
+  .masthead__bar {
+    min-height: 0;
+    gap: var(--s2);
+    padding-block: var(--s2) 6px;
   }
-  .seg__short {
+  .brand {
+    gap: var(--s2);
+  }
+  .brand__logo {
+    height: 34px;
+    min-width: 44px;
+    padding: 0 6px;
+    font-size: 1rem;
+  }
+  /* "Sep 2026" on one line; "Statement September 2026" stays the link's name. */
+  .brand__title,
+  .brand__period {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+  .brand__period-short {
+    display: inline;
+    font-weight: 650;
+    color: var(--ink-2);
+  }
+  /* Compact language switch: "EN"/"ES" shown, "English"/"Español" kept as each
+     button's accessible name (visually hidden, never display:none). */
+  .seg--lang .seg__long {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+  .seg--lang .seg__short {
     display: inline;
   }
-  .seg__icon {
+  .seg--lang .seg__icon {
     display: none;
+  }
+  /* Ask YES keeps a visible word ("Ask" / "Pregunta"), contained in its name. */
+  .btn--ask {
+    gap: 4px;
+    padding: 0 10px 0 8px;
   }
   .btn--ask .btn__label {
     display: none;
   }
-  .btn--ask {
-    width: 44px;
-    padding: 0;
-    border-radius: 50%;
+  .btn--ask .btn__label--short {
+    display: inline;
   }
+  /* Four tabs share the width. */
   .nav__list {
-    justify-content: space-between;
     gap: 0;
+    padding-inline: 4px;
+  }
+  .nav__list > li {
+    flex: 1 1 auto;
   }
   .nav__link {
-    padding: 0 var(--s2);
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 4px;
   }
 }
-@media (max-width: 359px) {
-  .brand__text {
-    display: none;
-  }
+@container mast (max-width: 399px) {
   .nav__link {
-    padding: 0 6px;
     font-size: var(--fs-xs);
   }
 }
-/* Docked assistant narrows the content column: keep the masthead on one row. */
-@media (min-width: 1100px) and (max-width: 1399px) {
-  html.assistant-docked .seg__long {
+/* Logo only when the brand row would otherwise wrap (narrowest phones, or a
+   longer language: 05-shell.js sets .is-tight); the link's name still includes
+   the statement and period. */
+@container mast (max-width: 359px) {
+  .brand__period-short {
     display: none;
   }
-  html.assistant-docked .seg__short {
-    display: inline;
-  }
-  html.assistant-docked .seg__icon {
-    display: none;
-  }
+}
+.masthead__bar.is-tight .brand__period-short {
+  display: none;
 }
 
 /* Views */
@@ -198,6 +293,26 @@ html.is-withheld .btn--ask {
   font-size: var(--fs-lg);
 }
 .withheld__checks-title {
+  margin-top: var(--s6);
+}
+.withheld__checks .check {
+  align-items: center;
+  padding: 6px var(--s3);
+  border-radius: var(--radius-sm);
+}
+/* Failed checks stand out by wording, icon, weight and a tinted row — not by
+   colour alone. */
+.withheld__checks .check--fail {
+  background: var(--danger-wash);
+  box-shadow: inset 3px 0 0 var(--danger);
+  font-weight: 650;
+}
+.withheld__checks .check--fail .check__state {
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  font-weight: 750;
+}
+.withheld__return {
   margin-top: var(--s6);
 }
 

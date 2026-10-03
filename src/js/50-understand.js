@@ -232,6 +232,24 @@
     });
     return list[0] || null;
   }
+  /**
+   * Which on-chain transfers show a network and hash, worded from the data (PRD 5.3:
+   * only when verified; 5.6: one illustrative sample). A transfer without details
+   * shows none, so the note never claims that every transfer has them.
+   */
+  function onchainDetailsNote(list) {
+    var state = evidenceState(record(YES.content.evidence, 'onchain_reference'));
+    var verified = list.filter(function (x) {
+      return x.onchain && x.onchain.verified;
+    }).length;
+    var samples = list.filter(function (x) {
+      return x.onchain && !x.onchain.verified;
+    }).length;
+    var total = YES.fmt.count(list.length);
+    if (state === 'verified' && verified) return t('understand.ex.onchainNoteVerified', { n: YES.fmt.count(verified), total: total });
+    if (state === 'illustrative' && samples) return t('understand.ex.onchainNoteSample', { n: YES.fmt.count(samples), total: total });
+    return t('understand.ex.onchainNoteNone');
+  }
   function matches(tx, filter) {
     return Object.keys(filter).every(function (k) {
       var field = FILTER_FIELDS[k];
@@ -366,7 +384,8 @@
     );
   }
   function facts(list) {
-    return '<dl class="und-facts">' + list.join('') + '</dl>';
+    // data-n lets the stylesheet choose columns that divide the facts evenly.
+    return '<dl class="und-facts" data-n="' + list.length + '">' + list.join('') + '</dl>';
   }
   function example(inner) {
     return '<div class="und-example"><p class="und-example__eyebrow">' + icon('balance', { size: 16 }) + '<span>' + esc(t('understand.inStatement')) + '</span></p>' + inner + '</div>';
@@ -471,7 +490,7 @@
       });
       var list = [
         fact(esc(t('understand.ex.internal')), esc(YES.txCount(internal.length)), esc(t('understand.ex.internalNote'))),
-        fact(esc(t('understand.ex.onchain')), esc(YES.txCount(onchain.length)), esc(t('understand.ex.onchainNote')))
+        fact(esc(t('understand.ex.onchain')), esc(YES.txCount(onchain.length)), esc(onchainDetailsNote(onchain)))
       ];
       if (onchain.length) {
         list.push(
@@ -1085,18 +1104,20 @@
 
   function render() {
     if (!els.root) return;
+    /* Reading order = DOM order = the in-page navigation: basics, live, on-chain,
+       transparency. Basics and transparency span the width; the two evidence panels
+       pair up side by side when there is room (50-understand.css), so no column
+       trails a long empty area whatever the accordion state. */
     var html =
       headHtml() +
       '<div class="und-layout">' +
-      '<div class="und-main">' +
       basicsHtml() +
-      '</div>' +
-      '<div class="und-side">' +
+      '<div class="und-pair">' +
       liveHtml() +
       onchainHtml() +
       '</div>' +
-      '</div>' +
-      transparencyHtml();
+      transparencyHtml() +
+      '</div>';
     ui.render(els.root, html);
     justOpened = null;
   }
@@ -1272,8 +1293,10 @@
         'understand.ex.internal': 'Internal transfers (YES)',
         'understand.ex.internalNote': 'No blockchain network used',
         'understand.ex.onchain': 'On-chain transfers',
-        'understand.ex.onchainNote': 'Each has a network and a hash',
-        'understand.ex.networkFees': 'Fees on on-chain transfers',
+        'understand.ex.onchainNoteSample': 'Network and hash appear only when verified. This demo adds an illustrative sample to {n} of {total}.',
+        'understand.ex.onchainNoteVerified': 'Network and hash appear only when verified: {n} of {total} verified.',
+        'understand.ex.onchainNoteNone': 'Network and hash appear only when verified. None are available for these transfers.',
+        'understand.ex.networkFees': 'Fees for on-chain transfers',
         'understand.ex.feeLines1': '1 fee line',
         'understand.ex.feeLinesN': '{n} fee lines',
         'understand.ex.counted': 'Counted in the balance',
@@ -1425,7 +1448,7 @@
         'understand.topic.token_units.title': 'Unidades de token',
         'understand.topic.token_units.teaser': 'Cómo se cuenta tu saldo',
         'understand.topic.token_units.p1':
-          'Tu saldo es una cantidad de tokens de {product} ({symbol}), no un saldo bancario en dólares. Este estado de cuenta cuenta los tokens con {precision} decimales, así que cada importe es exacto.',
+          'Tu saldo es una cantidad de tokens de {product} ({symbol}), no un saldo bancario en dólares. En este estado de cuenta, los tokens se expresan con {precision} decimales, así que cada importe es exacto.',
         'understand.topic.token_units.p2': 'Los importes nunca se redondean para que los totales cuadren: tu saldo inicial más cada movimiento registrado es exactamente igual a tu saldo final.',
 
         'understand.topic.usd_equivalent.title': 'Equivalente en USD',
@@ -1481,7 +1504,9 @@
         'understand.ex.internal': 'Transferencias internas (YES)',
         'understand.ex.internalNote': 'Sin usar una red blockchain',
         'understand.ex.onchain': 'Transferencias en cadena',
-        'understand.ex.onchainNote': 'Cada una tiene una red y un hash',
+        'understand.ex.onchainNoteSample': 'La red y el hash solo aparecen cuando están verificados. Esta demostración añade un ejemplo ilustrativo a {n} de {total}.',
+        'understand.ex.onchainNoteVerified': 'La red y el hash solo aparecen cuando están verificados: {n} de {total} verificadas.',
+        'understand.ex.onchainNoteNone': 'La red y el hash solo aparecen cuando están verificados. No hay ninguno disponible para estas transferencias.',
         'understand.ex.networkFees': 'Comisiones de transferencias en cadena',
         'understand.ex.feeLines1': '1 línea de comisión',
         'understand.ex.feeLinesN': '{n} líneas de comisión',

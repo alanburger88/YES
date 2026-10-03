@@ -4,6 +4,19 @@
  * Composes the shared components; only module layout lives here.
  */
 
+/*
+ * The view lays out for the width it actually has, not the viewport: the docked
+ * assistant (html.assistant-docked, ≥1100px) narrows the page by the drawer's
+ * width, so the filter sidebar and the table's Status column use container
+ * queries. Table versus cards is chosen in JS from the same width.
+ */
+#transactions-root {
+  container: tx / inline-size;
+}
+.tx-results {
+  container: txres / inline-size;
+}
+
 /* ------------------------------------------------------------ Header */
 .tx-head .view-lede {
   margin-bottom: var(--s5);
@@ -29,6 +42,11 @@
 }
 .tx-search__box > .input {
   padding-right: 48px;
+  text-overflow: ellipsis;
+}
+/* The clear button only appears once there is text: give the hint the room. */
+.tx-search__box > .input:placeholder-shown {
+  padding-right: var(--s3);
 }
 .tx-search__box > .input::-webkit-search-cancel-button {
   -webkit-appearance: none;
@@ -87,6 +105,34 @@
   }
   .tx-filter-toggle {
     padding: 0 var(--s3);
+  }
+}
+/*
+ * Phones: the sort select gets the full width so the active order (and with it
+ * the date basis) is readable; the Filters toggle sits beside its label.
+ */
+@container tx (max-width: 479.98px) {
+  .tx-bar__tools {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'label toggle' 'select select';
+    align-items: end;
+    gap: var(--s2) var(--s3);
+  }
+  .tx-sort {
+    display: contents;
+  }
+  .tx-sort > .field__label {
+    grid-area: label;
+    margin-bottom: 0;
+    align-self: end;
+  }
+  .tx-sort > .select {
+    grid-area: select;
+    width: 100%;
+  }
+  .tx-filter-toggle {
+    grid-area: toggle;
   }
 }
 .tx-filter-toggle[aria-expanded='true'] {
@@ -220,6 +266,13 @@
   text-align: center;
 }
 
+.tx-check.is-zero .tx-check__label {
+  color: var(--muted);
+}
+.tx-check.is-zero .tx-check__n {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
 .tx-check__icon {
   color: var(--muted);
   margin-left: -4px;
@@ -239,8 +292,9 @@
   flex: 1 1 auto;
 }
 
-/* Collapsible below the desktop breakpoint; always visible as a sidebar above it. */
-@media (max-width: 1023px) {
+/* Collapsible when the view is narrower than 960px (a 1024px window, or the
+   assistant docked beside it); always visible as a sidebar when wider. */
+@container tx (max-width: 959.98px) {
   .tx-filters[data-open='false'] {
     display: none;
   }
@@ -248,7 +302,7 @@
     animation: yes-fade-up var(--dur) var(--ease);
   }
 }
-@media (min-width: 600px) and (max-width: 1023px) {
+@container tx (min-width: 552px) and (max-width: 959.98px) {
   .tx-sort {
     flex: 0 1 320px;
     margin-left: auto;
@@ -258,7 +312,7 @@
     column-gap: var(--s6);
   }
 }
-@media (min-width: 1024px) {
+@container tx (min-width: 960px) {
   .tx-bar {
     flex-wrap: nowrap;
   }
@@ -267,7 +321,10 @@
   }
   .tx-bar__tools {
     flex: 0 0 auto;
-    width: 272px;
+    width: auto;
+  }
+  .tx-sort {
+    flex: 0 0 auto; /* as wide as its longest option: the active order is never cut */
   }
   .tx-filter-toggle,
   .tx-filters__foot {
@@ -290,32 +347,36 @@
   display: none;
 }
 .tx-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2);
-  margin-bottom: var(--s4);
+  /* One inline flow: label, chips, then "Clear all" and the way back follow the
+     last chip and wrap like words, instead of dropping onto a line of their own. */
+  margin-bottom: calc(var(--s4) - var(--s2));
 }
 .tx-chips__label {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0 var(--s3) var(--s2) 0;
   font-size: var(--fs-xs);
   font-weight: 650;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-right: var(--s1);
 }
 .tx-chips__list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
+  display: inline;
   list-style: none;
   margin: 0;
   padding: 0;
-  min-width: 0;
 }
 .tx-chips__list li {
-  min-width: 0;
+  display: inline-block;
+  vertical-align: middle;
   max-width: 100%;
+  margin: 0 var(--s2) var(--s2) 0;
+}
+.tx-chips__clear,
+.tx-chips__back {
+  vertical-align: middle;
+  margin-bottom: var(--s2);
 }
 .tx-chip {
   max-width: 100%;
@@ -447,7 +508,19 @@
   color: var(--ink-2);
   font-size: var(--fs-xs);
   margin-top: 2px;
-  overflow-wrap: anywhere;
+  /* Break inside a word only when it cannot fit at all: "anywhere" would also
+     let the table squeeze the column until account numbers split mid-digit. */
+  overflow-wrap: break-word;
+}
+.tx-mask {
+  white-space: nowrap;
+}
+mark.tx-mark-amount {
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.tx-card__top > mark.tx-mark-amount {
+  margin-left: auto;
 }
 .tx-memo {
   font-style: italic;
@@ -488,7 +561,34 @@
 /* ---------------------------------------------------- Desktop table */
 .tx-table-wrap {
   box-shadow: var(--shadow-1);
-  overflow-x: auto; /* fallback only: the layout is sized so the table fits */
+  overflow-x: auto; /* fallback only: JS switches to cards before the table gets too narrow */
+}
+/* Date, status and number columns take what their content needs; the
+   description gets everything else. Headers may wrap ("Balance / after"). */
+.tx-table .tx-col-date,
+.tx-table .tx-col-status,
+.tx-table th.num,
+.tx-table .tx-status,
+.tx-table td.num {
+  width: 1%;
+}
+.tx-table thead th.num {
+  white-space: normal;
+  min-width: 4.5rem;
+}
+.tx-status-inline {
+  display: none;
+}
+/* A narrower results column folds the Status column into the description. */
+@container txres (max-width: 699.98px) {
+  .tx-table .tx-col-status,
+  .tx-table .tx-status {
+    display: none;
+  }
+  .tx-status-inline {
+    display: block;
+    margin-top: 6px;
+  }
 }
 .tx-table caption.tx-caption {
   padding: var(--s3) var(--s4);
@@ -524,7 +624,7 @@
   box-shadow: inset 3px 0 0 var(--warn-line);
 }
 .tx-date {
-  width: 6.5rem;
+  min-width: 5.5rem;
 }
 .tx-date__day {
   display: block;
@@ -540,7 +640,7 @@
   display: flex;
   align-items: flex-start;
   gap: var(--s3);
-  min-width: 10rem;
+  min-width: 11rem;
 }
 .tx-desc__text {
   min-width: 0;
@@ -749,11 +849,20 @@
   }
 }
 .tx-dlg__head {
-  align-items: center;
+  align-items: flex-start;
 }
 .tx-dlg__head > .tx-dir {
   width: 40px;
   height: 40px;
+  margin-top: 2px;
+}
+/* Language switch + close: the page behind the modal is inert, so the detail
+   carries its own switch and re-renders in place, still selected. */
+.tx-dlg__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-shrink: 0;
 }
 .tx-dlg__headtext {
   flex: 1;
@@ -771,6 +880,13 @@
 }
 .tx-dlg__close {
   flex-shrink: 0;
+}
+.tx-dlg__demo {
+  max-width: 100%;
+}
+.tx-dlg__demo .tag--illustrative {
+  font-weight: 650;
+  white-space: normal; /* wraps on a 320px sheet instead of overflowing the card */
 }
 .tx-dlg__hero {
   display: flex;
@@ -795,12 +911,24 @@
 .tx-dlg__amount .amount {
   font-weight: 700;
 }
-.tx-dlg__unit {
+/* Hero rows: amount + status, then the unit line with the demo tag at its end
+   (on a phone the tag sits beside the status instead). */
+.tx-dlg__break {
   flex-basis: 100%;
+  height: 0;
+  order: 2;
+}
+.tx-dlg__unit {
+  flex: 1 1 16rem;
   order: 3;
   margin: 0;
   font-size: var(--fs-sm);
   color: var(--ink-2);
+}
+.tx-dlg__demo {
+  display: inline-flex;
+  order: 4;
+  margin-left: auto;
 }
 .tx-dlg__heroStatus {
   display: flex;
@@ -984,6 +1112,9 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+.tx-pager__short {
+  display: none;
+}
 .tx-pager__btn {
   width: 40px;
   min-height: 40px;
@@ -995,11 +1126,36 @@
   margin-left: auto;
 }
 @media (max-width: 719px) {
+  /* Sheet header: eyebrow beside the tools, the title on the full width below. */
   .tx-dlg__head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'eyebrow tools' 'title title';
+    align-items: center;
+    gap: 2px var(--s2);
     padding-left: var(--s4);
   }
   .tx-dlg__head > .tx-dir {
     display: none;
+  }
+  .tx-dlg__headtext {
+    display: contents;
+  }
+  .tx-dlg__eyebrow {
+    grid-area: eyebrow;
+  }
+  .tx-dlg__headtext .dlg__title {
+    grid-area: title;
+    margin: 0;
+    font-size: var(--fs-md);
+    line-height: 1.3;
+  }
+  .tx-dlg__tools {
+    grid-area: tools;
+    gap: var(--s1);
+  }
+  .tx-dlg__tools .seg__btn {
+    min-height: 40px;
   }
   .dlg__body.tx-dlg__body {
     padding: var(--s4);
@@ -1010,12 +1166,36 @@
   .tx-dlg__heroStatus {
     margin-left: 0;
   }
-  /* Sheet footer: pager + Explain on one row, the primary action full width below. */
+  .tx-dlg__demo {
+    order: 1;
+    margin-left: 0;
+  }
+  /* Sheet footer, two rows: a compact pager ("13/16") + Explain, then the
+     primary action full width — the details keep most of the screen. */
   .tx-dlg__foot {
     flex-wrap: wrap;
     justify-content: space-between;
     gap: var(--s2);
     padding: var(--s3) var(--s4);
+  }
+  .tx-pager {
+    gap: 0;
+  }
+  .tx-pager__pos {
+    min-width: 0;
+    padding: 0 2px;
+  }
+  .tx-pager__long {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .tx-pager__short {
+    display: inline;
   }
   .tx-dlg__actions {
     display: contents;
@@ -1032,6 +1212,13 @@
   .tx-pager__btn {
     width: 44px;
     min-height: 44px;
+  }
+}
+/* Very narrow sheets: arrows only (the position stays in the accessibility
+   tree), so the pager and "Explain with AI" still share one row. */
+@media (max-width: 359px) {
+  .tx-pager__short {
+    display: none;
   }
 }
 

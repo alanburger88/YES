@@ -31,15 +31,16 @@
     { key: 'amount', dir: 'desc' },
     { key: 'amount', dir: 'asc' }
   ];
-  var FIELD_ORDER = ['description', 'counterparty', 'memo', 'type', 'status', 'rail', 'reference', 'id'];
+  var FIELD_ORDER = ['description', 'counterparty', 'memo', 'type', 'status', 'amount', 'rail', 'reference', 'id'];
   var CLASSIFICATION = 'ILLUSTRATIVE_DEMO_DATA';
   var SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
   var els = { root: null, dlg: null };
   var timers = {};
   var enterNext = false; // animate the next results render (rows arriving from a journey step)
-  var dlgCtx = { view: null }; // view the detail dialog was opened over
+  var dlgCtx = { view: null, list: null }; // view the detail dialog was opened over, and the list it was opened from
   var closing = false; // a close we started is waiting for the dialog's async 'close' event
+  var hist = { pushed: false }; // opening the detail added a history entry
 
   /* ------------------------------------------------------------------ */
   /* Small helpers                                                       */
@@ -53,8 +54,20 @@
   function ms(iso) {
     return iso ? Date.parse(iso) : NaN;
   }
-  function wide() {
-    return !ui.isNarrow();
+  /**
+   * Table or cards. Phones always get cards. Otherwise the table is used only
+   * when the results column is wide enough for it, which depends on the space
+   * the view actually has (the docked assistant narrows it), not on the
+   * viewport: below that width the same rows are shown as cards, so amounts and
+   * balances are never pushed behind a sideways scroll.
+   */
+  var TABLE_MIN = 540;
+  var layout = { table: null, observer: null };
+  function tableMode() {
+    if (ui.isNarrow()) return false;
+    var res = els.root && els.root.querySelector('#tx-results');
+    var w = res ? res.clientWidth : 0;
+    return !w || w >= TABLE_MIN; // not laid out yet (view hidden): decide when it is shown
   }
   function allTx() {
     return YES.calc.all();
@@ -84,9 +97,17 @@
     var m = methodLabel(tx.method);
     return railLabel(tx.rail) + (m ? ' · ' + m : '');
   }
+  /**
+   * A calendar day (YYYY-MM-DD) as an instant that falls on that same date in the
+   * statement timezone, so YES.fmt.date / range label the day the customer picked.
+   * Noon UTC works from UTC−12 to UTC+11; zones at UTC+12 and later (Auckland,
+   * Kiritimati) are already on the next day at noon UTC, so use midnight UTC there.
+   */
   function dayIso(day) {
-    // A calendar day as an instant that falls on the same date in any statement timezone.
-    return day + 'T12:00:00Z';
+    var noon = day + 'T12:00:00Z';
+    if (YES.fmt.isoDate(noon) === day) return noon;
+    var early = day + 'T00:00:00Z';
+    return YES.fmt.isoDate(early) === day ? early : noon;
   }
   function tzShort(iso) {
     var s = YES.fmt.tz(iso);
@@ -130,37 +151,60 @@
     d.max = String(d.max == null ? '' : d.max);
     if (['all', 'in', 'out'].indexOf(d.direction) === -1) d.direction = 'all';
     d.idsLabel = f.idsLabel || null;
+    // The language the amount range was typed in: "1,000" and "1.000" mean
+    // different things in English and Spanish, so the text is always read with
+    // the separators of the language it was entered in (see localizeAmounts).
+    d.amountLang = f.amountLang && YES.config.languages.indexOf(f.amountLang) !== -1 ? f.amountLang : null;
     return d;
+  }
+  /** Stamp a filter object whose amount range was just (re)typed with the UI language. */
+  function stampAmountLang(f, patch) {
+    if ('min' in patch || 'max' in patch) f.amountLang = YES.i18n.lang;
+    if (!String(f.min || '').trim() && !String(f.max || '').trim()) f.amountLang = null;
+    return f;
   }
   function setFilters(patch) {
     var f = F();
     Object.keys(patch).forEach(function (k) {
       f[k] = Array.isArray(patch[k]) ? patch[k].slice() : patch[k];
     });
-    return YES.set({ filters: f });
+    return YES.set({ filters: stampAmountLang(f, patch) });
   }
   function S() {
     var s = YES.state.sort || {};
     return { key: SORT_KEYS[s.key] ? s.key : 'posted', dir: s.dir === 'asc' ? 'asc' : 'desc' };
   }
-  /** Active date basis: the statement's posted date, unless sorting by initiated date. */
-  function basis() {
-    return S().key === 'initiated' ? 'initiated' : 'posted';
+  /**
+   * Filter basis (PRD 6 rule 3): the statement's date basis, the same one the
+   * totals, chart and exports use. Choosing a sort order never changes it, so a
+   * sort can only reorder rows, never add or remove them.
+   */
+  function filterBasis() {
+    return st().dateBasis === 'initiated' ? 'initiated' : 'posted';
   }
+  /** Dates shown in the list: the sort's date when sorting by initiated date, else the statement basis. */
+  function shownBasis() {
+    return S().key === 'initiated' ? 'initiated' : filterBasis();
+  }
+  /** Display date on a basis (an unposted transaction shows when it was initiated). */
   function basisIso(tx, b) {
     return b === 'initiated' ? tx.initiatedAt : tx.postedAt || tx.initiatedAt;
+  }
+  /** The date a filter compares on a basis: an unposted transaction has no posted date. */
+  function filterIso(tx, b) {
+    return b === 'initiated' ? tx.initiatedAt : tx.postedAt || null;
   }
   function viewPrefs() {
     return YES.state.explorer || { filtersOpen: false };
   }
 
-  /** Date input bounds on a basis: the statement period (widened for earlier initiations). */
+  /** Date input bounds on a basis: the statement period (widened for any dates outside it). */
   function dateBounds(b) {
     var s = st();
     var min = YES.fmt.isoDate(s.periodStart);
     var max = YES.fmt.isoDate(s.periodEnd);
     allTx().forEach(function (tx) {
-      var d = YES.fmt.isoDate(basisIso(tx, b));
+      var d = YES.fmt.isoDate(filterIso(tx, b));
       if (d && d < min) min = d;
       if (d && d > max) max = d;
     });
@@ -182,7 +226,12 @@
   /* ------------------------------------------------------------------ */
   /* Amount parsing ("," or "." decimals) — returns minor units          */
   /* ------------------------------------------------------------------ */
-  function parseAmount(raw) {
+  /**
+   * Parse a typed amount. A lone separator followed by exactly three digits is a
+   * thousands separator when it is the grouping mark of `lang` (default: the UI
+   * language): "1,000" is one thousand in English, "1.000" in Spanish.
+   */
+  function parseAmount(raw, lang) {
     var s = String(raw == null ? '' : raw)
       .replace(/[\s  ']/g, '')
       .replace(/^[+−-]/, '');
@@ -199,7 +248,7 @@
       var sep = lastComma !== -1 ? ',' : '.';
       var count = s.split(sep).length - 1;
       var after = s.length - s.lastIndexOf(sep) - 1;
-      var group = YES.i18n.lang === 'es' ? '.' : ',';
+      var group = groupMark(lang || YES.i18n.lang);
       if (count > 1 || (sep === group && after === 3)) dec = null;
       else dec = sep;
     }
@@ -218,6 +267,37 @@
     var minor = parseInt(intPart || '0', 10) * Math.pow(10, p) + (p ? parseInt(digits, 10) : 0);
     if (fracPart.length > p && parseInt(fracPart.charAt(p), 10) >= 5) minor += 1;
     return { value: minor };
+  }
+  function groupMark(lang) {
+    return lang === 'es' ? '.' : ',';
+  }
+  /**
+   * An amount as a customer would type it in `lang`, without grouping so it can
+   * never be misread: 1000 → "1000" / 45.50 → "45.50" (en), "45,50" (es).
+   */
+  function typedAmount(minor, lang) {
+    var plain = YES.fmt.plain(minor);
+    if (/\.0+$/.test(plain)) plain = plain.replace(/\.0+$/, '');
+    return groupMark(lang) === '.' ? plain.replace('.', ',') : plain;
+  }
+  /**
+   * After a language switch, rewrite the amount range in the new language's
+   * format so it keeps its meaning ("1,000" typed in English becomes "1000",
+   * not one unit in Spanish). Text that does not parse is left as typed.
+   */
+  function localizeAmounts() {
+    var f = F();
+    var from = f.amountLang;
+    var to = YES.i18n.lang;
+    if (!from || from === to) return;
+    var next = {};
+    for (var k in f) next[k] = f[k];
+    ['min', 'max'].forEach(function (w) {
+      var p = parseAmount(f[w], from);
+      if (f[w].trim() && p.value != null) next[w] = typedAmount(p.value, to);
+    });
+    next.amountLang = to;
+    YES.set({ filters: next });
   }
 
   /* ------------------------------------------------------------------ */
@@ -288,27 +368,52 @@
     });
     return out + esc(text.slice(pos));
   }
-  /** Searchable fields; `shown` fields are visible in the row and get highlighted in place. */
+  /**
+   * Searchable fields. `shown` fields are visible in the row and get highlighted
+   * in place; the others are echoed, highlighted, in the "Matched in" line.
+   */
   function fieldsOf(tx) {
     return [
       { key: 'description', text: YES.L(tx.description), shown: true },
       { key: 'counterparty', text: YES.L(tx.counterparty), shown: true },
       { key: 'memo', text: tx.memo ? YES.L(tx.memo) : '', shown: true },
-      { key: 'type', text: ui.typeLabel(tx.type), shown: true },
+      { key: 'type', text: ui.typeLabel(tx), shown: true },
       { key: 'type', text: tx.type, shown: false },
       { key: 'status', text: statusLabel(statusOf(tx)), shown: true },
-      { key: 'status', text: tx.status || '', shown: true },
+      // The canonical value ("posted") is not on screen in Spanish ("Registrado"), so echo it.
+      { key: 'status', text: tx.status || '', shown: statusLabel(statusOf(tx)).toLowerCase() === String(tx.status || '').toLowerCase() },
       { key: 'rail', text: railText(tx), shown: false },
       { key: 'rail', text: (tx.rail || '') + ' ' + (tx.method || ''), shown: false },
       { key: 'reference', text: tx.reference || '', shown: false },
       { key: 'id', text: tx.id, shown: false }
     ];
   }
+  /** A search word that looks like an amount: "45.50", "-45,50", "+200", "1,000". */
+  var AMOUNT_TERM = /^[+\-−]?\d[\d.,]*$/;
+  /**
+   * Does a numeric search word name this transaction's amount? Matched on the
+   * size, ignoring sign unless one is typed; separators are read like the
+   * Amount filter. A whole number also finds the amounts in that unit ("45"
+   * finds 45.50), the way people search for a payment they half remember.
+   */
+  function amountMatches(tx, term) {
+    if (!AMOUNT_TERM.test(term)) return false;
+    var sign = term.charAt(0);
+    if ((sign === '-' || sign === '−') && !(tx.amount < 0)) return false;
+    if (sign === '+' && !(tx.amount > 0)) return false;
+    var p = parseAmount(term);
+    if (p.value == null) return false;
+    var abs = Math.abs(tx.amount);
+    if (abs === p.value) return true;
+    var unit = Math.pow(10, asset().precision);
+    return !/[.,]/.test(term) && Math.floor(abs / unit) * unit === p.value;
+  }
   function matchTx(tx, terms) {
     var fields = fieldsOf(tx).map(function (fl) {
       fl.folded = fold(fl.text).s;
       return fl;
     });
+    var amountField = { key: 'amount', text: '', shown: true };
     var hit = [];
     for (var i = 0; i < terms.length; i++) {
       var any = false;
@@ -318,9 +423,18 @@
           if (hit.indexOf(fields[j]) === -1) hit.push(fields[j]);
         }
       }
+      if (amountMatches(tx, terms[i])) {
+        any = true;
+        if (hit.indexOf(amountField) === -1) hit.push(amountField);
+      }
       if (!any) return null;
     }
     return hit;
+  }
+  function hitKey(match, key) {
+    return !!(match || []).some(function (m) {
+      return m.key === key && m.shown;
+    });
   }
 
   /* ------------------------------------------------------------------ */
@@ -345,29 +459,35 @@
     return rows;
   }
 
-  /** Filter + sort. Returns [{ tx, match }] where match lists the fields that matched the search. */
-  function run() {
+  /**
+   * Filter + sort. Returns [{ tx, match }] where match lists the fields that
+   * matched the search. `skip` leaves one facet group out ('direction', 'types',
+   * 'statuses' or 'rails'), which is how each option's count is worked out.
+   * The array also carries `undated`: transactions left out only because the
+   * date range uses the posted date and they have none yet, although they were
+   * initiated inside the range.
+   */
+  function run(skip) {
     var f = F();
-    var b = basis();
+    var b = filterBasis();
     var terms = queryTerms(f.q);
     var stepSet = f.step ? setOf(stepIds(f.step)) : null;
     var idSet = f.ids ? setOf(f.ids) : null;
-    var min = parseAmount(f.min);
-    var max = parseAmount(f.max);
+    var min = parseAmount(f.min, f.amountLang);
+    var max = parseAmount(f.max, f.amountLang);
     var out = [];
+    var undated = [];
+    var inRange = function (day) {
+      return !!day && !(f.from && day < f.from) && !(f.to && day > f.to);
+    };
     allTx().forEach(function (tx) {
       if (idSet && !idSet[tx.id]) return;
       if (stepSet && !stepSet[tx.id]) return;
-      if (f.direction === 'in' && !(tx.amount > 0)) return;
-      if (f.direction === 'out' && !(tx.amount < 0)) return;
-      if (f.types.length && f.types.indexOf(tx.type) === -1) return;
-      if (f.statuses.length && f.statuses.indexOf(statusOf(tx)) === -1) return;
-      if (f.rails.length && f.rails.indexOf(tx.rail) === -1) return;
-      if (f.from || f.to) {
-        var day = YES.fmt.isoDate(basisIso(tx, b));
-        if (f.from && day < f.from) return;
-        if (f.to && day > f.to) return;
-      }
+      if (skip !== 'direction' && f.direction === 'in' && !(tx.amount > 0)) return;
+      if (skip !== 'direction' && f.direction === 'out' && !(tx.amount < 0)) return;
+      if (skip !== 'types' && f.types.length && f.types.indexOf(tx.type) === -1) return;
+      if (skip !== 'statuses' && f.statuses.length && f.statuses.indexOf(statusOf(tx)) === -1) return;
+      if (skip !== 'rails' && f.rails.length && f.rails.indexOf(tx.rail) === -1) return;
       var abs = Math.abs(tx.amount);
       if (min.value != null && abs < min.value) return;
       if (max.value != null && abs > max.value) return;
@@ -376,9 +496,15 @@
         m = matchTx(tx, terms);
         if (!m) return;
       }
+      if ((f.from || f.to) && !inRange(YES.fmt.isoDate(filterIso(tx, b)))) {
+        if (!filterIso(tx, b) && inRange(YES.fmt.isoDate(tx.initiatedAt))) undated.push(tx);
+        return;
+      }
       out.push({ tx: tx, match: m });
     });
-    return sortRows(out);
+    out = sortRows(out);
+    out.undated = undated;
+    return out;
   }
 
   function filtered() {
@@ -392,7 +518,7 @@
   /* ------------------------------------------------------------------ */
   function chips() {
     var f = F();
-    var b = basis();
+    var b = filterBasis();
     var list = [];
     var q = f.q.trim();
     if (q) list.push({ id: 'q', label: t('explorer.chip.q', { q: q }) });
@@ -420,8 +546,8 @@
       list.push({ id: 'rail:' + r, label: t('explorer.chip.rail', { label: railLabel(r) }) });
     });
     if (f.min.trim() || f.max.trim()) {
-      var mn = parseAmount(f.min);
-      var mx = parseAmount(f.max);
+      var mn = parseAmount(f.min, f.amountLang);
+      var mx = parseAmount(f.max, f.amountLang);
       var show = function (p, raw) {
         return p.value != null ? YES.fmt.amount(p.value, { sign: 'never' }) : raw.trim();
       };
@@ -552,17 +678,51 @@
     );
   }
 
-  function checkGroupHtml(group, legendKey, values, labelFn, selected) {
-    var counts = {};
-    allTx().forEach(function (tx) {
-      var v = group === 'types' ? tx.type : group === 'statuses' ? statusOf(tx) : tx.rail;
-      counts[v] = (counts[v] || 0) + 1;
+  /**
+   * Facet counts: how many transactions each option would show, given every
+   * other active filter and the search (an option's own group is left out, so
+   * the numbers say what ticking it would add). Options that would show nothing
+   * are de-emphasised but stay operable.
+   */
+  function facetCounts() {
+    var out = { direction: { all: 0, in: 0, out: 0 }, types: {}, statuses: {}, rails: {} };
+    run('direction').forEach(function (r) {
+      out.direction.all++;
+      if (r.tx.amount > 0) out.direction['in']++;
+      else if (r.tx.amount < 0) out.direction.out++;
     });
+    ['types', 'statuses', 'rails'].forEach(function (g) {
+      run(g).forEach(function (r) {
+        var v = facetValue(g, r.tx);
+        out[g][v] = (out[g][v] || 0) + 1;
+      });
+    });
+    return out;
+  }
+  function facetValue(group, tx) {
+    return group === 'types' ? tx.type : group === 'statuses' ? statusOf(tx) : tx.rail;
+  }
+  function countHtml(group, v, n) {
+    return (
+      '<span class="tx-check__n" data-tx-n="' +
+      esc(group + ':' + v) +
+      '"><span aria-hidden="true">' +
+      esc(YES.fmt.count(n)) +
+      '</span><span class="sr-only">' +
+      esc(t('explorer.filters.nMatching', { n: YES.fmt.count(n) })) +
+      '</span></span>'
+    );
+  }
+
+  function checkGroupHtml(group, legendKey, values, labelFn, selected, counts) {
     var items = values
       .map(function (v) {
         var id = 'tx-' + group + '-' + v;
+        var n = counts[group][v] || 0;
         return (
-          '<label class="tx-check" for="' +
+          '<label class="tx-check' +
+          (n ? '' : ' is-zero') +
+          '" for="' +
           id +
           '"><input type="checkbox" id="' +
           id +
@@ -576,9 +736,9 @@
           (selected.indexOf(v) !== -1 ? ' checked' : '') +
           '><span class="tx-check__label">' +
           esc(labelFn(v)) +
-          '</span><span class="tx-check__n" aria-hidden="true">' +
-          esc(YES.fmt.count(counts[v] || 0)) +
-          '</span></label>'
+          '</span>' +
+          countHtml(group, v, n) +
+          '</label>'
         );
       })
       .join('');
@@ -601,19 +761,17 @@
 
   function filtersHtml() {
     var f = F();
-    var b = basis();
+    var b = filterBasis();
     var bounds = dateBounds(b);
     var open = !!viewPrefs().filtersOpen;
-    var dirCounts = { all: allTx().length, in: 0, out: 0 };
-    allTx().forEach(function (tx) {
-      if (tx.amount > 0) dirCounts['in']++;
-      else if (tx.amount < 0) dirCounts.out++;
-    });
+    var counts = facetCounts();
     var dirIcons = { all: 'sort', in: 'arrow-in', out: 'arrow-out' };
     var dirs = ['all', 'in', 'out']
       .map(function (d) {
         return (
-          '<label class="tx-check tx-check--radio" for="tx-dir-' +
+          '<label class="tx-check tx-check--radio' +
+          (counts.direction[d] ? '' : ' is-zero') +
+          '" for="tx-dir-' +
           d +
           '"><input type="radio" id="tx-dir-' +
           d +
@@ -627,9 +785,9 @@
           ui.icon(dirIcons[d], { size: 16, cls: 'tx-check__icon' }) +
           '<span class="tx-check__label">' +
           esc(t('explorer.dir.' + d)) +
-          '</span><span class="tx-check__n" aria-hidden="true">' +
-          esc(YES.fmt.count(dirCounts[d])) +
-          '</span></label>'
+          '</span>' +
+          countHtml('direction', d, counts.direction[d]) +
+          '</label>'
         );
       })
       .join('');
@@ -699,9 +857,11 @@
       '</legend><div class="tx-checks">' +
       dirs +
       '</div></fieldset>' +
-      checkGroupHtml('types', 'explorer.filters.type', types, ui.typeLabel, f.types) +
-      checkGroupHtml('statuses', 'explorer.filters.status', statuses, statusLabel, f.statuses) +
-      checkGroupHtml('rails', 'explorer.filters.rail', rails, railLabel, f.rails) +
+      checkGroupHtml('types', 'explorer.filters.type', types, function (v) {
+        return ui.typeLabel(v);
+      }, f.types, counts) +
+      checkGroupHtml('statuses', 'explorer.filters.status', statuses, statusLabel, f.statuses, counts) +
+      checkGroupHtml('rails', 'explorer.filters.rail', rails, railLabel, f.rails, counts) +
       '<fieldset class="tx-fs"><legend class="tx-fs__legend">' +
       esc(t('explorer.filters.amount')) +
       '</legend><p class="field__hint tx-fs__hint" id="tx-amt-hint">' +
@@ -830,7 +990,16 @@
         tHtml(pend.length === 1 ? 'explorer.pendingNote1' : 'explorer.pendingNoteN', { n: YES.fmt.count(pend.length) }, { amount: ui.amountHtml(psum) }) +
         '</span></p>';
     }
-    if (basis() === 'initiated') {
+    var undated = rows.undated || [];
+    if (undated.length) {
+      html +=
+        '<p class="tx-basis-note" data-tx-undated>' +
+        ui.icon('info', { size: 16 }) +
+        '<span>' +
+        esc(t(undated.length === 1 ? 'explorer.undatedNote1' : 'explorer.undatedNoteN', { n: YES.fmt.count(undated.length), basis: t('explorer.basis.' + filterBasis()) })) +
+        '</span></p>';
+    }
+    if (shownBasis() !== filterBasis()) {
       html += '<p class="tx-basis-note">' + ui.icon('info', { size: 16 }) + '<span>' + esc(t('explorer.initiatedNote')) + '</span></p>';
     }
     return html;
@@ -854,14 +1023,26 @@
     return '<p class="tx-match">' + ui.icon('search', { size: 14 }) + '<span><span class="tx-match__label">' + esc(t('explorer.match.in')) + '</span> ' + parts.join(' · ') + '</span></p>';
   }
 
+  /**
+   * The row's accessible name. A date that is not the posted date says which
+   * date it is, and a transaction outside the statement balance says so, so the
+   * name never presents a pending amount like a posted one.
+   */
   function openLabel(tx, b) {
+    var unposted = !tx.postedAt;
     var iso = basisIso(tx, b);
-    return t('explorer.row.openLabel', {
+    var date = YES.fmt.date(iso, 'medium');
+    if (b === 'initiated' || unposted) date = t('explorer.row.initiatedDate', { date: date });
+    var label = t('explorer.row.openLabel', {
       description: YES.L(tx.description),
-      counterparty: YES.L(tx.counterparty),
-      date: YES.fmt.date(iso, 'medium'),
+      counterparty: YES.fmt.maskedSpoken(YES.L(tx.counterparty)),
+      date: date,
       amount: YES.fmt.amountSpoken(tx.amount, { sign: 'always' })
     });
+    if (!YES.calc.inBalance(tx)) {
+      label = t('explorer.row.openLabelNotIn', { label: label, status: statusLabel(statusOf(tx)), notIn: t('status.notInBalance') });
+    }
+    return label + ' ' + t('explorer.row.viewDetails');
   }
   function openButton(tx, terms, b) {
     return (
@@ -880,8 +1061,49 @@
   function nb(text) {
     return String(text == null ? '' : text).replace(/(•+) (?=\S)/g, '$1\u00a0').replace(/ (?=•)/g, '\u00a0');
   }
+  /**
+   * Highlighted text whose masked identifiers are spoken as "ending in 4821"
+   * (ui.maskedHtml) instead of "bullet bullet…".
+   */
+  function hlMasked(text, terms) {
+    var str = nb(text);
+    var re = new RegExp(YES.fmt.MASK_RE.source, 'g');
+    var out = '';
+    var last = 0;
+    var m;
+    while ((m = re.exec(str))) {
+      out += hl(str.slice(last, m.index), terms);
+      out += '<span class="tx-mask"><span aria-hidden="true">' + hl(m[0], terms) + '</span><span class="sr-only">' + esc(t('fmt.maskedEnding', { tail: m[2] })) + '</span></span>';
+      last = m.index + m[0].length;
+    }
+    return out + hl(str.slice(last), terms);
+  }
+  /** The customer's own memo, quoted for the UI language, tagged with the language it was written in. */
+  function memoHtml(tx, terms) {
+    var own = typeof tx.memo === 'string';
+    var lang = own && st().language && st().language !== YES.i18n.lang ? ' lang="' + esc(st().language) + '"' : '';
+    return tHtml('explorer.memoQuoted', {}, { memo: '<span' + lang + '>' + hl(YES.L(tx.memo), terms) + '</span>' });
+  }
   function subLineHtml(tx, terms, withType) {
-    return '<span class="tx-sub">' + (withType ? '<span class="tx-type-inline">' + hl(ui.typeLabel(tx.type), terms) + ' · </span>' : '') + hl(nb(YES.L(tx.counterparty)), terms) + (tx.memo ? ' · <span class="tx-memo">“' + hl(YES.L(tx.memo), terms) + '”</span>' : '') + '</span>';
+    return (
+      '<span class="tx-sub">' +
+      (withType ? '<span class="tx-type-inline">' + hl(ui.typeLabel(tx), terms) + ' · </span>' : '') +
+      hlMasked(YES.L(tx.counterparty), terms) +
+      (tx.memo ? ' · <span class="tx-memo">' + memoHtml(tx, terms) + '</span>' : '') +
+      '</span>'
+    );
+  }
+  /** Status chip; when the search matched the status, its label is highlighted in place. */
+  function statusChipHtml(tx, match, terms) {
+    var html = ui.statusHtml(tx.status);
+    if (!hitKey(match, 'status')) return html;
+    var label = esc(statusLabel(statusOf(tx)));
+    return html.replace('<span>' + label + '</span>', '<span>' + hl(statusLabel(statusOf(tx)), terms) + '</span>');
+  }
+  /** Amount; marked as a whole when a search word named it. */
+  function amountCellHtml(tx, match, opts) {
+    var html = ui.amountHtml(tx.amount, opts);
+    return hitKey(match, 'amount') ? '<mark class="tx-mark-amount">' + html + '</mark>' : html;
   }
   function pendingLineHtml(tx) {
     if (YES.calc.inBalance(tx)) return '';
@@ -890,9 +1112,10 @@
   function dateParts(tx, b) {
     var iso = basisIso(tx, b);
     var unposted = b === 'posted' && !tx.postedAt;
+    var time = YES.fmt.date(iso, 'time').replace(/\s/g, '\u00a0'); // "10:47 PM" never splits
     return {
       day: YES.fmt.date(iso, 'short'),
-      time: unposted ? t('explorer.row.initiated', { time: YES.fmt.date(iso, 'time') }) : YES.fmt.date(iso, 'time'),
+      time: unposted ? t('explorer.row.initiated', { time: time }) : time,
       prev: b === 'initiated' && YES.fmt.isoDate(iso) < YES.fmt.isoDate(st().periodStart)
     };
   }
@@ -919,14 +1142,18 @@
       '<div class="tx-desc__text">' +
       openButton(tx, terms, b) +
       subLineHtml(tx, terms, true) +
+      // Shown instead of the Status column when the table is narrow (container query).
+      '<span class="tx-status-inline">' +
+      statusChipHtml(tx, r.match, terms) +
+      '</span>' +
       pendingLineHtml(tx) +
       matchLineHtml(r.match, terms) +
       '</div></div></td>' +
       '<td class="tx-status">' +
-      ui.statusHtml(tx.status) +
+      statusChipHtml(tx, r.match, terms) +
       '</td>' +
       '<td class="num tx-amount">' +
-      ui.amountHtml(tx.amount, { unit: false }) +
+      amountCellHtml(tx, r.match, { unit: false }) +
       '</td>' +
       '<td class="num tx-balance">' +
       (pending
@@ -952,18 +1179,18 @@
       dirIcon(tx) +
       '<div class="tx-card__body">' +
       '<div class="tx-card__top"><span class="tx-card__meta"><span class="tx-card__type">' +
-      hl(ui.typeLabel(tx.type), terms) +
+      hl(ui.typeLabel(tx), terms) +
       '</span> · ' +
       esc(b === 'posted' && !tx.postedAt ? t('explorer.row.initiatedOn', { date: d.day }) : d.day) +
       (d.prev ? ' <span class="tag tx-prev">' + esc(t('explorer.row.prevPeriod')) + '</span>' : '') +
       '</span>' +
-      ui.amountHtml(tx.amount, { cls: 'tx-card__amount' }) +
+      amountCellHtml(tx, r.match, { cls: 'tx-card__amount' }) +
       '</div>' +
       openButton(tx, terms, b) +
       subLineHtml(tx, terms) +
       matchLineHtml(r.match, terms) +
       '<div class="tx-card__foot">' +
-      ui.statusHtml(tx.status) +
+      statusChipHtml(tx, r.match, terms) +
       (pending ? pendingLineHtml(tx) : '<span class="tx-card__bal">' + esc(t('explorer.row.balanceAfter', { amount: YES.fmt.amount(tx.balanceAfter, { unit: false }) })) + '</span>') +
       '</div>' +
       '</div></li>'
@@ -972,7 +1199,7 @@
 
   function captionText() {
     var s = S();
-    return t('explorer.caption', { sort: t('explorer.sort.' + s.key + '.' + s.dir), basis: t('explorer.basis.' + basis()), symbol: asset().symbol, tz: YES.fmt.tz(st().asOf) });
+    return t('explorer.caption', { sort: t('explorer.sort.' + s.key + '.' + s.dir), basis: t('explorer.basis.' + shownBasis()), symbol: asset().symbol, tz: YES.fmt.tz(st().asOf) });
   }
 
   function emptyHtml(list) {
@@ -1005,7 +1232,7 @@
     var list = chips();
     var filteredView = list.length > 0;
     var terms = queryTerms(F().q);
-    var b = basis();
+    var b = shownBasis();
     var s = S();
     var html =
       '<div class="tx-results__head">' +
@@ -1016,7 +1243,8 @@
       '</div>';
     if (!rows.length) return html + emptyHtml(list);
     var entering = enterNext && !ui.reducedMotion() ? ' is-entering' : '';
-    if (wide()) {
+    layout.table = tableMode();
+    if (layout.table) {
       var dateSort = s.key === 'amount' ? '' : ' aria-sort="' + (s.dir === 'asc' ? 'ascending' : 'descending') + '"';
       var amtSort = s.key === 'amount' ? ' aria-sort="' + (s.dir === 'asc' ? 'ascending' : 'descending') + '"' : '';
       html +=
@@ -1125,7 +1353,7 @@
     rows = rows || run();
     var f = F();
     var s = S();
-    var b = basis();
+    var b = filterBasis();
     var bounds = dateBounds(b);
     var q = r.querySelector('#tx-q');
     if (q && q.value !== f.q) q.value = f.q;
@@ -1154,8 +1382,8 @@
         el.checked = f[g].indexOf(el.value) !== -1;
       });
     });
-    var mn = parseAmount(f.min);
-    var mx = parseAmount(f.max);
+    var mn = parseAmount(f.min, f.amountLang);
+    var mx = parseAmount(f.max, f.amountLang);
     ['min', 'max'].forEach(function (w) {
       var el = r.querySelector('#tx-' + w);
       if (el && el.value !== f[w]) el.value = f[w];
@@ -1169,6 +1397,19 @@
 
     var sel = r.querySelector('#tx-sort');
     if (sel && sel.value !== s.key + ':' + s.dir) sel.value = s.key + ':' + s.dir;
+
+    var counts = facetCounts();
+    ui.$$('[data-tx-n]', r).forEach(function (el) {
+      var p = el.getAttribute('data-tx-n').split(':');
+      var n = (counts[p[0]] || {})[p[1]] || 0;
+      var shown = YES.fmt.count(n);
+      if (el.firstChild.textContent !== shown) {
+        el.firstChild.textContent = shown;
+        el.lastChild.textContent = t('explorer.filters.nMatching', { n: shown });
+      }
+      var label = el.closest('.tx-check');
+      if (label) label.classList.toggle('is-zero', !n);
+    });
 
     var n = panelCount();
     var badge = r.querySelector('[data-tx-badge]');
@@ -1241,6 +1482,7 @@
     }
     if (partial.ids && !('step' in partial)) f.step = null;
     if (!f.ids) f.idsLabel = null;
+    stampAmountLang(f, partial);
     enterNext = !!(partial.step || partial.ids);
     YES.set({ filters: f });
     enterNext = false;
@@ -1274,20 +1516,60 @@
   function visible(el) {
     return !!(el && el.isConnected && el.offsetParent !== null);
   }
+  function ledgerIds() {
+    return sortRows(
+      allTx().map(function (tx) {
+        return { tx: tx };
+      })
+    ).map(function (r) {
+      return r.tx.id;
+    });
+  }
+  /** Valid, unique transaction ids from a caller-supplied list (or null). */
+  function cleanList(list) {
+    if (!Array.isArray(list)) return null;
+    var out = [];
+    list.forEach(function (v) {
+      v = String(v);
+      if (SAFE_ID.test(v) && YES.calc.tx(v) && out.indexOf(v) === -1) out.push(v);
+    });
+    return out.length ? out : null;
+  }
+  /**
+   * The list a transaction was opened from, when the caller did not pass one:
+   * the trigger names the transaction in a data attribute (data-ov-tx="…"), and
+   * its nearest list or table holds the siblings it was shown with, in order.
+   */
+  function listFromTrigger(trigger, id) {
+    if (!trigger || !trigger.attributes || !trigger.closest) return null;
+    var attr = null;
+    for (var i = 0; i < trigger.attributes.length; i++) {
+      var a = trigger.attributes[i];
+      if (a.name.indexOf('data-') === 0 && a.value === id) {
+        attr = a.name;
+        break;
+      }
+    }
+    var box = attr && trigger.closest('ul, ol, tbody, table, [role="list"]');
+    if (!box) return null;
+    var list = cleanList(
+      ui.$$('[' + attr + ']', box).map(function (el) {
+        return el.getAttribute(attr);
+      })
+    );
+    return list && list.length > 1 && list.indexOf(id) !== -1 ? list : null;
+  }
+  /**
+   * Previous/next order: the list the detail was opened from (a journey step's
+   * rows, an explanation's supporting rows, the explorer's current results);
+   * otherwise the current results, or the whole ledger in the current order.
+   */
   function navList(id) {
+    if (dlgCtx.list && dlgCtx.list.indexOf(id) !== -1) return dlgCtx.list;
     var list = filtered().map(function (tx) {
       return tx.id;
     });
-    if (list.indexOf(id) === -1) {
-      list = sortRows(
-        allTx().map(function (tx) {
-          return { tx: tx };
-        })
-      ).map(function (r) {
-        return r.tx.id;
-      });
-    }
-    return list;
+    return list.indexOf(id) !== -1 ? list : ledgerIds();
   }
 
   function copyRow(labelKey, value, copyKey, fk, mono) {
@@ -1509,7 +1791,7 @@
       '<dt>' +
       esc(t('explorer.dlg.type')) +
       '</dt><dd>' +
-      esc(ui.typeLabel(tx.type)) +
+      esc(ui.typeLabel(tx)) +
       '<span class="tx-canon">' +
       esc(t('explorer.dlg.eventType')) +
       ' <code>' +
@@ -1523,14 +1805,14 @@
       '<dt>' +
       esc(t('explorer.dlg.counterparty')) +
       '</dt><dd>' +
-      esc(YES.L(tx.counterparty)) +
+      ui.maskedHtml(nb(YES.L(tx.counterparty))) +
       '</dd>' +
       '<dt>' +
       esc(t('explorer.dlg.description')) +
       '</dt><dd>' +
       esc(YES.L(tx.description)) +
       '</dd>' +
-      (tx.memo ? '<dt>' + esc(t('explorer.dlg.memo')) + '</dt><dd>“' + esc(YES.L(tx.memo)) + '”</dd>' : '') +
+      (tx.memo ? '<dt>' + esc(t('explorer.dlg.memo')) + '</dt><dd>' + memoHtml(tx, null) + '</dd>' : '') +
       '<dt>' +
       esc(t('explorer.dlg.balanceAfter')) +
       '</dt><dd>' +
@@ -1547,19 +1829,25 @@
       inquiryNote = '<div class="notice notice--info tx-dlg__inq">' + ui.icon('info', { size: 20 }) + '<p>' + esc(t('explorer.dlg.draftNote')) + '</p></div>';
     }
 
+    var posText = pos !== -1 ? t('explorer.dlg.position', { a: YES.fmt.count(pos + 1), b: YES.fmt.count(list.length) }) : '';
     return (
       '<div class="dlg__head tx-dlg__head">' +
       dirIcon(tx) +
       '<div class="tx-dlg__headtext"><p class="tx-dlg__eyebrow">' +
-      esc(t('explorer.dlg.eyebrow', { type: ui.typeLabel(tx.type), date: tx.postedAt ? YES.fmt.date(tx.postedAt, 'medium') : t('status.' + (tx.status === 'pending' ? 'pending' : 'unknown')) })) +
+      esc(t('explorer.dlg.eyebrow', { type: ui.typeLabel(tx), date: tx.postedAt ? YES.fmt.date(tx.postedAt, 'medium') : statusLabel(statusOf(tx)) })) +
       '</p><h2 id="tx-dialog-title" class="dlg__title" tabindex="-1" data-fk="txd-title">' +
       esc(YES.L(tx.description)) +
       '</h2></div>' +
+      // The page behind this modal is inert, so the detail carries its own
+      // language switch: switching re-renders it in place, still selected.
+      '<div class="tx-dlg__tools">' +
+      ui.langSwitchHtml({ fk: 'txd-lang', compact: true }) +
       '<button type="button" class="btn btn--icon btn--ghost tx-dlg__close" data-txd-close data-fk="txd-close" aria-label="' +
       esc(t('explorer.dlg.close')) +
       '">' +
       ui.icon('close', { size: 20 }) +
       '</button>' +
+      '</div>' +
       '</div>' +
       '<div class="dlg__body tx-dlg__body">' +
       '<div class="tx-dlg__hero' +
@@ -1568,13 +1856,17 @@
       '<p class="tx-dlg__amount">' +
       ui.amountHtml(tx.amount) +
       '</p>' +
-      '<p class="tx-dlg__unit">' +
-      esc(t('explorer.dlg.unit', { unit: YES.L(a.unitLabel), asset: YES.L(a.name), symbol: a.symbol })) +
-      '</p>' +
       '<div class="tx-dlg__heroStatus">' +
       ui.statusHtml(tx.status) +
       (pending ? '<span class="tx-notin">' + ui.icon('clock', { size: 14 }) + '<span>' + esc(t('status.notInBalance')) + '</span></span>' : '') +
       '</div>' +
+      // PRD 2: balances and references in the demo are visibly marked, here too
+      // (on a phone this sheet covers the masthead badge).
+      (YES.config.demo ? '<span class="tx-dlg__demo">' + ui.illustrativeTag('demo.badge') + '</span>' : '') +
+      '<span class="tx-dlg__break" aria-hidden="true"></span>' +
+      '<p class="tx-dlg__unit">' +
+      esc(t('explorer.dlg.unit', { unit: YES.L(a.unitLabel), asset: YES.L(a.name), symbol: a.symbol })) +
+      '</p>' +
       '</div>' +
       inquiryNote +
       '<section class="tx-dlg__section" aria-labelledby="txd-details-h"><h3 id="txd-details-h">' +
@@ -1605,7 +1897,9 @@
       ui.icon('arrow-left', { size: 18 }) +
       '</button>' +
       '<span class="tx-pager__pos">' +
-      (pos !== -1 ? esc(t('explorer.dlg.position', { a: YES.fmt.count(pos + 1), b: YES.fmt.count(list.length) })) : '') +
+      (posText
+        ? '<span class="tx-pager__long">' + esc(posText) + '</span><span class="tx-pager__short" aria-hidden="true">' + esc(YES.fmt.count(pos + 1) + '/' + YES.fmt.count(list.length)) + '</span>'
+        : '') +
       '</span>' +
       '<button type="button" class="btn btn--icon btn--ghost tx-pager__btn" data-txd-go="' +
       esc(next || '') +
@@ -1638,26 +1932,43 @@
     var body = els.dlg.querySelector('.dlg__body');
     var scroll = body ? body.scrollTop : 0;
     var same = els.dlg.getAttribute('data-tx') === id;
+    // Keep the dialog's live regions (ui.announce) across re-renders: a region
+    // that is re-created right before its message may not be announced.
+    var live = ui.$$(':scope > [aria-live]', els.dlg);
     ui.render(els.dlg, dialogHtml(tx));
+    live.forEach(function (el) {
+      els.dlg.appendChild(el);
+    });
     els.dlg.setAttribute('data-tx', id);
     var nb = els.dlg.querySelector('.dlg__body');
     if (nb && same) nb.scrollTop = scroll;
   }
 
-  function onDialogClose() {
-    if (els.dlg && els.dlg.open) return; // re-opened before a late 'close' event arrived
+  /**
+   * Settle state and route after the detail closes (idempotent: the native
+   * 'close' event arrives a task after closeTx has already settled).
+   *   how 'back'    — the customer closed it (close button, Escape, backdrop):
+   *                   if opening it added a history entry, step back over it, so
+   *                   the browser's Back and the close button agree;
+   *   how 'replace' — closed by code or by a navigation: rewrite the address.
+   */
+  function settleClosed(how) {
+    if (!els.dlg || els.dlg.open) return; // re-opened before a late 'close' event arrived
+    if (YES.state.selectedTx === null && !els.dlg.hasAttribute('data-tx')) return;
     YES.set({ selectedTx: null });
-    if (els.dlg) els.dlg.removeAttribute('data-tx');
+    els.dlg.removeAttribute('data-tx');
+    // No stale controls (language switch, copy buttons) linger in the closed dialog.
+    els.dlg.textContent = '';
     dlgCtx.view = null;
+    dlgCtx.list = null;
+    var pushed = hist.pushed;
+    hist.pushed = false;
     var cur = YES.nav.current();
-    if (cur.view === 'transactions' && cur.param) YES.nav.setParam(null);
+    if (cur.view !== 'transactions' || !cur.param) return;
+    if (how === 'back' && pushed && root.history && typeof root.history.back === 'function') root.history.back();
+    else YES.nav.setParam(null);
   }
 
-  /**
-   * Open the transaction detail. Over the Transactions view the address becomes
-   * #/transactions/<id>; over another view the dialog opens in place so focus can
-   * return to the control that opened it.
-   */
   /** Run fn once the dialog's pending 'close' event (and its focus return) has been handled. */
   function whenClosed(fn) {
     if (!closing) return fn();
@@ -1678,6 +1989,17 @@
     setTimeout(run, 150);
   }
 
+  /**
+   * Open the transaction detail.
+   *   opts.trigger — where focus returns on close;
+   *   opts.list    — ids of the list it was opened from, in order: previous /
+   *                  next stay within it (inferred from the trigger's list when
+   *                  omitted; the explorer's own rows use the current results).
+   * Over the Transactions view the address becomes #/transactions/<id>. Opened by
+   * the customer, that is a new history entry, so the browser's Back (or a
+   * phone's back gesture) closes the sheet and stays in the list. Over another
+   * view the dialog opens in place so focus can return to what opened it.
+   */
   function openTx(id, opts) {
     opts = opts || {};
     var tx = id && SAFE_ID.test(String(id)) ? YES.calc.tx(String(id)) : null;
@@ -1694,32 +2016,66 @@
       return;
     }
     var wasOpen = els.dlg.open;
-    YES.set({ selectedTx: tx.id });
-    renderDialog();
-    if (YES.state.view === 'transactions') YES.nav.setParam(tx.id);
-    var row = rowButton(tx.id);
+    var onTx = YES.state.view === 'transactions';
     if (!wasOpen) {
       dlgCtx.view = YES.state.view;
-      var trigger = opts.trigger || (visible(row) ? row : null) || (YES.state.view === 'transactions' ? els.root.querySelector('#tx-results-title') : null) || doc.activeElement;
-      ui.openDialog(els.dlg, { trigger: trigger, initialFocus: '#tx-dialog-title', onClose: onDialogClose });
-    } else {
-      // Moving between transactions inside the dialog: return focus to the row now shown.
-      if (visible(row)) els.dlg._trigger = row;
-      var h = els.dlg.querySelector('#tx-dialog-title');
-      if (h) h.focus({ preventScroll: true });
-      var b = els.dlg.querySelector('.dlg__body');
-      if (b) b.scrollTop = 0;
-      ui.announce(t('explorer.dlg.showing', { description: YES.L(tx.description) }));
+      dlgCtx.list =
+        cleanList(opts.list) ||
+        listFromTrigger(opts.trigger, tx.id) ||
+        (onTx
+          ? filtered().map(function (x) {
+              return x.id;
+            })
+          : null);
     }
+    YES.set({ selectedTx: tx.id });
+    renderDialog();
+    var row = rowButton(tx.id);
+    if (!wasOpen) {
+      var trigger = opts.trigger || (visible(row) ? row : null) || (onTx ? els.root.querySelector('#tx-results-title') : null) || doc.activeElement;
+      ui.openDialog(els.dlg, {
+        trigger: trigger,
+        initialFocus: '#tx-dialog-title',
+        onClose: function () {
+          settleClosed('replace');
+        }
+      });
+      if (onTx && !opts.fromRoute && YES.nav.current().param !== tx.id) {
+        hist.pushed = true;
+        YES.nav.go('transactions', { param: tx.id, focus: false });
+      } else if (onTx) {
+        YES.nav.setParam(tx.id);
+      }
+      return;
+    }
+    if (onTx) YES.nav.setParam(tx.id);
+    // Moving between transactions inside the dialog: return focus to the row now shown.
+    if (visible(row)) ui.setDialogReturn(els.dlg, row);
+    var b = els.dlg.querySelector('.dlg__body');
+    if (b) b.scrollTop = 0;
+    // Previous / Next keep focus on the pager (the other button at either end),
+    // so stepping through a list is one key press per transaction.
+    var target = null;
+    if (opts.focusFk === 'txd-prev' || opts.focusFk === 'txd-next') {
+      (opts.focusFk === 'txd-prev' ? ['txd-prev', 'txd-next'] : ['txd-next', 'txd-prev']).some(function (fk) {
+        var el = els.dlg.querySelector('[data-fk="' + fk + '"]');
+        if (el && !el.disabled) target = el;
+        return !!target;
+      });
+    }
+    (target || els.dlg.querySelector('#tx-dialog-title')).focus({ preventScroll: true });
+    var list = navList(tx.id);
+    ui.announce(t('explorer.dlg.showing', { description: YES.L(tx.description), position: t('explorer.dlg.position', { a: YES.fmt.count(list.indexOf(tx.id) + 1), b: YES.fmt.count(list.length) }) }));
   }
 
-  function closeTx() {
+  /** Close the detail (API: rewrites the address; the close button steps back over its history entry). */
+  function closeTx(opts) {
     if (!els.dlg || !els.dlg.open) return;
     closing = true;
     ui.closeDialog(els.dlg);
     // The native 'close' event fires a task later; settle state and route now so
-    // callers see the closed state immediately (onDialogClose is idempotent).
-    onDialogClose();
+    // callers see the closed state immediately (settleClosed is idempotent).
+    settleClosed(opts && opts.how === 'back' ? 'back' : 'replace');
   }
 
   function onRoute(r) {
@@ -1735,21 +2091,14 @@
   /* ------------------------------------------------------------------ */
   /* CSV export                                                          */
   /* ------------------------------------------------------------------ */
+  /* Machine-readable values come from the shared formatters (YES.fmt.plain:
+     "." decimals and ASCII minus; YES.fmt.isoTime: 24-hour statement time), so
+     the file can never drift from what the screen shows. */
   function plainAmount(minor) {
-    // Machine-readable decimal with '.' and ASCII minus, at the asset precision.
-    if (minor == null) return '';
-    var p = asset().precision;
-    var abs = Math.abs(minor);
-    var unit = Math.pow(10, p);
-    var frac = String(abs % unit);
-    while (frac.length < p) frac = '0' + frac;
-    return (minor < 0 ? '-' : '') + Math.floor(abs / unit) + (p ? '.' + frac : '');
+    return minor == null ? '' : YES.fmt.plain(minor);
   }
-  var timeFmt = null;
-  function isoTime(iso) {
-    if (!iso) return '';
-    if (!timeFmt) timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: st().timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-    return timeFmt.format(new Date(iso));
+  function isoDateTime(iso) {
+    return iso ? YES.fmt.isoDate(iso) + ' ' + YES.fmt.isoTime(iso) : '';
   }
   function csvCell(v, text) {
     var s = v == null ? '' : String(v);
@@ -1757,16 +2106,41 @@
     if (/[",;\r\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
     return s;
   }
+  /** Opening and closing balance from the balance journey (YES.calc), never typed in. */
+  function bridgeEnds() {
+    var j = YES.calc.journey();
+    return { opening: j[0].value, closing: j[j.length - 1].value };
+  }
+  /**
+   * What a CSV contains, in words, repeated on every row so each line stands on
+   * its own: the complete record, or the current view's filters and order.
+   */
+  function exportScope(which) {
+    if (which !== 'filtered') return t('explorer.csv.scopeAll');
+    var s = S();
+    var applied = chips()
+      .map(function (c) {
+        return c.label;
+      })
+      .join(' · ');
+    return t('explorer.csv.scopeView', { filters: applied || t('explorer.csv.noFilters'), sort: t('explorer.sort.' + s.key + '.' + s.dir) });
+  }
+  /*
+   * Columns: the transaction, then the statement facts it belongs to (version,
+   * period, as-of and generation time, date basis, opening and closing balance)
+   * and what the export covers. Repeating the facts keeps the file rectangular,
+   * so it opens cleanly in any spreadsheet and every row stays traceable.
+   */
   var CSV_COLS = [
     ['statementId', function () { return st().id; }, true],
     ['txId', function (tx) { return tx.id; }, true],
     ['postedDate', function (tx) { return YES.fmt.isoDate(tx.postedAt); }],
-    ['postedTime', function (tx) { return isoTime(tx.postedAt); }],
+    ['postedTime', function (tx) { return YES.fmt.isoTime(tx.postedAt); }],
     ['initiatedDate', function (tx) { return YES.fmt.isoDate(tx.initiatedAt); }],
-    ['initiatedTime', function (tx) { return isoTime(tx.initiatedAt); }],
+    ['initiatedTime', function (tx) { return YES.fmt.isoTime(tx.initiatedAt); }],
     ['timezone', function () { return st().timezone; }, true],
     ['type', function (tx) { return tx.type; }, true],
-    ['typeLabel', function (tx) { return ui.typeLabel(tx.type); }, true],
+    ['typeLabel', function (tx) { return ui.typeLabel(tx); }, true],
     ['description', function (tx) { return YES.L(tx.description); }, true],
     ['counterparty', function (tx) { return YES.L(tx.counterparty); }, true],
     ['memo', function (tx) { return tx.memo ? YES.L(tx.memo) : ''; }, true],
@@ -1780,6 +2154,16 @@
     ['method', function (tx) { return tx.method || ''; }, true],
     ['reference', function (tx) { return tx.reference || ''; }, true],
     ['parentId', function (tx) { return tx.parentId || ''; }, true],
+    ['statementVersion', function () { return st().version || ''; }, true],
+    ['issueStatus', function () { return st().issueStatus || ''; }, true],
+    ['periodStart', function () { return YES.fmt.isoDate(st().periodStart); }],
+    ['periodEnd', function () { return YES.fmt.isoDate(st().periodEnd); }],
+    ['asOf', function () { return isoDateTime(st().asOf); }],
+    ['generatedAt', function () { return isoDateTime(st().generatedAt); }],
+    ['dateBasis', function () { return st().dateBasis || 'posted'; }, true],
+    ['openingBalance', function (tx, ctx) { return plainAmount(ctx.ends.opening); }],
+    ['closingBalance', function (tx, ctx) { return plainAmount(ctx.ends.closing); }],
+    ['scope', function (tx, ctx) { return ctx.scope; }, true],
     ['classification', function () { return CLASSIFICATION; }, true]
   ];
   function completeList() {
@@ -1796,10 +2180,11 @@
         return csvCell(t('explorer.csv.' + c[0]), true);
       }).join(',')
     ];
+    var ctx = { ends: bridgeEnds(), scope: exportScope(which) };
     list.forEach(function (tx) {
       lines.push(
         CSV_COLS.map(function (c) {
-          return csvCell(c[1](tx), !!c[2]);
+          return csvCell(c[1](tx, ctx), !!c[2]);
         }).join(',')
       );
     });
@@ -1946,16 +2331,18 @@
     var d = els.dlg;
     if (d) {
       // State and route follow every close (button, Escape, backdrop, programmatic).
+      // A close we did not start (Escape, backdrop) is the customer's own.
       d.addEventListener('close', function () {
+        var ours = closing;
         closing = false;
-        onDialogClose();
+        settleClosed(ours ? 'replace' : 'back');
       });
       ui.delegate(d, 'click', '[data-txd-close]', function () {
-        closeTx();
+        closeTx({ how: 'back' });
       });
       ui.delegate(d, 'click', '[data-txd-go]', function (e, b) {
         var id = b.getAttribute('data-txd-go');
-        if (id) openTx(id, { inDialog: true });
+        if (id) openTx(id, { focusFk: b.getAttribute('data-fk') });
       });
       ui.delegate(d, 'click', '[data-txd-copy]', function (e, b) {
         var tx = YES.calc.tx(YES.state.selectedTx);
@@ -1974,17 +2361,29 @@
         e.preventDefault();
         e.stopPropagation();
         var ctx = { topic: b.getAttribute('data-explain'), id: b.getAttribute('data-explain-id') || null };
-        var back = d._trigger;
+        var back = ui.dialogTrigger(d);
         var row = rowButton(ctx.id);
         if (!visible(back) && visible(row)) back = row;
         closing = true;
         ui.closeDialog(d, { returnFocus: false });
-        onDialogClose();
+        settleClosed('back');
         YES.assistant.open({ topic: ctx.topic, id: ctx.id, trigger: visible(back) ? back : null });
       });
     }
 
     YES.on('route', onRoute);
+
+    // Table or cards follows the width the results actually get (the docked
+    // assistant narrows the page without any viewport change).
+    if (root.ResizeObserver) {
+      layout.observer = new root.ResizeObserver(function () {
+        // Next frame: changing layout inside the observer callback would loop.
+        root.requestAnimationFrame(function () {
+          if (layout.table !== null && tableMode() !== layout.table) update();
+        });
+      });
+      layout.observer.observe(r);
+    }
 
     if (root.matchMedia) {
       var mq = root.matchMedia('(max-width: 719px)');
@@ -2021,17 +2420,20 @@
         'explorer.title': 'Transactions',
         'explorer.lede': 'All {n} movements in your statement for {period}.',
         'explorer.ledeTimes': 'Times are shown in {tz}.',
-        'explorer.initiatedNote': 'Sorted by initiated date, so the date column and the date filter use the initiated date. Totals still use the posted date.',
+        'explorer.initiatedNote': 'Sorted by initiated date, so the date column shows when each transaction was initiated. The date filter and the totals still use the posted date.',
+        'explorer.undatedNote1': '1 transaction initiated in these dates is not listed: it has not been posted, so it has no {basis} yet.',
+        'explorer.undatedNoteN': '{n} transactions initiated in these dates are not listed: they have not been posted, so they have no {basis} yet.',
 
         'explorer.search.region': 'Transactions',
         'explorer.search.label': 'Search transactions',
-        'explorer.search.placeholder': 'Name, reference, type or status',
-        'explorer.search.hint': 'Searches description, counterparty, memo, type, status, rail, reference and transaction ID.',
+        'explorer.search.placeholder': 'Name, amount or reference',
+        'explorer.search.hint': 'Searches description, counterparty, memo, type, status, rail, reference, transaction ID and amount.',
         'explorer.search.clear': 'Clear search',
 
         'explorer.filters.title': 'Filters',
         'explorer.filters.toggle': 'Filters',
         'explorer.filters.activeN': '{n} active',
+        'explorer.filters.nMatching': 'results: {n}',
         'explorer.filters.dateLegend': 'Date range ({basis})',
         'explorer.filters.from': 'From',
         'explorer.filters.to': 'To',
@@ -2105,18 +2507,23 @@
         'explorer.col.amount': 'Amount',
         'explorer.col.balance': 'Balance after',
 
-        'explorer.row.openLabel': '{description}, {counterparty}, {date}, {amount}. View details',
+        'explorer.row.openLabel': '{description}, {counterparty}, {date}, {amount}.',
+        'explorer.row.openLabelNotIn': '{label} {status}. {notIn}.',
+        'explorer.row.viewDetails': 'View details',
+        'explorer.row.initiatedDate': 'initiated {date}',
         'explorer.row.initiated': 'Initiated {time}',
         'explorer.row.initiatedOn': 'Initiated {date}',
         'explorer.row.prevPeriod': 'Previous period',
         'explorer.row.balanceAfter': 'Balance after {amount}',
 
+        'explorer.memoQuoted': '“{memo}”',
         'explorer.match.in': 'Matched in',
         'explorer.field.description': 'Description',
         'explorer.field.counterparty': 'Counterparty',
         'explorer.field.memo': 'Memo',
         'explorer.field.type': 'Type',
         'explorer.field.status': 'Status',
+        'explorer.field.amount': 'Amount',
         'explorer.field.rail': 'Rail',
         'explorer.field.reference': 'Reference',
         'explorer.field.id': 'Transaction ID',
@@ -2130,7 +2537,7 @@
         'explorer.export.body': 'CSV files are created on this device from the same statement data, and every row is marked as illustrative demo data. Nothing is sent.',
         'explorer.export.all': 'Download CSV — complete record',
         'explorer.export.view': 'Download CSV — current view ({n})',
-        'explorer.export.done': 'CSV saved on this device ({count}). Nothing was sent.',
+        'explorer.export.done': 'CSV download started ({count}). Nothing was sent.',
         'explorer.export.empty': 'There are no transactions in the current view to download.',
 
         'explorer.csv.statementId': 'Statement ID',
@@ -2155,6 +2562,19 @@
         'explorer.csv.method': 'Method',
         'explorer.csv.reference': 'Reference',
         'explorer.csv.parentId': 'Related transaction ID',
+        'explorer.csv.statementVersion': 'Statement version',
+        'explorer.csv.issueStatus': 'Issue status',
+        'explorer.csv.periodStart': 'Period start',
+        'explorer.csv.periodEnd': 'Period end',
+        'explorer.csv.asOf': 'Statement as of',
+        'explorer.csv.generatedAt': 'Generated',
+        'explorer.csv.dateBasis': 'Date basis',
+        'explorer.csv.openingBalance': 'Opening balance',
+        'explorer.csv.closingBalance': 'Closing balance',
+        'explorer.csv.scope': 'Export scope',
+        'explorer.csv.scopeAll': 'Complete record',
+        'explorer.csv.scopeView': 'Current view — filters: {filters}; order: {sort}',
+        'explorer.csv.noFilters': 'none',
         'explorer.csv.classification': 'Data classification',
 
         'explorer.notFound': 'Transaction {id} is not in this statement.',
@@ -2212,23 +2632,26 @@
         'explorer.dlg.prevLabel': 'Previous transaction',
         'explorer.dlg.nextLabel': 'Next transaction',
         'explorer.dlg.position': '{a} of {b}',
-        'explorer.dlg.showing': 'Showing {description}'
+        'explorer.dlg.showing': 'Showing {description}, {position}.'
       },
       es: {
         'explorer.title': 'Movimientos',
         'explorer.lede': 'Los {n} movimientos de tu estado de cuenta del {period}.',
         'explorer.ledeTimes': 'Las horas se muestran en {tz}.',
-        'explorer.initiatedNote': 'Ordenado por fecha de inicio: la columna de fecha y el filtro de fechas usan la fecha de inicio. Los totales siguen usando la fecha de registro.',
+        'explorer.initiatedNote': 'Ordenado por fecha de inicio: la columna de fecha muestra cuándo se inició cada movimiento. El filtro de fechas y los totales siguen usando la fecha de registro.',
+        'explorer.undatedNote1': '1 movimiento iniciado en estas fechas no aparece: no se ha registrado, así que todavía no tiene {basis}.',
+        'explorer.undatedNoteN': '{n} movimientos iniciados en estas fechas no aparecen: no se han registrado, así que todavía no tienen {basis}.',
 
         'explorer.search.region': 'Movimientos',
         'explorer.search.label': 'Buscar movimientos',
-        'explorer.search.placeholder': 'Nombre, referencia, tipo o estado',
-        'explorer.search.hint': 'Busca en descripción, contraparte, concepto, tipo, estado, canal, referencia e ID del movimiento.',
+        'explorer.search.placeholder': 'Nombre, importe, referencia',
+        'explorer.search.hint': 'Busca en descripción, contraparte, concepto, tipo, estado, canal, referencia, ID del movimiento e importe.',
         'explorer.search.clear': 'Borrar búsqueda',
 
         'explorer.filters.title': 'Filtros',
         'explorer.filters.toggle': 'Filtros',
         'explorer.filters.activeN': '{n} activos',
+        'explorer.filters.nMatching': 'resultados: {n}',
         'explorer.filters.dateLegend': 'Rango de fechas ({basis})',
         'explorer.filters.from': 'Desde',
         'explorer.filters.to': 'Hasta',
@@ -2302,18 +2725,23 @@
         'explorer.col.amount': 'Importe',
         'explorer.col.balance': 'Saldo después',
 
-        'explorer.row.openLabel': '{description}, {counterparty}, {date}, {amount}. Ver detalles',
+        'explorer.row.openLabel': '{description}, {counterparty}, {date}, {amount}.',
+        'explorer.row.openLabelNotIn': '{label} {status}. {notIn}.',
+        'explorer.row.viewDetails': 'Ver detalles',
+        'explorer.row.initiatedDate': 'iniciado el {date}',
         'explorer.row.initiated': 'Iniciado {time}',
         'explorer.row.initiatedOn': 'Iniciado el {date}',
         'explorer.row.prevPeriod': 'Período anterior',
         'explorer.row.balanceAfter': 'Saldo después: {amount}',
 
+        'explorer.memoQuoted': '«{memo}»',
         'explorer.match.in': 'Coincidencia en',
         'explorer.field.description': 'Descripción',
         'explorer.field.counterparty': 'Contraparte',
         'explorer.field.memo': 'Concepto',
         'explorer.field.type': 'Tipo',
         'explorer.field.status': 'Estado',
+        'explorer.field.amount': 'Importe',
         'explorer.field.rail': 'Canal',
         'explorer.field.reference': 'Referencia',
         'explorer.field.id': 'ID del movimiento',
@@ -2327,7 +2755,7 @@
         'explorer.export.body': 'Los archivos CSV se crean en este dispositivo con los mismos datos del estado de cuenta, y cada fila está marcada como datos ilustrativos de demostración. No se envía nada.',
         'explorer.export.all': 'Descargar CSV — registro completo',
         'explorer.export.view': 'Descargar CSV — vista actual ({n})',
-        'explorer.export.done': 'CSV guardado en este dispositivo ({count}). No se envió nada.',
+        'explorer.export.done': 'Descarga del CSV iniciada ({count}). No se envió nada.',
         'explorer.export.empty': 'No hay movimientos en la vista actual para descargar.',
 
         'explorer.csv.statementId': 'ID del estado de cuenta',
@@ -2352,6 +2780,19 @@
         'explorer.csv.method': 'Método',
         'explorer.csv.reference': 'Referencia',
         'explorer.csv.parentId': 'ID del movimiento relacionado',
+        'explorer.csv.statementVersion': 'Versión del estado de cuenta',
+        'explorer.csv.issueStatus': 'Estado de emisión',
+        'explorer.csv.periodStart': 'Inicio del período',
+        'explorer.csv.periodEnd': 'Fin del período',
+        'explorer.csv.asOf': 'Estado de cuenta a fecha de',
+        'explorer.csv.generatedAt': 'Generado',
+        'explorer.csv.dateBasis': 'Base de fechas',
+        'explorer.csv.openingBalance': 'Saldo inicial',
+        'explorer.csv.closingBalance': 'Saldo final',
+        'explorer.csv.scope': 'Alcance de la exportación',
+        'explorer.csv.scopeAll': 'Registro completo',
+        'explorer.csv.scopeView': 'Vista actual — filtros: {filters}; orden: {sort}',
+        'explorer.csv.noFilters': 'ninguno',
         'explorer.csv.classification': 'Clasificación de los datos',
 
         'explorer.notFound': 'El movimiento {id} no está en este estado de cuenta.',
@@ -2385,7 +2826,7 @@
         'explorer.dlg.feeKind.redemption': 'Comisión por canje',
         'explorer.dlg.feeKind.other': 'Comisión de servicio',
         'explorer.dlg.openFee': 'Abrir comisión',
-        'explorer.dlg.openFeeLabel': 'Abrir la línea de comisión: {kind}, {id}',
+        'explorer.dlg.openFeeLabel': 'Abrir comisión: {kind}, {id}',
         'explorer.dlg.totalWithFees': 'Total con comisiones',
         'explorer.dlg.feeOf': 'Esta comisión corresponde a:',
         'explorer.dlg.openParent': 'Abrir movimiento',
@@ -2409,7 +2850,7 @@
         'explorer.dlg.prevLabel': 'Movimiento anterior',
         'explorer.dlg.nextLabel': 'Movimiento siguiente',
         'explorer.dlg.position': '{a} de {b}',
-        'explorer.dlg.showing': 'Mostrando: {description}'
+        'explorer.dlg.showing': 'Mostrando: {description}, {position}.'
       }
     },
     init: function () {
@@ -2421,6 +2862,7 @@
       this.render();
     },
     render: function () {
+      localizeAmounts();
       renderView();
       if (els.dlg && els.dlg.open && YES.state.selectedTx) renderDialog();
     },

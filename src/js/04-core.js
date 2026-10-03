@@ -99,9 +99,34 @@
   YES.modules = function () {
     return modules.slice();
   };
+  /**
+   * Initialise the registered modules (boot calls this once). `allow(m)` can
+   * leave a module out: it is then never initialised, rendered or told about
+   * state changes — e.g. every feature module while a statement is withheld, so
+   * a language switch cannot render withheld figures into the DOM.
+   */
+  YES.initModules = function (allow) {
+    var list = modules.filter(function (m) {
+      return !allow || allow(m);
+    });
+    // Mark the whole set first: modules may change state from their init, and
+    // later modules in the set must still hear about it.
+    list.forEach(function (m) {
+      m._active = true;
+    });
+    list.forEach(function (m) {
+      if (m.init) {
+        try {
+          m.init();
+        } catch (e) {
+          if (root.console) console.error('[YES] init failed in module ' + m.name, e);
+        }
+      }
+    });
+  };
   YES.renderAll = function () {
     modules.forEach(function (m) {
-      if (m.render) {
+      if (m.render && m._active) {
         try {
           m.render();
         } catch (e) {
@@ -113,7 +138,7 @@
   };
   YES.on('state', function (keys) {
     modules.forEach(function (m) {
-      if (m.onState) {
+      if (m.onState && m._active) {
         try {
           m.onState(keys);
         } catch (e) {
@@ -160,22 +185,40 @@
   var VIEWS = ['overview', 'transactions', 'understand', 'help'];
   YES.VIEWS = VIEWS;
 
+  /* A truncated or hand-edited link ("#/transactions/100%") must never throw:
+     an undecodable piece is kept as typed and treated as an unknown param. */
+  function safeDecode(s) {
+    try {
+      return decodeURIComponent(s);
+    } catch (e) {
+      return s;
+    }
+  }
+  /** Routes look like "#/view…". Any other fragment ("#main") is an in-page anchor, not a route. */
+  function isRouteHash(h) {
+    return !h || h === '#' || h.charAt(1) === '/';
+  }
+  var lastRoute = null;
   function parseHash() {
-    var h = (root.location && root.location.hash) || '';
-    h = h.replace(/^#\/?/, '');
+    var raw = (root.location && root.location.hash) || '';
+    if (!isRouteHash(raw)) {
+      // Keep the current view: following an in-page anchor is not navigation.
+      return lastRoute ? { view: lastRoute.view, param: lastRoute.param, params: JSON.parse(JSON.stringify(lastRoute.params)) } : { view: YES.state.view || 'overview', param: null, params: {} };
+    }
+    var h = raw.replace(/^#\/?/, '');
     var q = '';
     var qi = h.indexOf('?');
     if (qi !== -1) {
       q = h.slice(qi + 1);
       h = h.slice(0, qi);
     }
-    var parts = h.split('/').filter(Boolean).map(decodeURIComponent);
+    var parts = h.split('/').filter(Boolean).map(safeDecode);
     var params = {};
     q.split('&')
       .filter(Boolean)
       .forEach(function (kv) {
         var i = kv.indexOf('=');
-        params[decodeURIComponent(i === -1 ? kv : kv.slice(0, i))] = i === -1 ? '' : decodeURIComponent(kv.slice(i + 1));
+        params[safeDecode(i === -1 ? kv : kv.slice(0, i))] = i === -1 ? '' : safeDecode(kv.slice(i + 1));
       });
     var view = VIEWS.indexOf(parts[0]) !== -1 ? parts[0] : 'overview';
     return { view: view, param: parts[1] || null, params: params };
@@ -229,19 +272,35 @@
         root.location.hash = hash;
       }
     },
-    /** Update the sub-route of the current view without moving focus. */
+    /**
+     * Update the sub-route of the current view without moving focus. Never
+     * overwrites an address the router has not applied yet: if the hash changed
+     * and its 'hashchange' is still queued, that navigation wins and its route
+     * handlers settle the param.
+     */
     setParam: function (param) {
+      if (appliedHash !== null && isRouteHash(root.location.hash) && root.location.hash !== appliedHash) return;
       var cur = parseHash();
       var hash = buildHash(cur.view, param, cur.params.simulate ? { simulate: cur.params.simulate } : {});
       if (root.location.hash !== hash && root.history && root.history.replaceState) {
         root.history.replaceState(null, '', hash);
+        appliedHash = root.location.hash;
       }
     }
   });
 
   var pendingFocus = false;
-  function applyRoute() {
+  var appliedHash = null; // the address the router last applied
+  /**
+   * Show the view named by the address. opts.history — the change came from the
+   * browser (Back/Forward, an edited address): like a click in the navigation,
+   * a new view gets its heading focused and announced, so keyboard and
+   * screen-reader users are never left on <body> or inside a hidden view.
+   */
+  function applyRoute(opts) {
     var r = parseHash();
+    lastRoute = r;
+    appliedHash = root.location.hash;
     var changed = YES.set({ view: r.view });
     showView(r.view);
     YES.emit('route', r);
@@ -251,9 +310,33 @@
       YES.ui.announce(YES.t('route.announce', { view: YES.t('nav.' + r.view) }));
     } else if (changed.length) {
       root.scrollTo && root.scrollTo(0, 0);
+      if (opts && opts.history) {
+        focusHeadingAfterHistory(r.view);
+        YES.ui.announce(YES.t('route.announce', { view: YES.t('nav.' + r.view) }));
+      }
     }
   }
   nav.apply = applyRoute;
+
+  function headingOf(view) {
+    return doc.querySelector('#view-' + view + ' [data-view-heading]');
+  }
+  function strandedFocus() {
+    var a = doc.activeElement;
+    return !a || a === doc.body || a === doc.documentElement || !a.isConnected || (a.getClientRects && a.getClientRects().length === 0);
+  }
+  /* A dialog closed by the route change returns focus asynchronously (to a
+     trigger that may now be hidden), so check again once that has settled. */
+  function focusHeadingAfterHistory(view) {
+    function attempt() {
+      if (YES.state.view !== view || YES.ui.anyModalOpen()) return;
+      var h = headingOf(view);
+      if (h && (strandedFocus() || !doc.getElementById('view-' + view).contains(doc.activeElement))) h.focus({ preventScroll: true });
+    }
+    attempt();
+    setTimeout(attempt, 0);
+    setTimeout(attempt, 120);
+  }
 
   function showView(view) {
     VIEWS.forEach(function (v) {
@@ -264,9 +347,11 @@
   }
   nav.showView = showView;
 
+  nav.isRouteHash = isRouteHash;
   if (root.addEventListener) {
     root.addEventListener('hashchange', function () {
-      applyRoute();
+      if (!isRouteHash(root.location.hash)) return; // in-page anchor, not navigation
+      applyRoute({ history: true });
     });
   }
 
@@ -407,12 +492,25 @@
     return !!(root.matchMedia && root.matchMedia('(max-width: 719px)').matches);
   };
 
-  /** Short visual confirmation (also announced). */
+  /**
+   * Short visual confirmation (also announced). The toast is a manual popover:
+   * re-showing it puts it at the top of the top layer, above any open modal
+   * dialog or sheet, so a confirmation is never painted underneath one.
+   */
   var toastTimer = null;
   ui.toast = function (msg) {
     var el = doc.getElementById('toast');
     if (!el) return;
     el.textContent = msg;
+    if (typeof el.showPopover === 'function') {
+      try {
+        if (el.matches(':popover-open')) el.hidePopover();
+        el.showPopover();
+        void el.offsetWidth; // start the fade from the hidden state
+      } catch (e) {
+        /* popover unsupported in this context: the fixed toast still shows */
+      }
+    }
     el.classList.add('is-visible');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () {
@@ -658,10 +756,83 @@
     return '<span class="status status--' + ui.esc(status || 'unknown') + '">' + ui.icon(icon, { size: 16 }) + '<span>' + ui.esc(YES.t(key)) + '</span></span>';
   };
 
-  /** Customer-friendly type label; canonical type kept in data-type. */
-  ui.typeLabel = function (type) {
+  /**
+   * Customer-friendly type label; the canonical type stays in the data.
+   *   ui.typeLabel(tx)            — preferred: status-aware, so a pending
+   *                                 redemption reads "Redemption requested",
+   *                                 never the completed "Redeemed"
+   *   ui.typeLabel(type[, status]) — a bare type (e.g. a filter facet) gets the
+   *                                 canonical label
+   */
+  ui.typeLabel = function (typeOrTx, status) {
+    var type = typeOrTx && typeof typeOrTx === 'object' ? typeOrTx.type : typeOrTx;
+    if (typeOrTx && typeof typeOrTx === 'object' && status === undefined) status = typeOrTx.status;
+    var table = YES.i18n.dict[YES.i18n.lang] || {};
     var k = 'type.' + type;
-    return YES.i18n.dict[YES.i18n.lang][k] ? YES.t(k) : YES.t('type.unknown');
+    if (status && status !== 'posted' && table[k + '.notPosted']) return YES.t(k + '.notPosted');
+    return table[k] ? YES.t(k) : YES.t('type.unknown');
+  };
+
+  /**
+   * Text containing masked identifiers ("Debit card •••• 1190") as HTML: the
+   * bullets stay visible but hidden from assistive technology, which hears
+   * "Debit card ending in 1190" instead. For aria-labels use YES.fmt.maskedSpoken.
+   */
+  ui.maskedHtml = function (text) {
+    var str = String(text == null ? '' : text);
+    var out = '';
+    var last = 0;
+    str.replace(YES.fmt.MASK_RE, function (m, dots, tail, at) {
+      out += ui.esc(str.slice(last, at));
+      out += '<span aria-hidden="true">' + ui.esc(m) + '</span><span class="sr-only">' + ui.esc(YES.t('fmt.maskedEnding', { tail: tail })) + '</span>';
+      last = at + m.length;
+      return m;
+    });
+    return out + ui.esc(str.slice(last));
+  };
+
+  /**
+   * Language switch markup (the masthead uses it; a module may place one inside
+   * a modal dialog, where the masthead is inert). Each button's accessible name
+   * is the language's own name ("English", "Español") at every width; compact
+   * layouts show "EN"/"ES" and keep the name in the accessibility tree.
+   *   opts.fk — focus-key prefix (default 'lang'); opts.compact — always show EN/ES
+   * Clicks on any [data-lang] control are handled globally.
+   */
+  ui.langSwitchHtml = function (opts) {
+    opts = opts || {};
+    var prefix = opts.fk || 'lang';
+    var buttons = YES.config.languages
+      .map(function (l) {
+        return (
+          '<button type="button" class="seg__btn" lang="' +
+          l +
+          '" data-lang="' +
+          l +
+          '" data-fk="' +
+          ui.esc(prefix) +
+          '-' +
+          l +
+          '" aria-pressed="' +
+          (l === YES.i18n.lang) +
+          '"><span class="seg__long">' +
+          ui.esc(YES.t('lang.' + l)) +
+          '</span><span class="seg__short" aria-hidden="true">' +
+          l.toUpperCase() +
+          '</span></button>'
+        );
+      })
+      .join('');
+    return (
+      '<div class="seg seg--lang' +
+      (opts.compact ? ' seg--compact' : '') +
+      '" role="group" aria-label="' +
+      ui.esc(YES.t('lang.label')) +
+      '">' +
+      ui.icon('globe', { size: 18, cls: 'seg__icon' }) +
+      buttons +
+      '</div>'
+    );
   };
 
   /** "Illustrative" tag used on fictional blockchain / reserve / rate content. */
@@ -701,6 +872,13 @@
       if (!b) return;
       e.preventDefault();
       YES.assistant.open({ topic: b.getAttribute('data-explain'), id: b.getAttribute('data-explain-id') || null, trigger: b });
+    });
+    // [data-lang] buttons switch language wherever they are (masthead or a dialog).
+    doc.addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('[data-lang]');
+      if (!b || b.tagName !== 'BUTTON') return;
+      var l = b.getAttribute('data-lang');
+      if (l !== YES.i18n.lang) YES.setLang(l);
     });
     // [data-nav] links/buttons navigate between views: data-nav="transactions" [data-nav-param]
     doc.addEventListener('click', function (e) {

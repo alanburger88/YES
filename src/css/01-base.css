@@ -97,6 +97,18 @@ table {
   outline: 2px solid var(--focus);
   outline-offset: 4px;
 }
+/* Forced colours (Windows High Contrast) drop box-shadow focus rings: every
+   keyboard focus gets a system-colour outline, whatever a component sets. */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid Highlight !important;
+  }
+}
+/* Placeholders carry instructions: readable contrast in both schemes (WCAG 1.4.3). */
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
 ::selection {
   background: color-mix(in srgb, var(--focus) 30%, transparent);
 }

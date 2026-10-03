@@ -19,7 +19,9 @@ export default async function (t) {
   const dialogOpen = () => page.evaluate(() => document.getElementById('tx-dialog').open);
   const activeFk = () => page.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-fk'));
   // The dialog's 'close' event (state + route cleanup) fires a task after `open` flips.
-  const waitClosed = () => page.waitForFunction(() => !document.getElementById('tx-dialog').open && YES.state.selectedTx === null, null, { timeout: 3000 });
+  // Closing by the customer steps back over the detail's history entry (async), so
+  // also wait for the address to settle before the next navigation.
+  const waitClosed = () => page.waitForFunction(() => !document.getElementById('tx-dialog').open && YES.state.selectedTx === null && !/^#\/transactions\/./.test(location.hash), null, { timeout: 3000 });
   const expectFocus = async (fk, msg) => {
     await page.waitForFunction((k) => document.activeElement && document.activeElement.getAttribute('data-fk') === k, fk, { timeout: 2000 }).catch(() => {});
     t.eq(await activeFk(), fk, msg);
@@ -41,6 +43,26 @@ export default async function (t) {
   const fresh = async (hash) => {
     await page.goto('about:blank');
     await t.goto(hash);
+  };
+  // RFC 4180 CSV (quoted cells may hold commas, quotes and newlines).
+  const parseCsv = (text) => {
+    const rows = [];
+    let row = [];
+    let cell = '';
+    let q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"' && text[i + 1] === '"') (cell += '"'), i++;
+        else if (c === '"') q = false;
+        else cell += c;
+      } else if (c === '"') q = true;
+      else if (c === ',') row.push(cell), (cell = '');
+      else if (c === '\r' && text[i + 1] === '\n') row.push(cell), rows.push(row), (row = []), (cell = ''), i++;
+      else cell += c;
+    }
+    if (cell || row.length) row.push(cell), rows.push(row);
+    return rows;
   };
   const seriousAxe = async (sel, label) => {
     // Start at the top so the sticky masthead does not overlap the controls being measured.
@@ -104,6 +126,11 @@ export default async function (t) {
   t.assert((await page.locator('[data-tx-chip="q"]').innerText().then(nbsp)).includes('Daniel'), 'search chip');
   await page.waitForFunction(() => document.getElementById('live-polite').textContent.includes('Showing 2 of 16 transactions'), null, { timeout: 4000 });
   await t.shot('search');
+  // Facet counts follow the search and the other filters (standard faceting).
+  const facet = (k) => page.$eval(`[data-tx-n="${k}"] [aria-hidden]`, (e) => e.textContent);
+  t.eq([await facet('direction:all'), await facet('direction:in'), await facet('direction:out'), await facet('types:transfer_out'), await facet('types:deposit')], ['2', '0', '2', '2', '0'], 'facet counts reflect the search');
+  t.assert(await page.$eval('[data-tx-n="direction:in"]', (e) => e.closest('.tx-check').classList.contains('is-zero')), 'options that would show nothing are de-emphasised');
+  t.eq(await page.$eval('[data-tx-n="direction:out"] .sr-only', (e) => e.textContent), 'results: 2', 'count available to screen readers');
 
   t.step('search reference, id, status, memo, canonical type, accents');
   const searchFor = async (q) => {
@@ -117,11 +144,21 @@ export default async function (t) {
   t.eq(await page.locator('[data-tx-row="TX-260920-0900"] .tx-match mark').innerText().then(nbsp), 'REF-X1R7', 'reference highlighted');
   t.eq(await searchFor('tx-260915'), ['TX-260915-1648'], 'transaction id search (case-insensitive)');
   t.eq(await searchFor('pending'), ['TX-260930-2247'], 'status search');
+  t.eq(await page.$$eval('[data-tx-row="TX-260930-2247"] .status mark', (els) => [...new Set(els.map((e) => e.textContent))]), ['Pending'], 'matched status highlighted in its chip');
+  const statusMarks = await page.$$eval('#transactions-root [data-tx-row] .status mark', (els) => els.length);
+  t.assert(statusMarks >= 1, 'status chip carries a <mark>');
   t.eq(await searchFor('groceries'), ['TX-260924-1327'], 'memo search');
   t.eq((await searchFor('transfer_out')).sort(), TRANSFERS_OUT.slice().sort(), 'canonical type search');
   t.eq((await searchFor('on-chain')).sort(), ['TX-260909-2051', 'TX-260915-1648'], 'rail search');
   t.eq((await searchFor('debit card')).length, 2, 'method/counterparty multi-word search');
   t.eq((await searchFor('Received')).length, 3, 'customer type label search');
+  t.eq(await searchFor('45.50'), ['TX-260924-1327'], 'amount search (point)');
+  t.assert((await page.locator('[data-tx-row="TX-260924-1327"] .tx-match').innerText().then(nbsp)).includes('Amount'), 'amount match named');
+  t.eq(await page.locator('[data-tx-row="TX-260924-1327"] mark.tx-mark-amount').count(), 1, 'matched amount highlighted');
+  t.eq(await searchFor('-45,50'), ['TX-260924-1327'], 'amount search (comma, signed)');
+  t.eq(await searchFor('+45.50'), [], 'a typed sign is respected');
+  t.assert((await searchFor('45')).includes('TX-260924-1327'), 'a whole number finds amounts in that unit');
+  t.eq(await searchFor('Redeemed'), ['TX-260920-0900'], 'a pending redemption is not labelled "Redeemed"');
   await page.click('[data-tx-q-clear]');
   await waitCount('Showing all 16 transactions');
   t.eq(await page.inputValue('#tx-q'), '', 'clear search button empties the box');
@@ -161,6 +198,26 @@ export default async function (t) {
   t.eq(await page.evaluate(() => [YES.explorer.parseAmount('1,000.50').value, YES.explorer.parseAmount('2.5').value, YES.explorer.parseAmount('−12,30').value]), [100050, 250, 1230], 'parser');
   await clearAll();
 
+  t.step('amount range keeps its meaning across a language switch');
+  await openPanel();
+  await page.fill('#tx-max', '1,000');
+  await waitCount('Showing 16 of 16 transactions');
+  t.assert((await page.locator('[data-tx-chip="amount"]').innerText().then(nbsp)).includes('up to 1,000.00 EXUSD'), 'EN: 1,000 is one thousand');
+  await page.evaluate(() => YES.setLang('es'));
+  t.eq(await count(), 'Mostrando 16 de 16 movimientos', 'ES: same rows');
+  t.eq(await page.inputValue('#tx-max'), '1000', 'input rewritten without an ambiguous separator');
+  t.assert((await page.locator('[data-tx-chip="amount"]').innerText().then(nbsp)).includes('hasta 1.000,00 EXUSD'), 'ES chip: one thousand');
+  await page.evaluate(() => YES.setLang('en'));
+  await page.fill('#tx-max', '');
+  await page.fill('#tx-min', '45.5');
+  await waitCount('Showing 10 of 16 transactions');
+  await page.evaluate(() => YES.setLang('es'));
+  t.eq(await page.inputValue('#tx-min'), '45,50', 'decimals rewritten with the Spanish comma');
+  t.eq(await count(), 'Mostrando 10 de 16 movimientos', 'ES: same rows for a decimal minimum');
+  await page.evaluate(() => YES.setLang('en'));
+  t.eq(await page.inputValue('#tx-min'), '45.50', 'and back');
+  await clearAll();
+
   t.step('date range on the posted basis');
   await openPanel();
   t.eq([await page.getAttribute('#tx-from', 'min'), await page.getAttribute('#tx-to', 'max')], ['2026-09-01', '2026-09-30'], 'date inputs bounded to the period');
@@ -174,23 +231,37 @@ export default async function (t) {
   t.assert(await page.locator('#tx-date-err').isVisible(), 'reversed range explained');
   await clearAll();
 
-  t.step('initiated-date basis');
+  t.step('sorting never changes which rows match (the date filter stays on the posted basis)');
+  await openPanel();
+  await page.fill('#tx-from', '2026-09-01');
+  await page.fill('#tx-to', '2026-09-01');
+  await waitCount('Showing 1 of 16 transactions');
+  t.eq(await ids(), ['TX-260901-0418'], 'posted 1 September');
+  await sortBy('initiated:desc');
+  await page.waitForTimeout(80);
+  t.eq(await count(), 'Showing 1 of 16 transactions', 'a sort-only change keeps the same rows');
+  t.eq(await ids(), ['TX-260901-0418'], 'same row after sorting by initiated date');
+  t.assert((await page.locator('[data-tx-chip="date"]').innerText().then(nbsp)).startsWith('Posted:'), 'date chip still names the posted basis');
+  t.eq([await page.getAttribute('#tx-from', 'min'), await page.getAttribute('#tx-to', 'max')], ['2026-09-01', '2026-09-30'], 'date bounds stay on the period');
+  t.assert((await page.locator('#tx-date-legend').innerText().then(nbsp)).includes('posted date'), 'date legend keeps the posted basis');
+  t.assert((await page.locator('[data-tx-row="TX-260901-0418"]').innerText().then(nbsp)).includes('Previous period'), 'prior-period initiation tagged');
+  const note = await page.locator('.tx-basis-note').innerText().then(nbsp);
+  t.assert(note.includes('date column shows when each transaction was initiated') && note.includes('date filter and the totals still use the posted date'), 'basis note: ' + note);
+  if (!mobile) t.eq((await page.locator('.tx-table thead th').first().innerText().then(nbsp)).trim(), 'Initiated', 'date column switches to Initiated');
+  t.assert((await page.locator('.tx-caption').innerText().then(nbsp)).includes('initiated date'), 'caption names the initiated basis');
+  await clearAll();
   await sortBy('initiated:asc');
   await page.waitForTimeout(80);
   t.eq((await ids())[0], 'TX-260901-0418', 'earliest initiated first (31 Aug deposit)');
-  t.assert((await page.locator('[data-tx-row="TX-260901-0418"]').innerText().then(nbsp)).includes('Previous period'), 'prior-period initiation tagged');
-  t.assert(await page.locator('.tx-basis-note').isVisible(), 'basis change is explained');
-  if (!mobile) t.eq((await page.locator('.tx-table thead th').first().innerText().then(nbsp)).trim(), 'Initiated', 'date column switches to Initiated');
-  t.assert((await page.locator('.tx-caption').innerText().then(nbsp)).includes('initiated date'), 'caption names the initiated basis');
-  await openPanel();
-  t.eq(await page.getAttribute('#tx-from', 'min'), '2026-08-31', 'date bounds follow the initiated basis');
-  t.assert((await page.locator('#tx-date-legend').innerText().then(nbsp)).includes('initiated date'), 'date legend follows the basis');
-  await page.fill('#tx-from', '2026-08-31');
-  await page.fill('#tx-to', '2026-08-31');
-  await waitCount('Showing 1 of 16 transactions');
-  t.eq(await ids(), ['TX-260901-0418'], 'initiated date filter');
-  await clearAll();
   await sortBy('posted:desc');
+
+  t.step('posted-date range leaves out unposted rows and says so');
+  await page.evaluate(() => YES.explorer.applyFilter({ from: '2026-09-29', to: '2026-09-30' }, { reset: true, navigate: false }));
+  await waitCount('Showing 1 of 16 transactions');
+  t.eq(await ids(), ['TX-260929-1952'], 'only the transaction posted in the range');
+  t.assert((await page.locator('[data-tx-undated]').innerText().then(nbsp)).includes('1 transaction initiated in these dates is not listed') , 'unposted transaction explained');
+  await clearAll();
+  t.eq(await page.locator('[data-tx-undated]').count(), 0, 'no note without a date range');
 
   t.step('sort by amount');
   await sortBy('amount:desc');
@@ -264,6 +335,10 @@ export default async function (t) {
     t.assert(dtext.includes(s), 'detail shows ' + s);
   }
   t.eq(await page.locator('#tx-dialog .tx-onchain').count(), 0, 'no blockchain section for an internal transfer');
+  const demoTag = page.locator('#tx-dialog .tx-dlg__demo .tag--illustrative');
+  t.assert(await demoTag.isVisible(), 'detail is visibly marked as demo data');
+  t.eq((await demoTag.innerText().then(nbsp)).trim(), 'Illustrative demo data', 'demo tag wording');
+  t.eq(await page.locator('#tx-dialog [data-lang]').count(), 2, 'the detail has its own language switch');
   t.eq(await page.locator('#tx-dialog [data-txd-copy]').count(), 2, 'copy buttons for reference and id');
   await page.click('[data-txd-copy="ref"]');
   await page.waitForFunction(() => /Copied|Copy is not available/.test(document.getElementById('toast').textContent), null, { timeout: 3000 });
@@ -273,17 +348,46 @@ export default async function (t) {
   await page.keyboard.press('Escape');
   await waitClosed();
   await expectFocus('tx-open-TX-260903-1127', 'focus returns to the row that opened it');
+  await page.waitForFunction(() => location.hash === '#/transactions', null, { timeout: 2000 }).catch(() => {});
   t.eq(await page.evaluate(() => location.hash), '#/transactions', 'route param cleared on close');
   t.eq(await page.evaluate(() => YES.state.selectedTx), null, 'selectedTx cleared');
+  t.eq(await page.locator('#tx-dialog [data-lang]').count(), 0, 'no stale controls left in the closed dialog');
+
+  t.step('browser Back closes the detail and stays in the list');
+  await page.click('[data-tx-row="TX-260909-2051"] [data-tx-open]', { force: true });
+  await page.waitForFunction(() => document.getElementById('tx-dialog').open);
+  t.eq(await page.evaluate(() => location.hash), '#/transactions/TX-260909-2051', 'opening the detail adds a history entry for it');
+  await page.goBack();
+  await waitClosed();
+  t.eq(await page.evaluate(() => [YES.state.view, location.hash]), ['transactions', '#/transactions'], 'Back closes the detail and stays in Transactions');
+  await expectFocus('tx-open-TX-260909-2051', 'focus returns to the row, not <body>');
+  await page.goForward();
+  await page.waitForFunction(() => document.getElementById('tx-dialog').open && YES.state.selectedTx === 'TX-260909-2051', null, { timeout: 3000 });
+  t.assert(true, 'Forward reopens it');
+  await page.click('[data-txd-close]');
+  await waitClosed();
+  await page.waitForFunction(() => location.hash === '#/transactions', null, { timeout: 2000 }).catch(() => {});
+  t.eq(await page.evaluate(() => YES.state.view), 'transactions', 'closing after Forward stays in Transactions');
 
   t.step('open detail by keyboard; next/previous');
   await page.focus('[data-fk="tx-open-TX-260905-0733"]');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => document.getElementById('tx-dialog').open);
   t.eq(await page.evaluate(() => document.activeElement.id), 'tx-dialog-title', 'focus moves into the dialog');
-  t.eq((await page.locator('.tx-pager__pos').innerText().then(nbsp)).trim(), '14 of 16', 'position in list');
-  await page.click('[data-fk="txd-next"]');
+  t.eq((await page.locator('.tx-pager__long').textContent().then(nbsp)).trim(), '14 of 16', 'position in list');
+  await page.focus('[data-fk="txd-next"]');
+  await page.keyboard.press('Enter');
   t.eq((await page.locator('#tx-dialog-title').innerText().then(nbsp)).trim(), 'Transfer to another YES customer', 'next transaction');
+  t.eq(await activeFk(), 'txd-next', 'focus stays on Next, so the next press moves on again');
+  await page.waitForFunction(() => /Showing Transfer to another YES customer, 15 of 16\./.test((document.querySelector('#tx-dialog .dlg-live--polite') || {}).textContent || ''), null, { timeout: 2000 }).catch(() => {});
+  t.eq(await page.evaluate(() => (document.querySelector('#tx-dialog .dlg-live--polite') || {}).textContent), 'Showing Transfer to another YES customer, 15 of 16.', 'change announced with the position');
+  await page.keyboard.press('Enter');
+  t.eq(await page.evaluate(() => YES.state.selectedTx), 'TX-260901-0418', 'last transaction');
+  t.eq(await activeFk(), 'txd-prev', 'at the end, focus moves to Previous (Next is disabled)');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  t.eq(await page.evaluate(() => YES.state.selectedTx), 'TX-260905-0733', 'and back with Previous');
+  await page.click('[data-fk="txd-next"]');
   t.eq(await page.evaluate(() => YES.state.selectedTx), 'TX-260903-1127', 'selectedTx follows next');
   t.eq(await page.evaluate(() => location.hash), '#/transactions/TX-260903-1127', 'route follows next');
   await page.click('[data-fk="txd-prev"]');
@@ -291,6 +395,38 @@ export default async function (t) {
   await page.click('[data-txd-close]');
   await waitClosed();
   await expectFocus('tx-open-TX-260905-0733', 'close button returns focus to the row');
+
+  t.step('previous/next follow the list the detail was opened from');
+  await page.evaluate(() => YES.explorer.applyFilter({ step: 'transfers_out' }, { reset: true }));
+  await waitCount('Showing 5 of 16 transactions');
+  await page.click('[data-tx-row="TX-260924-1327"] [data-tx-open]', { force: true });
+  await page.waitForFunction(() => document.getElementById('tx-dialog').open);
+  t.eq((await page.locator('.tx-pager__long').textContent().then(nbsp)).trim(), '2 of 5', 'pager counts the step rows');
+  await page.click('[data-fk="txd-prev"]');
+  t.eq(await page.evaluate(() => YES.state.selectedTx), 'TX-260929-1952', 'Previous stays within the step');
+  await page.click('[data-txd-close]');
+  await waitClosed();
+  await clearAll();
+  // Opened from another view with an explicit list (the overview step panel).
+  await page.evaluate(() => YES.explorer.openTx('TX-260924-1327', { list: ['TX-260903-1127', 'TX-260909-2051', 'TX-260918-2011', 'TX-260924-1327', 'TX-260929-1952'] }));
+  t.eq((await page.locator('.tx-pager__long').textContent().then(nbsp)).trim(), '4 of 5', 'explicit list: 4 of 5');
+  await page.click('[data-fk="txd-next"]');
+  t.eq(await page.evaluate(() => YES.state.selectedTx), 'TX-260929-1952', 'Next opens the 5th outgoing transfer, not a deposit');
+  t.assert(await page.locator('[data-fk="txd-next"]').isDisabled(), 'end of the list');
+  await page.evaluate(() => YES.explorer.closeTx());
+  await waitClosed();
+  // Inferred from the trigger's own list when the caller passes none.
+  await page.evaluate(() => {
+    const ul = document.createElement('ul');
+    ul.id = 'fake-list';
+    ul.innerHTML = ['TX-260905-0733', 'TX-260915-1648', 'TX-260926-1009'].map((id) => `<li><button type="button" data-demo-tx="${id}">${id}</button></li>`).join('');
+    document.getElementById('transactions-root').appendChild(ul);
+    YES.explorer.openTx('TX-260915-1648', { trigger: ul.querySelector('[data-demo-tx="TX-260915-1648"]') });
+  });
+  t.eq((await page.locator('.tx-pager__long').textContent().then(nbsp)).trim(), '2 of 3', 'list inferred from the trigger');
+  await page.evaluate(() => YES.explorer.closeTx());
+  await waitClosed();
+  await page.evaluate(() => document.getElementById('fake-list').remove());
 
   t.step('fee links both ways');
   await page.click('[data-tx-row="TX-260909-2051"] [data-tx-open]', { force: true });
@@ -391,8 +527,15 @@ export default async function (t) {
   await page.evaluate(() => YES.explorer.applyFilter({ step: 'transfers_out' }, { reset: true }));
   await page.click('[data-tx-row="TX-260903-1127"] [data-tx-open]', { force: true });
   await page.waitForFunction(() => document.getElementById('tx-dialog').open);
-  await page.evaluate(() => YES.setLang('es'));
+  // The masthead is inert behind the modal: the detail's own switch is the way.
+  const esBtn = page.locator('#tx-dialog').getByRole('button', { name: 'Español', exact: true });
+  t.eq(await esBtn.count(), 1, 'dialog language button named "Español"');
+  await esBtn.click();
+  await page.waitForFunction(() => YES.i18n.lang === 'es');
   t.assert(await dialogOpen(), 'dialog still open after switching language');
+  t.eq(await page.evaluate(() => YES.state.selectedTx), 'TX-260903-1127', 'same transaction selected');
+  t.eq(await activeFk(), 'txd-lang-es', 'focus stays on the language control');
+  t.eq(await page.getAttribute('#tx-dialog [data-lang="es"]', 'aria-pressed'), 'true', 'Spanish pressed');
   t.eq((await page.locator('#tx-dialog-title').innerText().then(nbsp)).trim(), 'Transferencia a otro cliente de YES', 'dialog re-rendered in Spanish');
   const esDlg = await page.locator('#tx-dialog').innerText().then(nbsp);
   t.assert(esDlg.includes('−120,00 EXUSD') && esDlg.includes('Preguntar por este movimiento'), 'Spanish amounts and actions');
@@ -401,8 +544,10 @@ export default async function (t) {
   t.assert((await page.locator('[data-tx-total]').innerText().then(nbsp)).includes('−450,00 EXUSD'), 'Spanish filtered total 450,00');
   t.eq((await page.locator('[data-tx-chip="step"]').innerText().then(nbsp)).trim(), 'Paso: Transferencias enviadas', 'Spanish chip');
   t.eq(await page.evaluate(() => YES.i18n.audit()), {}, 'i18n parity after switch');
+  t.eq((await page.locator('#tx-dialog .tag--illustrative').innerText().then(nbsp)).trim(), 'Datos ilustrativos de demostración', 'Spanish demo tag');
   await page.waitForTimeout(300);
   await t.shot('es-dialog');
+  await seriousAxe('#tx-dialog', 'Spanish detail dialog');
   await page.keyboard.press('Escape');
   await waitClosed();
   await expectFocus('tx-open-TX-260903-1127', 'focus returns to the re-rendered row');
@@ -437,13 +582,25 @@ export default async function (t) {
   const prow = lines.find((l) => l.includes('TX-260930-2247')).split(',');
   t.eq([prow[header.indexOf('Posted date')], prow[header.indexOf('Balance after')], prow[header.indexOf('Included in statement balance')], prow[header.indexOf('Status')]], ['', '', 'false', 'pending'], 'pending row');
   t.eq(lines.find((l) => l.includes('TX-260901-0418')).split(',')[header.indexOf('Initiated date')], '2026-08-31', 'initiated date in statement timezone');
-  await page.waitForFunction(() => document.getElementById('toast').textContent.includes('Nothing was sent'), null, { timeout: 3000 });
+  // Statement-level facts on every row (rectangular, so it opens in any spreadsheet).
+  t.eq(
+    ['Statement version', 'Issue status', 'Period start', 'Period end', 'Statement as of', 'Generated', 'Date basis', 'Opening balance', 'Closing balance', 'Export scope'].map((h) => col(h)),
+    ['1.0', 'original', '2026-09-01', '2026-09-30', '2026-09-30 23:59', '2026-10-01 06:15', 'posted', '1000.00', '1147.50', 'Complete record'],
+    'statement facts in the complete record'
+  );
+  const net = lines.slice(1).map((l) => l.split(',')).filter((r) => r[header.indexOf('Included in statement balance')] === 'true').reduce((a, r) => a + Math.round(parseFloat(r[header.indexOf('Amount')]) * 100), 0);
+  t.eq(100000 + net, 114750, 'opening + included amounts = closing, from the file alone');
+  // The browser gives no signal that a download finished, so the toast says it started.
+  await page.waitForFunction(() => /CSV download started \(16 transactions\)/.test(document.getElementById('toast').textContent) && document.getElementById('toast').textContent.includes('Nothing was sent'), null, { timeout: 3000 });
 
   t.step('CSV — current view + escaping');
   const [dl2] = await Promise.all([page.waitForEvent('download'), page.click('[data-fk="tx-csv-view"]')]);
   t.assert(dl2.suggestedFilename().includes('current-view') && dl2.suggestedFilename().includes('DEMO'), 'current-view filename');
-  const lines2 = readFileSync(await dl2.path(), 'utf8').replace(/^﻿/, '').split('\r\n').filter(Boolean);
-  t.eq(lines2.length, 6, 'header + 5 filtered rows');
+  const rows2 = parseCsv(readFileSync(await dl2.path(), 'utf8').replace(/^﻿/, ''));
+  t.eq(rows2.length, 6, 'header + 5 filtered rows');
+  const scope = rows2[1][rows2[0].indexOf('Export scope')];
+  t.assert(scope.includes('Current view') && scope.includes('Step: Outgoing transfers') && scope.includes('Posted date, newest first'), 'current view records its filter and order: ' + scope);
+  t.assert(rows2.every((r) => r.length === rows2[0].length), 'rectangular');
   const esc = await page.evaluate(() => {
     const tx = JSON.parse(JSON.stringify(YES.calc.tx('TX-260903-1127')));
     tx.id = 'TX-TEST-0001';
@@ -496,6 +653,52 @@ export default async function (t) {
     await page.evaluate(() => YES.setLang('en'));
     await clearAll();
 
+    t.step('phone toolbar: readable sort, Clear all follows the chips');
+    const tb = await page.evaluate(() => {
+      const root = document.getElementById('transactions-root');
+      const cs = getComputedStyle(root);
+      const inner = root.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      return { sel: document.getElementById('tx-sort').getBoundingClientRect().width, inner };
+    });
+    t.assert(tb.sel >= tb.inner - 1, `sort select uses the full width (${tb.sel} of ${tb.inner})`);
+    await page.evaluate(() => YES.explorer.applyFilter({ q: 'Daniel', direction: 'out' }, { reset: true, navigate: false }));
+    await waitCount('Showing 2 of 16 transactions');
+    const chipPos = await page.evaluate(() => {
+      const chipsEls = [...document.querySelectorAll('[data-tx-chip]')];
+      const last = chipsEls[chipsEls.length - 1].getBoundingClientRect();
+      const clear = document.querySelector('.tx-chips__clear').getBoundingClientRect();
+      const box = document.querySelector('.tx-chips').getBoundingClientRect();
+      return { sameLine: Math.abs(clear.top - last.top) < 6, room: box.right - last.right - 8 >= clear.width };
+    });
+    t.assert(chipPos.sameLine || !chipPos.room, '"Clear all" sits after the last chip when it fits');
+    await page.evaluate(() => document.getElementById('h-transactions').scrollIntoView());
+    await page.waitForTimeout(300);
+    await t.shot('chips');
+    await clearAll();
+
+    t.step('phone detail: compact footer, language switch in the header');
+    await page.evaluate(() => YES.explorer.openTx('TX-260909-2051'));
+    await page.waitForTimeout(350);
+    const parts = await page.evaluate(() => {
+      const d = document.getElementById('tx-dialog');
+      const h = (s) => d.querySelector(s).getBoundingClientRect().height;
+      return { head: h('.dlg__head'), body: h('.dlg__body'), foot: h('.dlg__foot'), vh: innerHeight };
+    });
+    t.assert(parts.foot <= 130, 'footer is two rows: ' + JSON.stringify(parts));
+    t.assert(parts.body >= parts.vh * 0.55, 'details get most of the sheet: ' + JSON.stringify(parts));
+    t.assert(await page.locator('#tx-dialog [data-lang="es"]').isVisible(), 'language switch visible on the sheet');
+    t.assert(await page.locator('#tx-dialog .tag--illustrative').first().isVisible(), 'demo tag visible on the sheet');
+    await t.shot('sheet');
+    await page.click('#tx-dialog [data-lang="es"]');
+    await page.waitForFunction(() => YES.i18n.lang === 'es');
+    t.assert(await dialogOpen(), 'sheet stays open in Spanish');
+    await page.waitForTimeout(200);
+    await t.shot('sheet-es');
+    await page.click('#tx-dialog [data-lang="en"]');
+    await page.waitForFunction(() => YES.i18n.lang === 'en');
+    await page.click('[data-txd-close]');
+    await waitClosed();
+
     t.step('narrow 320px');
     await page.setViewportSize({ width: 320, height: 640 });
     await page.waitForTimeout(150);
@@ -509,6 +712,7 @@ export default async function (t) {
     await page.waitForTimeout(350);
     await t.shot('narrow-dialog');
     await page.keyboard.press('Escape');
+    await waitClosed();
     await page.setViewportSize({ width: 390, height: 844 });
   } else {
     t.step('tablet widths');
@@ -523,6 +727,43 @@ export default async function (t) {
       t.assert(fits, `table fits without scrolling at ${w}px`);
     }
     await page.setViewportSize({ width: 1280, height: 900 });
+
+    t.step('assistant docked: the narrower view keeps amounts and balances in sight');
+    // html.assistant-docked reflows the page by the drawer width at >=1100px (03-shell.css).
+    for (const [w, lang] of [[1100, 'en'], [1120, 'es'], [1280, 'es'], [1280, 'en'], [1399, 'en'], [1440, 'es']]) {
+      await page.setViewportSize({ width: w, height: 900 });
+      await page.evaluate((l) => {
+        document.documentElement.classList.add('assistant-docked');
+        if (YES.i18n.lang !== l) YES.setLang(l);
+      }, lang);
+      await page.waitForTimeout(200);
+      const m = await page.evaluate(() => {
+        const root = document.getElementById('transactions-root').getBoundingClientRect();
+        const wrap = document.querySelector('#transactions-root .tx-table-wrap');
+        const cells = [...document.querySelectorAll('#transactions-root .tx-amount, #transactions-root .tx-balance, #transactions-root .tx-card__amount')].slice(0, 6);
+        return {
+          fits: wrap ? wrap.scrollWidth <= wrap.clientWidth + 1 : true,
+          inView: cells.length > 0 && cells.every((c) => {
+            const r = c.getBoundingClientRect();
+            return r.width > 0 && r.right <= root.right + 1;
+          }),
+          mode: wrap ? 'table' : 'cards',
+          sidebar: getComputedStyle(document.querySelector('[data-tx-toggle]')).display === 'none'
+        };
+      });
+      t.assert(m.fits && m.inView, `docked at ${w}px (${lang}): amounts visible without sideways scrolling (${m.mode})`);
+      t.assert(await noHScroll(), `docked at ${w}px: no page scroll`);
+      if (w < 1400) t.assert(!m.sidebar, `docked at ${w}px: filters fold into the Filters button`);
+      if (w === 1120) await t.shot('docked-1120-es');
+    }
+    await page.evaluate(() => {
+      document.documentElement.classList.remove('assistant-docked');
+      YES.setLang('en');
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.waitForTimeout(150);
+    t.assert(await page.locator('#tx-filter-panel').isVisible() && !(await page.locator('[data-tx-toggle]').isVisible()), 'sidebar back when undocked');
+    t.eq(await page.locator('.tx-table').count(), 1, 'table back when undocked');
   }
   t.assert(await noHScroll(), 'no horizontal scroll at the end');
 
@@ -537,5 +778,18 @@ export default async function (t) {
   await t.shot('dark-dialog');
   await seriousAxe('#tx-dialog', 'detail dialog (dark)');
   await page.keyboard.press('Escape');
+  await waitClosed();
   await page.emulateMedia({ colorScheme: 'light' });
+
+  t.step('date chips name the chosen day in any statement timezone');
+  await fresh('#/transactions');
+  const tzChip = await page.evaluate(() => {
+    // UTC+14: noon UTC is already the next day there.
+    YES.data.statement.timezone = 'Pacific/Kiritimati';
+    YES.setLang('es');
+    YES.explorer.applyFilter({ from: '2026-09-10' }, { reset: true, navigate: false });
+    return document.querySelector('[data-tx-chip="date"]').textContent;
+  });
+  t.assert(tzChip.includes('10 de septiembre de 2026'), 'from-date chip names 10 September: ' + tzChip);
+  await fresh('#/transactions');
 }

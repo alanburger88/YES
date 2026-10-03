@@ -54,14 +54,18 @@
         symbol: 'EXUSD',
         precision: 2,
         unitLabel: { en: 'token units', es: 'unidades de token' },
-        /* Optional fiat equivalent: shown only because rate, source and timestamp
-           are all present. Marked illustrative — not a market quote or a peg guarantee. */
+        /* Optional fiat equivalent (PRD 4, 6): shown only when rate, source and
+           timestamp are all present AND the rate is verified. This demo rate is
+           not verified; it is shown only because the showcase is in demo mode and
+           the rate is marked illustrative (labelled "Illustrative" wherever it
+           appears) — not a market quote or a peg guarantee. */
         fiat: {
           currency: 'USD',
           rate: '1.0000',
           rateMicros: 1000000, // rate × 1,000,000, so conversion stays in integers
           source: { en: 'Illustrative demo rate — not a market quote', es: 'Tasa ilustrativa de demostración — no es una cotización de mercado' },
           at: '2026-09-30T23:59:59-04:00',
+          verified: false,
           illustrative: true
         }
       }

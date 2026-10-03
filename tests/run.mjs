@@ -15,6 +15,9 @@
  *   export default async function (t) { await t.page.click(...); t.assert(cond, 'message'); }
  *
  * t: { page, viewport, assert(cond,msg), eq(a,b,msg), shot(name), axe(selector?), step(name), goto(hash), external }
+ * t.axe() waits for running animations to finish and scans with the sticky
+ * masthead unpinned (see below), so results depend neither on the scroll
+ * position nor on the frame at the moment of the scan.
  */
 import { chromium } from 'playwright';
 import { readdirSync, mkdirSync, readFileSync } from 'node:fs';
@@ -107,10 +110,28 @@ for (const f of files) {
       axe: async (include) => {
         await page.addScriptTag({ content: AXE_SRC });
         return page.evaluate(async (inc) => {
-          const r = await window.axe.run(inc ? { include: [inc] } : document, {
-            runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] }
+          // Scan the settled page, not a frame in the middle of a transition: a
+          // fading-in panel would report blended (too light) text colours.
+          const finite = document.getAnimations().filter((a) => {
+            const timing = a.effect && a.effect.getComputedTiming();
+            return timing && Number.isFinite(timing.endTime) && a.playState === 'running';
           });
-          return r.violations.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.slice(0, 5).map((n) => n.target.join(' ') + ' :: ' + n.failureSummary) }));
+          await Promise.race([Promise.all(finite.map((a) => a.finished.catch(() => null))), new Promise((r) => setTimeout(r, 2000))]);
+          // The sticky masthead paints over whatever happens to be scrolled beneath
+          // it, and axe's target-size rule counts its overlapping links as
+          // obscuring the content underneath — a result that depends only on the
+          // scroll position at scan time. Unpin it for the scan: a sticky box keeps
+          // its place in the flow, so nothing else moves.
+          const mast = document.getElementById('masthead');
+          if (mast) mast.style.setProperty('position', 'static', 'important');
+          try {
+            const r = await window.axe.run(inc ? { include: [inc] } : document, {
+              runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] }
+            });
+            return r.violations.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.slice(0, 5).map((n) => n.target.join(' ') + ' :: ' + n.failureSummary) }));
+          } finally {
+            if (mast) mast.style.removeProperty('position');
+          }
         }, include || null);
       },
       goto: async (hash = '') => {

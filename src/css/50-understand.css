@@ -4,7 +4,13 @@
  * transparency panel. Tokens only; works in both colour schemes.
  */
 
+/*
+ * The view lays out for the width it actually has, not the viewport: the docked
+ * assistant (html.assistant-docked, ≥1100px) narrows the page by the drawer's
+ * width, so the layout and the panels use container queries.
+ */
 #understand-root {
+  container: und / inline-size;
   padding-bottom: var(--s8);
 }
 
@@ -80,24 +86,22 @@
 }
 
 /* ---------------------------------------------------------------- Layout */
-.und-layout {
-  display: grid;
-  gap: var(--s6);
-  align-items: start;
-}
-.und-main,
-.und-side {
+/*
+ * Rows, in reading order: Stablecoin basics (full width, so expanding topics
+ * never leaves a column beside it empty), then the two evidence panels side by
+ * side when each gets at least ~390px (they are of similar length, and stretch
+ * to one height), then Reserves and transparency (full width).
+ */
+.und-layout,
+.und-pair {
   display: grid;
   gap: var(--s6);
   min-width: 0;
 }
-@media (min-width: 1024px) {
-  .und-layout {
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+@container und (min-width: 800px) {
+  .und-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-}
-.und-tp {
-  margin-top: var(--s6);
 }
 
 /* ----------------------------------------------------------- Panel head */
@@ -265,8 +269,11 @@
   }
 }
 
-/* Example from the customer's own statement */
+/* Example from the customer's own statement. Capped to a readable measure on a
+   wide card, so a fee line's amount stays close to its description. */
 .und-example {
+  container: und-ex / inline-size;
+  max-width: 48rem;
   margin: var(--s4) 0 0;
   padding: var(--s4);
   border-radius: var(--radius);
@@ -297,12 +304,21 @@
   gap: var(--s2);
   margin: 0;
 }
-@container und-panel (min-width: 440px) {
+@container und-ex (min-width: 360px) {
   .und-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .und-fact:last-child:nth-child(odd) {
     grid-column: 1 / -1;
+  }
+}
+/* Three facts sit in one row when each gets ~190px. */
+@container und-ex (min-width: 600px) {
+  .und-facts[data-n='3'] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .und-facts[data-n='3'] .und-fact:last-child:nth-child(odd) {
+    grid-column: auto;
   }
 }
 .und-example > .und-lines + .und-facts,
@@ -840,7 +856,7 @@
   display: grid;
   gap: var(--s6);
 }
-@media (min-width: 860px) {
+@container und-panel (min-width: 720px) {
   .und-tp__grid {
     grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
     gap: var(--s8);

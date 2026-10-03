@@ -60,6 +60,8 @@
 /* --------------------------------------------------------------- Body */
 .dlg__body.inq-body {
   padding: var(--s5) var(--s5) var(--s6);
+  /* A control scrolled into view on focus keeps clear of the header and footer edges. */
+  scroll-padding-block: var(--s4);
 }
 .inq-body[tabindex='0']:focus-visible {
   outline: 2px solid var(--focus);
@@ -314,6 +316,13 @@ fieldset.inq-group > .inq-hint {
 .inq-warn p {
   margin: 0;
 }
+/* The textarea and its counter: revealed together when the field gets focus. */
+.inq-descbox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-width: 0;
+}
 .textarea.inq-textarea {
   min-height: 112px;
   line-height: 1.5;
@@ -330,7 +339,7 @@ fieldset.inq-group > .inq-hint {
   font-weight: 650;
 }
 
-/* Error summary: role="alert", focus target, links to each field */
+/* Error summary: a named group that takes focus (announced once), links to each field */
 .inq-errors {
   display: flex;
   gap: var(--s3);

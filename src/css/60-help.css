@@ -859,6 +859,18 @@
     font-weight: 800;
     letter-spacing: 0.05em;
   }
+  /* Approved [YES_LOGO] artwork replaces the boxed text placeholder. */
+  #print-root .pr-logo--art {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+  #print-root .pr-logo--art svg {
+    display: block;
+    width: auto;
+    height: 28pt;
+    max-width: 120pt;
+  }
   #print-root .pr-kicker {
     margin: 0;
     font-size: 8pt;
@@ -974,6 +986,21 @@
     border-top: 1.5pt solid var(--ink);
     border-bottom: 1.5pt double var(--ink);
   }
+  /*
+   * Closing and total rows are the last body rows (60-help.js): they print
+   * once, at the true end of the table, and stay with the row above them.
+   * A <tfoot> would repeat at the foot of every page fragment.
+   */
+  #print-root .pr-closing {
+    break-before: avoid;
+  }
+  #print-root .pr-total td:first-child,
+  #print-root .pr-closing td:first-child {
+    white-space: nowrap;
+  }
+  #print-root tfoot {
+    display: table-row-group;
+  }
   #print-root .pr-summary {
     width: 70%;
   }
@@ -1033,8 +1060,25 @@
   #print-root .pr-head,
   #print-root .pr-facts,
   #print-root .pr-eq,
-  #print-root .pr-foot {
+  #print-root .pr-foot,
+  #print-root .pr-end {
     break-inside: avoid;
+  }
+  /* Running page footer; its localized content comes from 60-help.js (#help-print-page). */
+  @page {
+    @bottom-left {
+      font-family: var(--yes-font);
+      font-size: 7pt;
+      color: #444;
+      vertical-align: middle;
+    }
+    @bottom-right {
+      font-family: var(--yes-font);
+      font-size: 7pt;
+      color: #444;
+      vertical-align: middle;
+      font-variant-numeric: tabular-nums;
+    }
   }
 }
 @media print and (max-width: 560px) {

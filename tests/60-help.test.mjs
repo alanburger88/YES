@@ -3,6 +3,7 @@
 // about/slots, YES.help.open + #/help/<section> routes, language switch,
 // statement-of-record print view, accessibility (axe) and mobile reflow.
 import { mkdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 
@@ -295,7 +296,7 @@ export default async function (t) {
   const a11y = await text('#help-accessibility');
   t.assert(a11y.includes('WCAG 2.2 Level AA'), 'WCAG 2.2 AA target');
   t.eq(await page.locator('#help-accessibility .help-feature').count(), 8, 'eight built-in features');
-  for (const f of ['Keyboard', 'Screen readers', 'Visible focus', 'Reduced motion', 'Zoom and reflow', 'Text alternatives for charts', 'Two languages']) t.assert(a11y.includes(f), `feature: ${f}`);
+  for (const f of ['Keyboard', 'Screen readers', 'Visible focus', 'Reduced motion', 'Zoom and reflow', 'Text alternatives for charts', 'Never color alone', 'Two languages']) t.assert(a11y.includes(f), `feature: ${f}`);
   t.assert(a11y.includes('B3W9A2mgGs'), 'configured account ID');
   t.assert(a11y.includes('augments, not replaces'), 'widget augments the accessible base');
   await page.waitForFunction(() => ['unavailable', 'loaded', 'host', 'disabled'].includes(YES.userway.status), null, { timeout: 12000 });
@@ -334,6 +335,10 @@ export default async function (t) {
   t.assert(about.includes(slotsCfg.DISCLOSURES.en.slice(0, 40)), 'disclosures slot value');
   t.eq(await page.locator('[data-help-slots] .tag--illustrative').count(), 9, 'every slot tagged as placeholder');
   await shotEl('#help-about', 'about');
+
+  // English copy follows the en-US locale used for dates and numbers.
+  const ukSpelling = (await text('#help-root')).match(/\b\w*(colour|labelled|minimis|recognis|organis|behaviour|favour|centre)\w*\b/gi);
+  t.eq(ukSpelling, null, 'English help copy uses US spelling');
 
   /* ------------------------------------------------------------------ */
   t.step('axe');
@@ -398,7 +403,39 @@ export default async function (t) {
   t.eq(await page.$$eval('#print-root [data-print-cat]', (els) => els.map((e) => e.getAttribute('data-print-cat'))), ['deposits', 'transfers_in', 'transfers_out', 'redemptions', 'fees'], 'summary categories');
   t.eq(await text('[data-print-eq]'), 'Opening balance 1,000.00 + Deposits 500.00 + Incoming transfers 200.00 − Outgoing transfers 450.00 − Redemptions 100.00 − Fees 2.50 = Closing balance 1,147.50 EXUSD', 'equation line');
   t.eq(await page.locator('#print-root [data-print-fee]').count(), 3, 'three fee lines');
-  t.assert((await text('[data-print-fees] tfoot')).includes('−2.50'), 'fees total');
+  t.assert((await text('[data-print-fees-total]')).includes('−2.50'), 'fees total');
+  // Totals print once, at the true end of their table. A <tfoot> (display:
+  // table-footer-group) repeats at the foot of every printed page, which put
+  // "Closing balance 1,147.50" under a mid-period running balance on page 1.
+  t.eq(
+    await page.$$eval('#print-root *', (els) => els.filter((e) => getComputedStyle(e).display === 'table-footer-group').map((e) => e.tagName)),
+    [],
+    'no repeating table footers in the print view'
+  );
+  const lastRows = await page.$$eval('#print-root table', (tables) =>
+    tables.map((tb) => {
+      const rows = tb.querySelectorAll('tr');
+      const last = rows[rows.length - 1];
+      return last.classList.contains('pr-closing') ? last.textContent.replace(/[\u00a0\u202f]/g, ' ') : null;
+    })
+  );
+  t.eq(lastRows.filter(Boolean).length, 3, 'summary, ledger and fees each end with their closing/total row');
+  t.assert(lastRows[0].includes('Closing balance') && lastRows[0].includes('1,147.50'), 'summary ends with the closing balance');
+  const ledgerEnd = await page.$$eval('[data-print-ledger] tbody tr', (rows) => rows.slice(-2).map((r) => r.getAttribute('data-print-tx') || r.getAttribute('data-print-ledger-closing')));
+  t.eq(ledgerEnd, [postedIds[postedIds.length - 1], ''], 'ledger closing row follows the last posted transaction');
+  const ledgerTxt = await text('[data-print-ledger] table');
+  t.eq(ledgerTxt.split('Closing balance').length - 1, 1, '"Closing balance" appears once in the ledger');
+  t.assert(/Sep 30, 2026\s+Closing balance\s+1,147\.50/.test(await text('[data-print-ledger-closing]')), 'ledger closes dated at the period end, mirroring the opening row');
+  t.assert((await text('[data-print-opening]')).includes('Opening balance'), 'ledger opens with the opening balance');
+  t.eq(await page.$eval('[data-print-ledger-closing]', (e) => getComputedStyle(e).breakBefore), 'avoid', 'closing row stays with the row above it');
+  // Disclosures and the identifying footer print together, never a footer alone on a page.
+  t.eq(await page.$$eval('[data-print-end] > *', (els) => els.map((e) => e.className)), ['pr-sec pr-disc', 'pr-foot'], 'disclosures and footer grouped');
+  t.eq(await page.$eval('[data-print-end]', (e) => getComputedStyle(e).breakInside), 'avoid', 'disclosures and footer kept together');
+  // Running page footer: statement ID and version, page n of N.
+  const pageCss = await page.evaluate(() => (document.getElementById('help-print-page') || {}).textContent || '');
+  t.assert(pageCss.includes('@bottom-left{content:"Statement ' + s.id + ' · version 1.0"}'), 'running footer names the statement and version');
+  t.assert(pageCss.includes('@bottom-right{content:"Page " counter(page) " of " counter(pages)}'), 'running footer numbers the pages');
+  t.eq(await page.locator('#help-print-page').count(), 1, 'one page-footer style element');
   t.assert(pr.includes(slotsCfg.DISCLOSURES.en.slice(0, 40)), 'disclosures slot printed');
   t.assert(pr.includes('Nothing you do on this page is sent anywhere'), 'demo footer');
   const tx1 = await text('[data-print-tx="TX-260901-0418"]');
@@ -407,10 +444,27 @@ export default async function (t) {
   await settle(100);
   await t.shot('print', { fullPage: true });
   if (!mobile) {
+    let pdfOk = false;
     try {
       await page.pdf({ path: join(SHOTS, 'help-print.pdf'), format: 'A4', printBackground: true });
+      pdfOk = true;
     } catch {
       /* PDF output needs headless Chromium; the screenshot covers the layout. */
+    }
+    // Paginated check when poppler's pdftotext is available.
+    const pdf = pdfOk ? spawnSync('pdftotext', ['-raw', join(SHOTS, 'help-print.pdf'), '-'], { encoding: 'utf8' }) : null;
+    if (pdf && pdf.status === 0) {
+      const pages = pdf.stdout.split('\f').filter((p) => p.trim());
+      const all = pages.join('\n');
+      t.assert(pages.length >= 2, `statement prints on several pages (${pages.length})`);
+      // Summary row + equation + ledger closing row; a repeated table footer adds more.
+      t.eq((all.match(/Closing balance/g) || []).length, 3, '"Closing balance" printed exactly three times (summary, equation, end of ledger)');
+      t.eq((all.match(/Total fees/g) || []).length, 1, '"Total fees" printed once');
+      pages.forEach((p, i) => t.assert(p.includes(`Page ${i + 1} of ${pages.length}`) && p.includes(s.id), `page ${i + 1} carries the statement ID and "Page ${i + 1} of ${pages.length}"`));
+      const last = pages[pages.length - 1];
+      t.assert(last.includes('Disclosures') && last.includes('Interactive statement delivered via InfoSlips'), 'last page has the disclosures with the footer');
+    } else {
+      console.log('    (pdftotext not available: paginated print checks skipped)');
     }
   }
 
@@ -426,6 +480,9 @@ export default async function (t) {
   t.eq(await text('[data-print-closing]'), nbsp(await page.evaluate(() => YES.fmt.amount(YES.data.statement.closing))), 'Spanish closing amount format');
   t.eq(await page.getAttribute('#print-root .pr', 'data-print-lang'), 'es', 'print view re-rendered in Spanish');
   t.eq(await page.locator('#print-root [data-print-tx]').count(), 15, '15 rows in Spanish');
+  const pageCssEs = await page.evaluate(() => document.getElementById('help-print-page').textContent);
+  t.assert(pageCssEs.includes('"Estado de cuenta ' + s.id + ' · versión 1.0"') && pageCssEs.includes('"Página " counter(page) " de " counter(pages)'), 'running footer in Spanish');
+  t.assert(/Saldo final/.test(await text('[data-print-ledger-closing]')), 'Spanish ledger closing row');
   await t.shot('print-es');
   await page.emulateMedia({ media: 'screen' });
   await setLang('en');
@@ -437,6 +494,20 @@ export default async function (t) {
     window.dispatchEvent(new Event('beforeprint'));
   });
   t.eq(await page.locator('#print-root [data-print-tx]').count(), 15, 'rendered on beforeprint');
+
+  t.step('print header uses supplied logo artwork');
+  t.eq((await text('#print-root .pr-logo')).trim(), 'YES', 'text placeholder when no artwork is supplied');
+  const logo = await page.evaluate(() => {
+    const slot = YES.config.slots.YES_LOGO;
+    slot.svg = '<svg viewBox="0 0 120 40" focusable="false" aria-hidden="true"><rect width="120" height="40" rx="8"/></svg>';
+    window.dispatchEvent(new Event('beforeprint'));
+    const el = document.querySelector('#print-root .pr-logo');
+    const out = { art: el.classList.contains('pr-logo--art'), svg: !!el.querySelector('svg'), role: el.getAttribute('role'), label: el.getAttribute('aria-label'), slot: el.getAttribute('data-slot'), text: el.textContent };
+    delete slot.svg;
+    window.dispatchEvent(new Event('beforeprint'));
+    return out;
+  });
+  t.eq(logo, { art: true, svg: true, role: 'img', label: 'YES', slot: 'YES_LOGO', text: '' }, 'approved [YES_LOGO] artwork replaces the text placeholder in print');
 
   /* ------------------------------------------------------------------ */
   t.step('dark colour scheme');

@@ -16,6 +16,26 @@ const QUESTIONS_EN = [
 // Amounts may carry a no-break space; compare on plain spaces and plain apostrophes.
 const norm = (s) => String(s).replace(/ /g, ' ').replace(/’/g, "'");
 const settle = (page) => page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))));
+// Wait until neither the drawer nor its body is scrolling (smooth scroll finished).
+const scrollIdle = (page) =>
+  page.evaluate(
+    () =>
+      new Promise((done) => {
+        const d = document.getElementById('assistant-drawer');
+        const b = d.querySelector('.asst__body');
+        let last = '';
+        let still = 0;
+        const t0 = performance.now();
+        const tick = () => {
+          const now = d.scrollTop + ':' + (b ? b.scrollTop : 0);
+          still = now === last ? still + 1 : 0;
+          last = now;
+          if (still >= 6 || performance.now() - t0 > 3000) done();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      })
+  );
 
 export default async function (t) {
   const { page } = t;
@@ -94,8 +114,16 @@ export default async function (t) {
     page.evaluate(() => {
       const vw = document.documentElement.clientWidth;
       const offenders = [];
+      // Visually hidden text (clipped to 1px, kept for assistive technology) never shows.
+      const clipped = (el) => {
+        for (let a = el; a && a.id !== 'assistant-drawer'; a = a.parentElement) {
+          const cs = getComputedStyle(a);
+          if (cs.position === 'absolute' && cs.clip !== 'auto') return true;
+        }
+        return false;
+      };
       document.querySelectorAll('#assistant-drawer *').forEach((el) => {
-        if (el.closest('.sr-only') || el.ownerSVGElement || !el.getClientRects().length) return;
+        if (el.closest('.sr-only') || el.ownerSVGElement || !el.getClientRects().length || clipped(el)) return;
         const r = el.getBoundingClientRect();
         if (r.width && (r.right > vw + 1 || r.left < -1)) offenders.push((el.className && el.className.baseVal === undefined ? el.className : el.tagName) + ' ' + Math.round(r.left) + '→' + Math.round(r.right));
       });
@@ -109,9 +137,17 @@ export default async function (t) {
   const installSpies = () =>
     page.evaluate(() => {
       window.__calls = [];
-      window.__orig = window.__orig || { openTx: YES.explorer.openTx, showRows: YES.explorer.showRows, help: YES.help.open, topic: YES.understand.openTopic };
+      window.__orig = window.__orig || {
+        openTx: YES.explorer.openTx,
+        showRows: YES.explorer.showRows,
+        help: YES.help.open,
+        topic: YES.understand.openTopic,
+        inquiry: YES.inquiry.start,
+        draftFor: YES.inquiry.draftFor
+      };
       const fk = (o) => (o && o.trigger && o.trigger.getAttribute ? o.trigger.getAttribute('data-fk') : null);
       YES.explorer.openTx = (id, o) => __calls.push({ fn: 'openTx', id, fk: fk(o) });
+      YES.inquiry.start = (id, o) => __calls.push({ fn: 'inquiry', id, fk: fk(o) });
       YES.explorer.showRows = (ids, label) => __calls.push({ fn: 'showRows', ids, label });
       YES.help.open = (s) => __calls.push({ fn: 'help', s });
       YES.understand.openTopic = (id) => __calls.push({ fn: 'openTopic', id });
@@ -123,6 +159,8 @@ export default async function (t) {
       YES.explorer.showRows = __orig.showRows;
       YES.help.open = __orig.help;
       YES.understand.openTopic = __orig.topic;
+      YES.inquiry.start = __orig.inquiry;
+      YES.inquiry.draftFor = __orig.draftFor;
     });
   const calls = () => page.evaluate(() => window.__calls.splice(0));
   const ensureOpen = async () => {
@@ -228,6 +266,41 @@ export default async function (t) {
     t.assert(await activeInDrawer(), 'focus is in the drawer after the hand-off');
     await page.keyboard.press('Escape');
     await waitClosed();
+
+    // The rows chip in Transactions follows a later language switch.
+    await openCtx('step', 'transfers_out');
+    await page.click(LATEST + ' [data-asst-rows]');
+    await page.waitForFunction(() => document.querySelector('[data-tx-chip="ids"]'), null, { timeout: 3000 });
+    t.assert(norm(await page.locator('[data-tx-chip="ids"]').innerText()).includes('Rows used to explain: Outgoing transfers (5)'), 'Transactions chip names the explained fact');
+    await page.evaluate(() => YES.setLang('es'));
+    await page.waitForFunction(() => document.documentElement.lang === 'es');
+    const chipEs = norm(await page.locator('[data-tx-chip="ids"]').innerText());
+    t.assert(chipEs.includes('Filas usadas para explicar: Transferencias enviadas (5)'), `the chip follows the switch to Spanish (${chipEs})`);
+    t.assert(/^Filas usadas para explicar: Transferencias enviadas/.test(norm(await page.getAttribute('[data-tx-chip="ids"]', 'aria-label'))), 'and so does its accessible name');
+    await page.evaluate(() => YES.setLang('en'));
+    await page.waitForFunction(() => document.documentElement.lang === 'en');
+    await page.evaluate(() => YES.explorer.clearFilters());
+    await page.evaluate(() => YES.assistant.close({ returnFocus: false }));
+    await waitClosed();
+
+    // "Ask about this transaction" from an answer opens the real inquiry above the drawer.
+    if (await page.evaluate(() => YES.inquiry.start.toString().indexOf('not available') === -1)) {
+      await openCtx('transaction', 'TX-260903-1127');
+      const qfk = await page.getAttribute(LATEST + ' [data-asst-inquiry]', 'data-fk');
+      await page.click(LATEST + ' [data-asst-inquiry]');
+      await page.waitForFunction(() => document.getElementById('inquiry-dialog').open, null, { timeout: 3000 });
+      t.assert(await page.evaluate(() => document.getElementById('inquiry-dialog').matches(':modal')), 'the inquiry opens above the drawer');
+      t.assert(norm(await page.locator('#inquiry-dialog').innerText()).includes('TX-260903-1127'), 'the inquiry carries the transaction');
+      await page.click('#inquiry-dialog [data-inq-next]'); // past the first step: a draft now exists
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.getElementById('inquiry-dialog').open, null, { timeout: 3000 });
+      await waitFocusFk(qfk);
+      t.eq(await activeFk(), qfk, 'closing the inquiry returns focus to the action in the drawer');
+      t.assert(await isOpen(), 'the drawer is still open');
+      t.eq(norm(await page.locator(`[data-fk="${qfk}"]`).innerText()).trim(), 'Continue your inquiry', 'the draft relabels the action while the drawer is open');
+      await page.evaluate(() => YES.assistant.close({ returnFocus: false }));
+      await waitClosed();
+    }
   }
   await installSpies();
 
@@ -248,6 +321,7 @@ export default async function (t) {
   t.assert(ctx.includes('About:') && ctx.includes('Outgoing transfers') && ctx.includes('−450.00 EXUSD'), 'context chip: About: Outgoing transfers · −450.00 EXUSD');
   t.assert((await latestText()).includes('Demo explanation'), 'answer carries the Demo explanation label');
   t.assert(stepText.includes('as of Sep 30, 2026') && stepText.includes('not your live account'), 'answer distinguishes statement data from live data');
+  t.eq(await page.locator(LATEST + ' [data-asst-inquiry]').count(), 0, 'no inquiry action on a step answer');
   const sid = await lastId();
   t.eq(await page.evaluate(() => document.activeElement && document.activeElement.classList.contains('asst-ans__title')), true, 'focus moves to the latest answer');
   t.eq(await activeFk(), `asst-${sid}-h`, 'focused answer heading has a stable focus key');
@@ -266,7 +340,8 @@ export default async function (t) {
   t.eq(c.length, 1, 'show rows called once');
   t.eq(c[0] && c[0].fn, 'showRows', 'Show these rows in Transactions → explorer.showRows');
   t.eq(c[0] && c[0].ids, TRANSFERS_OUT, 'exact row ids passed');
-  t.assert(c[0] && /Outgoing transfers/.test(c[0].label), 'label names the explained fact');
+  t.assert(c[0] && c[0].label && /^Rows used to explain: Outgoing transfers/.test(c[0].label.en), 'label names the explained fact');
+  t.assert(c[0] && c[0].label && /^Filas usadas para explicar: Transferencias enviadas/.test(c[0].label.es), 'label carries its Spanish too, so the chip follows a language switch');
   if (wide) t.assert(await isOpen(), 'docked drawer stays open while rows are shown');
   else {
     await waitClosed();
@@ -285,6 +360,34 @@ export default async function (t) {
   t.assert(await page.locator(LATEST + ' .tag--illustrative').isVisible(), 'illustrative tag on on-chain details');
   t.assert((await ctxText()).includes('Sent to an external wallet on a blockchain network · Sep 9 · −200.00 EXUSD'), 'context chip names the transaction, date and amount');
 
+  t.step('transaction: inquiry route');
+  await openCtx('transaction', 'TX-260924-1327');
+  const iid = await lastId();
+  const inqBtn = page.locator(LATEST + ' [data-asst-inquiry="TX-260924-1327"]');
+  t.assert(await inqBtn.isVisible(), 'a transaction answer offers its inquiry');
+  t.eq(norm(await inqBtn.innerText()).trim(), 'Ask about this transaction', 'labelled like the transaction detail');
+  const inqText = norm(await page.locator(LATEST + ' .asst-inq__text').innerText());
+  t.assert(inqText.includes('TX-260924-1327') && inqText.includes('Nothing is sent'), 'says which transaction and that nothing is sent');
+  t.eq(await inqBtn.getAttribute('aria-describedby'), `asst-${iid}-inq-text`, 'button described by that sentence');
+  await calls();
+  await inqBtn.click();
+  t.eq(await calls(), [{ fn: 'inquiry', id: 'TX-260924-1327', fk: `asst-${iid}-inquiry` }], 'starts the inquiry for that transaction, with the button as trigger');
+  t.assert(await isOpen(), 'the drawer stays open beneath the inquiry');
+  // A draft, then a completed demo inquiry, relabel the action.
+  await page.evaluate(() => (YES.inquiry.draftFor = (id) => (id === 'TX-260924-1327' ? { txId: id, step: 'reason', status: 'draft', ref: null } : null)));
+  await openCtx('transaction', 'TX-260924-1327');
+  t.eq(norm(await inqBtn.innerText()).trim(), 'Continue your inquiry', 'a draft is continued');
+  await page.evaluate(() => (YES.inquiry.draftFor = (id) => (id === 'TX-260924-1327' ? { txId: id, step: 'done', status: 'submitted', ref: 'DEMO-INQ-0042' } : null)));
+  await openCtx('transaction', 'TX-260924-1327');
+  t.eq(norm(await inqBtn.innerText()).trim(), 'View your demo inquiry', 'a completed demo inquiry is viewed');
+  t.assert(norm(await page.locator(LATEST + ' .asst-inq__text').innerText()).includes('reference DEMO-INQ-0042'), 'names the demo reference');
+  await page.evaluate(() => (YES.inquiry.draftFor = __orig.draftFor));
+  await openCtx('transaction', 'TX-260930-2247');
+  t.assert(await page.locator(LATEST + ' [data-asst-inquiry="TX-260930-2247"]').isVisible(), 'a pending transaction offers its inquiry too');
+  await openCtx('transaction', 'TX-999999-9999');
+  t.eq(await page.locator(LATEST + ' [data-asst-inquiry]').count(), 0, 'no inquiry for an unknown id');
+  await axeOk('inquiry route');
+
   t.step('transaction: fee line explains its parent');
   await openCtx('transaction', 'TX-260909-2052');
   tx = await latestText();
@@ -298,6 +401,10 @@ export default async function (t) {
   t.assert(tx.includes('still pending at the statement cut-off'), 'pending at cut-off');
   t.assert(tx.includes('not included in the statement balance of 1,147.50 EXUSD'), 'not in balance');
   t.assert(tx.includes('Pending, not included in statement balance'), 'row states pending explicitly');
+  t.assert(tx.includes('was initiated on September 30, 2026'), 'initiated date named as in Transactions');
+  const pfigs = await page.$$eval(LATEST + ' .asst-figs th', (els) => els.map((e) => e.textContent.trim()));
+  t.assert(pfigs.includes('Initiated') && pfigs.includes('Rail and method'), `figure labels match Transactions: "Initiated", "Rail and method" (${pfigs.join(' | ')})`);
+  t.assert(!pfigs.includes('Started') && !pfigs.includes('Channel and method'), 'no second term for the same field');
 
   t.step('transaction: prior-period deposit');
   await openCtx('transaction', 'TX-260901-0418');
@@ -342,6 +449,7 @@ export default async function (t) {
   t.step('pending topic');
   await openCtx('pending');
   t.assert((await latestText()).includes('1 transaction had not posted by the statement cut-off'), 'pending summary');
+  t.assert((await latestText()).includes('(initiated September 30, 2026; pending)'), 'pending item uses "initiated"');
   t.eq(await latestRows(), ['TX-260930-2247'], 'pending row');
 
   t.step('every step and group');
@@ -360,7 +468,7 @@ export default async function (t) {
     t.eq(await allLatestRows(), expect[id].ids, `${id}: rows from calc`);
   }
   await openCtx('step', 'deposits');
-  t.assert((await latestText()).includes('TX-260901-0418 was started on August 31, 2026, in the previous period'), 'deposits explain the prior-period posting');
+  t.assert((await latestText()).includes('TX-260901-0418 was initiated on August 31, 2026, in the previous period'), 'deposits explain the prior-period posting');
   await openCtx('step', 'redemptions');
   t.assert((await latestText()).includes('A further 30.00 EXUSD (1 transaction) was pending'), 'redemptions mention the pending one');
 
@@ -436,7 +544,16 @@ export default async function (t) {
   await typeAsk('Where did I send money on-chain?');
   t.eq(await latestTitle(), 'Where you sent money on-chain', 'typed on-chain question');
   await typeAsk('¿Por qué cambió mi saldo?');
-  t.eq(await latestTitle(), 'Why your balance changed', 'Spanish question matched (answer in the current language)');
+  t.eq(await latestTitle(), 'Por qué cambió tu saldo', 'Spanish question matched and answered in Spanish');
+  await typeAsk('What is the weather today?');
+  t.eq(await latestTitle(), 'I can only answer questions about this statement', 'off-topic "today" question reaches the fallback');
+  await typeAsk('What is the network password for wifi');
+  t.eq(await latestTitle(), 'I can only answer questions about this statement', 'off-topic "network" question reaches the fallback');
+  t.eq(
+    await page.$$eval(LATEST + ' .asst-inline-q [data-asst-q]', (els) => els.map((e) => e.getAttribute('data-asst-q'))),
+    ['onchain_sent', 'why_balance', 'fees_paid'],
+    'the fallback offers the nearest curated question first'
+  );
   await typeAsk('What is TX-260912-0806?');
   t.eq(await latestTitle(), 'Fee for depositing by debit card', 'transaction id in free text');
   const n1 = await lastId();
@@ -473,7 +590,30 @@ export default async function (t) {
       '¿Qué está pendiente?',
       '¿Cuál fue mi mayor movimiento?',
       'hola',
-      'why is the sky blue'
+      'why is the sky blue',
+      // Off-topic questions with an everyday word that is also a statement keyword
+      'what is the weather today',
+      'What is the current mortgage rate?',
+      'Did the Red Sox win last night?',
+      'What is the network password for wifi',
+      'Who is the mayor of New York?',
+      'When can I retire?',
+      'what is the price of bitcoin',
+      'who won the final',
+      'what is the status of my flight',
+      'how much does a car cost',
+      // ... and the same words inside statement questions still route
+      'what is my current balance',
+      '¿Cuál es mi saldo actual?',
+      'what is my actual balance',
+      'how much is in my wallet',
+      'which network did my transfer use',
+      'What is the price of EXUSD?',
+      'how much did the redemption cost',
+      'did any transaction fail',
+      'who audits EXUSD',
+      '¿Cuándo retiré dinero?',
+      '¿Cuál es el saldo final?'
     ].map((q) => {
       const m = YES.assistant.match(q);
       return m.topic + (m.id ? ':' + m.id : '');
@@ -507,9 +647,35 @@ export default async function (t) {
       'pending',
       'largest',
       'general',
-      'fallback'
+      'fallback',
+      'fallback',
+      'fallback',
+      'fallback',
+      'fallback:onchain_sent',
+      'fallback',
+      'fallback',
+      'fallback',
+      'fallback',
+      'fallback',
+      'fallback:fees_paid',
+      'edu:statement_vs_live',
+      'edu:statement_vs_live',
+      'balance',
+      'balance',
+      'onchain_sent',
+      'edu:usd_equivalent',
+      'fees',
+      'edu:tx_status',
+      'edu:transparency',
+      'step:redemptions',
+      'balance'
     ],
     'deterministic EN/ES intent matching'
+  );
+  t.eq(
+    await page.evaluate(() => ['¿Cuánto pagué en comisiones?', 'Cuanto pague en comisiones', 'What are my fees?', 'fees', 'comisiones', 'hola', 'TX-260912-0806', 'send 50 to Daniel'].map((q) => YES.assistant.match(q).lang)),
+    ['es', 'es', 'en', null, null, null, null, null],
+    'question language detected only when clear'
   );
 
   /* ------------------------------------------------------------------ */
@@ -531,6 +697,39 @@ export default async function (t) {
   if (wide) t.assert(await isOpen(), 'docked drawer stays open');
   else await waitClosed();
   await ensureOpen();
+
+  /* ------------------------------------------------------------------ */
+  t.step('language-matched answers');
+  await typeAsk('¿Cuánto pagué en comisiones?');
+  const esId = await lastId();
+  t.eq(await latestTitle(), 'Lo que pagaste en comisiones', 'a Spanish question is answered in Spanish');
+  t.assert((await latestText()).includes('Pagaste 2,50 EXUSD en comisiones'), 'Spanish figures and wording');
+  t.eq(await page.getAttribute(LATEST, 'lang'), 'es', 'the answer is marked lang="es"');
+  t.eq(await page.evaluate(() => document.documentElement.lang), 'en', 'the page stays in English');
+  t.eq(norm(await page.locator('#asst-title').innerText()).trim(), 'Ask YES', 'drawer chrome stays in English');
+  const offer = page.locator(LATEST + ' [data-asst-lang="es"]');
+  t.assert(await offer.isVisible(), 'offers to show the whole statement in Spanish');
+  t.eq(norm(await offer.innerText()).trim(), 'Ver todo el estado de cuenta en español', 'the offer is in Spanish');
+  await axeOk('answer in the other language');
+  await shot('lang-matched');
+  await typeAsk('What are my fees?');
+  t.eq(await page.getAttribute(LATEST, 'lang'), null, 'an English question follows the page');
+  t.eq(await latestTitle(), 'What you paid in fees', 'answered in English');
+  t.eq(await page.locator('#assistant-drawer [data-asst-lang]').count(), 1, 'only the latest Spanish answer carries the offer');
+  await page.click(`#asst-turn-${esId} [data-asst-lang="es"]`);
+  await page.waitForFunction(() => document.documentElement.lang === 'es');
+  await waitFocusFk(`asst-${esId}-h`);
+  t.eq(await activeFk(), `asst-${esId}-h`, 'focus lands on that answer after switching');
+  t.eq(await page.locator('#assistant-drawer [data-asst-lang]').count(), 0, 'no offer once the page matches');
+  t.eq(await page.evaluate(() => YES.state.assistant.thread.filter((e) => e.lang).length), 0, 'switching clears the per-answer language');
+  await typeAsk('How much did I send to Daniel?');
+  t.eq(await page.getAttribute(LATEST, 'lang'), 'en', 'in Spanish, an English question is answered in English');
+  t.eq(norm(await page.locator(LATEST + ' [data-asst-lang="en"]').innerText()).trim(), 'Show the whole statement in English', 'with the offer in English');
+  await page.evaluate(() => YES.setLang('en'));
+  await page.waitForFunction(() => document.documentElement.lang === 'en');
+  t.eq(norm(await page.locator(`#asst-turn-${esId} .asst-ans__title`).innerText()).trim(), 'What you paid in fees', 'an explicit language choice wins: every answer follows the page');
+  t.eq(await page.getAttribute(`#asst-turn-${esId} .asst-you`, 'lang'), 'es', "the visitor's own Spanish words keep lang=\"es\"");
+  t.eq(await page.locator('#assistant-drawer [data-asst-lang]').count(), 0, 'no offer after an explicit switch');
 
   /* ------------------------------------------------------------------ */
   t.step('language switch re-renders the thread');
@@ -708,6 +907,84 @@ export default async function (t) {
   const dur = await page.evaluate(() => getComputedStyle(document.getElementById('assistant-drawer')).animationDuration);
   t.assert(parseFloat(dur) < 0.01, `no drawer animation under reduced motion (${dur})`);
   await page.emulateMedia({ reducedMotion: 'no-preference' });
+
+  /* ------------------------------------------------------------------ */
+  if (wide) {
+    const frame = () =>
+      page.evaluate(() => {
+        const r = (sel) => {
+          const b = document.querySelector(sel).getBoundingClientRect();
+          return { top: Math.round(b.top), bottom: Math.round(b.bottom), h: Math.round(b.height), w: Math.round(b.width) };
+        };
+        const d = document.getElementById('assistant-drawer');
+        return { vh: innerHeight, head: r('.asst__head'), body: r('.asst__body'), form: r('.asst__form'), input: r('#asst-input'), send: r('.asst__send'), hint: r('#asst-hint'), scrolls: d.scrollHeight > d.clientHeight + 1 };
+      });
+
+    t.step('short viewport: 400% zoom (320×256)');
+    await page.setViewportSize({ width: 320, height: 256 });
+    await openCtx('transaction', 'TX-260909-2051');
+    await settle(page);
+    await page.focus('#asst-input');
+    await page.keyboard.type('fees');
+    let f = await frame();
+    t.assert(f.scrolls, 'the drawer scrolls as a whole');
+    t.assert(f.input.top >= 0 && f.input.bottom <= f.vh, `the focused input is fully visible (${f.input.top}–${f.input.bottom} of ${f.vh})`);
+    t.assert(f.send.top >= 0 && f.send.bottom <= f.vh, 'the Ask button is fully visible');
+    t.assert(f.form.h <= 72, `compact composer (${f.form.h}px)`);
+    t.eq(await page.inputValue('#asst-input'), 'fees', 'typed text is in the visible input');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.activeElement && document.activeElement.classList.contains('asst-ans__title'), null, { timeout: 3000 });
+    await settle(page);
+    await scrollIdle(page); // smooth scroll to the new answer
+    const hidden = [];
+    for (let i = 0; i < 10; i++) {
+      const r = await page.evaluate(() => {
+        const a = document.activeElement;
+        const b = a.getBoundingClientRect();
+        const form = document.querySelector('.asst__form');
+        return { fk: a.getAttribute('data-fk') || a.id, top: b.top, bottom: b.bottom, inForm: form.contains(a), formTop: form.getBoundingClientRect().top };
+      });
+      if (!r.inForm && (r.top < -1 || r.bottom > r.formTop + 1)) hidden.push(`${r.fk} ${Math.round(r.top)}–${Math.round(r.bottom)} (composer at ${Math.round(r.formTop)})`);
+      await page.keyboard.press('Tab');
+      await scrollIdle(page);
+    }
+    t.eq(hidden, [], 'keyboard focus is never hidden behind the composer');
+    await axeOk('320×256');
+    await shot('zoom-320x256');
+
+    t.step('short viewport: landscape phone (844×390)');
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.evaluate(() => YES.setLang('es'));
+    await page.waitForFunction(() => document.documentElement.lang === 'es');
+    await openCtx('step', 'transfers_out');
+    await settle(page);
+    await scrollIdle(page);
+    await page.evaluate(() => (document.getElementById('assistant-drawer').scrollTop = 0));
+    f = await frame();
+    t.assert(f.head.h <= 130, `compact header (${f.head.h}px)`);
+    t.assert(f.form.h <= 72, `compact composer (${f.form.h}px)`);
+    t.assert(f.vh - f.form.h >= 300, `the conversation gets most of the height (${f.vh - f.form.h}px)`);
+    t.assert(f.input.bottom <= f.vh, 'input visible');
+    await shot('landscape-844x390-es');
+    await page.evaluate(() => YES.setLang('en'));
+    await page.waitForFunction(() => document.documentElement.lang === 'en');
+
+    t.step('short viewport: small phone (320×568)');
+    await page.setViewportSize({ width: 320, height: 568 });
+    await openCtx('step', 'transfers_out');
+    await settle(page);
+    f = await frame();
+    t.assert(!f.scrolls, 'the frame stays fixed and only the conversation scrolls');
+    t.assert(f.body.h >= 380, `conversation area (${f.body.h}px)`);
+    t.assert(f.hint.w <= 1, 'the composer hint is visually hidden');
+    t.eq(await page.getAttribute('#asst-input', 'aria-describedby'), 'asst-hint', 'and still describes the input');
+    t.assert(/no live AI model/i.test(await page.locator('#asst-hint').textContent()), 'hint text kept');
+    t.eq(await page.evaluate(() => document.querySelector('label[for="asst-input"]').textContent.trim()), 'Ask about this statement', 'input keeps its label');
+    const hs = await noHScroll();
+    t.assert(hs.page && hs.body && !hs.offenders.length, 'no horizontal overflow');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.waitForFunction(() => YES.assistant.mode() === 'docked', null, { timeout: 2000 }).catch(() => {});
+  }
 
   await page.keyboard.press('Escape');
   await waitClosed();

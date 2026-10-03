@@ -110,11 +110,28 @@
     time: { hour: 'numeric', minute: '2-digit' },
     datetime: { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' },
     monthYear: { month: 'long', year: 'numeric' },
+    monthYearShort: { month: 'short', year: 'numeric' },
     tz: { timeZoneName: 'short', hour: 'numeric' },
     iso: { year: 'numeric', month: '2-digit', day: '2-digit' }
   };
 
+  /* Range wording per language (see fmt.range). {d1}/{d2} days, {m1}/{m2} months,
+     {y} year, {a}/{b} full dates. */
+  var RANGE_RULES = {
+    es: { sameMonth: '{d1} al {d2} de {m1} de {y}', sameYear: '{d1} de {m1} al {d2} de {m2} de {y}', other: '{a} al {b}' }
+  };
+  function dateParts(f, date) {
+    var o = {};
+    f.formatToParts(date).forEach(function (p) {
+      o[p.type] = p.value;
+    });
+    return o;
+  }
+  /* A masked identifier: bullets, an optional space, then the visible tail. */
+  var MASK_RE = /(\u2022+)\s?([0-9A-Za-z]+)/g;
+
   var fmt = (YES.fmt = {
+    MASK_RE: MASK_RE,
     MINUS: MINUS,
 
     /** Plain number from minor units at the asset precision, unsigned. */
@@ -149,14 +166,18 @@
       return unsigned;
     },
 
-    /** Fiat equivalent (e.g. USD) from fiat minor units. */
+    /**
+     * Fiat equivalent (e.g. USD) from fiat minor units. Grouped like token
+     * amounts (es-ES: "1.147,50 USD", never "1147,50 USD") so the same figure
+     * never appears in two formats side by side.
+     */
     fiat: function (fiatMinor, currency) {
       var k = 'f' + i18n.lang + currency;
-      cache[k] = cache[k] || new Intl.NumberFormat(i18n.locale(), { style: 'currency', currency: currency, currencyDisplay: 'code' });
+      cache[k] = cache[k] || new Intl.NumberFormat(i18n.locale(), { style: 'currency', currency: currency, currencyDisplay: 'code', useGrouping: 'always' });
       return cache[k].format(fiatMinor / 100);
     },
 
-    /** Date/time in the statement timezone. style: short|medium|long|weekday|time|datetime|monthYear|iso */
+    /** Date/time in the statement timezone. style: short|medium|long|weekday|time|datetime|monthYear|monthYearShort|iso */
     date: function (iso, style) {
       if (!iso) return '';
       style = style || 'medium';
@@ -184,11 +205,39 @@
       return o.year + '-' + o.month + '-' + o.day;
     },
 
-    /** "1–30 September 2026" style range in the statement timezone. */
+    /**
+     * Date range in the statement timezone, worded so it reads naturally both on
+     * its own and after a preposition: "September 1–30, 2026" (en),
+     * "1 al 30 de septiembre de 2026" (es, so templates can say "del {period}").
+     * Languages without a RANGE_RULES entry use Intl's formatRange.
+     */
     range: function (fromIso, toIso) {
       var f = dtf(DATE_STYLES.long, 'long');
-      if (f.formatRange) return f.formatRange(new Date(fromIso), new Date(toIso));
-      return f.format(new Date(fromIso)) + ' – ' + f.format(new Date(toIso));
+      var a = new Date(fromIso);
+      var b = new Date(toIso);
+      var rule = RANGE_RULES[i18n.lang];
+      if (rule && f.formatToParts) {
+        var pa = dateParts(f, a);
+        var pb = dateParts(f, b);
+        var tpl = pa.year !== pb.year ? rule.other : pa.month !== pb.month ? rule.sameYear : pa.day !== pb.day ? rule.sameMonth : null;
+        if (!tpl) return f.format(a);
+        return tpl.replace(/\{(\w+)\}/g, function (m, name) {
+          return { d1: pa.day, d2: pb.day, m1: pa.month, m2: pb.month, y: pb.year, a: f.format(a), b: f.format(b) }[name];
+        });
+      }
+      if (f.formatRange) return f.formatRange(a, b);
+      return f.format(a) + ' – ' + f.format(b);
+    },
+
+    /**
+     * Plain-text spoken form of masked identifiers for aria-labels:
+     * "Debit card •••• 1190" → "Debit card ending in 1190". Visible text keeps the
+     * bullets (see ui.maskedHtml), so screen readers never read "bullet bullet…".
+     */
+    maskedSpoken: function (text) {
+      return String(text == null ? '' : text).replace(MASK_RE, function (m, dots, tail) {
+        return YES.t('fmt.maskedEnding', { tail: tail });
+      });
     },
 
     /**
@@ -234,13 +283,24 @@
   /* ------------------------------------------------------------------ */
   /* Shared strings: shell, navigation, common vocabulary                */
   /* ------------------------------------------------------------------ */
+
+  /* The demo notice must not claim that nothing leaves the page while the
+     page itself loads a third-party widget: name it whenever it is enabled. */
+  function footerDemo() {
+    var uw = YES.config && YES.config.userway;
+    return YES.t('footer.demoBase') + (uw && uw.enabled ? ' ' + YES.t('footer.userwayNote') : '');
+  }
+
   i18n.add({
     en: {
       'fmt.minus': 'minus',
       'fmt.plus': 'plus',
+      'fmt.maskedEnding': 'ending in {tail}',
 
       'app.title': 'YES statement',
-      'app.docTitle': '{view} · YES statement, {period} · Illustrative demo',
+      'app.docTitle': '{view} · YES statement, {period}',
+      'app.docTitleWithheld': 'Statement withheld · YES statement, {period}',
+      'app.docTitleDemo': '{title} · Illustrative demo',
       'app.skip': 'Skip to statement',
       'app.noscript': 'This interactive statement needs JavaScript. A static summary follows.',
 
@@ -266,6 +326,7 @@
       'lang.changed': 'Language changed to English',
 
       'ask.button': 'Ask YES',
+      'ask.buttonShort': 'Ask',
       'ask.buttonLong': 'Ask YES about this statement',
       'explain.button': 'Explain with AI',
       'explain.buttonFor': 'Explain with AI: {topic}',
@@ -306,6 +367,10 @@
       'type.redemption': 'Redeemed',
       'type.fee': 'Fee',
       'type.unknown': 'Unknown type',
+      /* Not posted (pending, failed, unknown): never a completed-sounding label. */
+      'type.transfer_in.notPosted': 'Incoming transfer',
+      'type.transfer_out.notPosted': 'Send requested',
+      'type.redemption.notPosted': 'Redemption requested',
 
       'cat.opening': 'Opening balance',
       'cat.deposits': 'Deposits',
@@ -349,7 +414,9 @@
       'term.timezone': 'Times shown in {tz}',
 
       'integrity.title': 'This statement is being withheld',
-      'integrity.body': 'Its totals do not reconcile, so we are not showing balances that could be wrong. It has been routed for correction. Nothing on this page has been rounded or adjusted to hide the difference.',
+      'integrity.body': 'Its totals do not reconcile, so we are not showing balances that could be wrong. Nothing on this page has been rounded or adjusted to hide the difference.',
+      'integrity.routed': 'It has been routed for correction.',
+      'integrity.routedSimulated': 'In production, a statement like this would be routed for correction. This is a showcase preview, so nothing was sent.',
       'integrity.simulated': 'You are viewing a simulated integrity failure (showcase only).',
       'integrity.return': 'Return to the valid demo statement',
       'integrity.checks': 'Release checks',
@@ -365,20 +432,40 @@
       'check.fee_links': 'Every fee links to the transaction it belongs to',
       'check.pending_excluded': 'Pending transactions are excluded from the balance',
 
-      'footer.demo': 'Showcase statement with illustrative demo data. No real customer, account or blockchain information is used. Nothing you do on this page is sent anywhere.',
+      'footer.demo': footerDemo,
+      'footer.demoBase': 'Showcase statement with illustrative demo data. No real customer, account or blockchain information is used. Nothing you do on this page is sent anywhere by the statement itself.',
+      'footer.userwayNote': 'When you are online, the page also loads the UserWay accessibility widget, a third-party service with its own privacy terms.',
       'footer.statementId': 'Statement {id} · version {version}',
       'footer.generated': 'Generated {date}',
       'footer.disclosures': 'Disclosures',
       'footer.poweredBy': 'Interactive statement delivered via InfoSlips',
 
-      'route.announce': '{view} section'
+      'route.announce': '{view} section',
+
+      /* Static summary generated at build time for browsers without JavaScript. */
+      'noscript.heading': 'YES statement — {period}',
+      'noscript.ids': 'Statement {id}, version {version}. Account {account}.',
+      'noscript.times': 'Statement as of {asOf} · generated {generated}.',
+      'noscript.basis': 'Dates and totals use the posted date. Times are shown in {tz}.',
+      'noscript.balances': 'Opening balance {opening}. Closing statement balance {closing}.',
+      'noscript.posted': 'Posted transactions',
+      'noscript.type': 'Type',
+      'noscript.description': 'Description',
+      'noscript.counterparty': 'Counterparty',
+      'noscript.amount': 'Amount',
+      'noscript.balanceAfter': 'Balance after',
+      'noscript.notInBalance': 'Not included in the statement balance',
+      'noscript.pendingItem': '{date} — {description}: {amount} ({status})'
     },
     es: {
       'fmt.minus': 'menos',
       'fmt.plus': 'más',
+      'fmt.maskedEnding': 'que termina en {tail}',
 
       'app.title': 'Estado de cuenta de YES',
-      'app.docTitle': '{view} · Estado de cuenta de YES, {period} · Demostración ilustrativa',
+      'app.docTitle': '{view} · Estado de cuenta de YES, {period}',
+      'app.docTitleWithheld': 'Estado de cuenta retenido · Estado de cuenta de YES, {period}',
+      'app.docTitleDemo': '{title} · Demostración ilustrativa',
       'app.skip': 'Ir al estado de cuenta',
       'app.noscript': 'Este estado de cuenta interactivo necesita JavaScript. A continuación verás un resumen estático.',
 
@@ -404,6 +491,7 @@
       'lang.changed': 'Idioma cambiado a español',
 
       'ask.button': 'Pregunta a YES',
+      'ask.buttonShort': 'Pregunta',
       'ask.buttonLong': 'Pregunta a YES sobre este estado de cuenta',
       'explain.button': 'Explicar con IA',
       'explain.buttonFor': 'Explicar con IA: {topic}',
@@ -444,6 +532,9 @@
       'type.redemption': 'Canjeado',
       'type.fee': 'Comisión',
       'type.unknown': 'Tipo desconocido',
+      'type.transfer_in.notPosted': 'Transferencia entrante',
+      'type.transfer_out.notPosted': 'Envío solicitado',
+      'type.redemption.notPosted': 'Canje solicitado',
 
       'cat.opening': 'Saldo inicial',
       'cat.deposits': 'Depósitos',
@@ -487,7 +578,9 @@
       'term.timezone': 'Horas mostradas en {tz}',
 
       'integrity.title': 'Este estado de cuenta está retenido',
-      'integrity.body': 'Sus totales no cuadran, así que no mostramos saldos que podrían ser incorrectos. Se ha enviado para su corrección. Nada en esta página se ha redondeado ni ajustado para ocultar la diferencia.',
+      'integrity.body': 'Sus totales no cuadran, así que no mostramos saldos que podrían ser incorrectos. Nada en esta página se ha redondeado ni ajustado para ocultar la diferencia.',
+      'integrity.routed': 'Se ha enviado para su corrección.',
+      'integrity.routedSimulated': 'En producción, un estado de cuenta así se enviaría para su corrección. Esto es una vista previa de demostración, así que no se envió nada.',
       'integrity.simulated': 'Estás viendo una falla de integridad simulada (solo demostración).',
       'integrity.return': 'Volver al estado de cuenta de demostración válido',
       'integrity.checks': 'Controles de publicación',
@@ -503,13 +596,29 @@
       'check.fee_links': 'Cada comisión está vinculada a su movimiento',
       'check.pending_excluded': 'Los movimientos pendientes se excluyen del saldo',
 
-      'footer.demo': 'Estado de cuenta de muestra con datos ilustrativos de demostración. No se usa información real de clientes, cuentas ni blockchain. Nada de lo que hagas en esta página se envía a ningún sitio.',
+      'footer.demo': footerDemo,
+      'footer.demoBase': 'Estado de cuenta de muestra con datos ilustrativos de demostración. No se usa información real de clientes, cuentas ni blockchain. El propio estado de cuenta no envía a ningún sitio nada de lo que hagas en esta página.',
+      'footer.userwayNote': 'Si tienes conexión, la página también carga el widget de accesibilidad de UserWay, un servicio de terceros con sus propias condiciones de privacidad.',
       'footer.statementId': 'Estado de cuenta {id} · versión {version}',
       'footer.generated': 'Generado el {date}',
       'footer.disclosures': 'Divulgaciones',
       'footer.poweredBy': 'Estado de cuenta interactivo entregado a través de InfoSlips',
 
-      'route.announce': 'Sección {view}'
+      'route.announce': 'Sección {view}',
+
+      'noscript.heading': 'Estado de cuenta de YES — {period}',
+      'noscript.ids': 'Estado de cuenta {id}, versión {version}. Cuenta {account}.',
+      'noscript.times': 'Estado de cuenta al {asOf} · generado el {generated}.',
+      'noscript.basis': 'Las fechas y los totales usan la fecha de registro. Las horas se muestran en {tz}.',
+      'noscript.balances': 'Saldo inicial {opening}. Saldo final del estado de cuenta {closing}.',
+      'noscript.posted': 'Movimientos registrados',
+      'noscript.type': 'Tipo',
+      'noscript.description': 'Descripción',
+      'noscript.counterparty': 'Contraparte',
+      'noscript.amount': 'Importe',
+      'noscript.balanceAfter': 'Saldo después',
+      'noscript.notInBalance': 'No incluido en el saldo del estado de cuenta',
+      'noscript.pendingItem': '{date} — {description}: {amount} ({status})'
     }
   });
 

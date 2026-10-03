@@ -176,10 +176,24 @@
     return best;
   };
 
-  /** Convert a statement-asset amount to fiat minor units using the declared rate. */
-  calc.fiat = function (minor, data) {
+  /**
+   * Whether the asset's fiat-equivalent rate may be shown (PRD 4, 5.6, 6): it
+   * needs a rate, a source and a timestamp, and it must be verified. The only
+   * exception is the showcase: in demo mode an `illustrative` rate may be shown,
+   * and every consumer labels it "Illustrative".
+   */
+  calc.fiatAvailable = function (data) {
     var f = calc.asset(data).fiat;
-    if (!f || !f.rateMicros || !f.source || !f.at) return null;
+    if (!f || !f.rateMicros || !f.source || !f.at) return false;
+    if (f.verified === true) return true;
+    var demo = !!(YES.config && YES.config.demo);
+    return demo && f.illustrative === true;
+  };
+
+  /** Convert a statement-asset amount to fiat minor units, or null when no rate may be shown. */
+  calc.fiat = function (minor, data) {
+    if (!calc.fiatAvailable(data)) return null;
+    var f = calc.asset(data).fiat;
     return Math.round((minor * f.rateMicros) / 1000000);
   };
 

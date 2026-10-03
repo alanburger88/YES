@@ -20,8 +20,15 @@
 }
 
 /* ------------------------------------------------------- Balance card */
+/* The card lays out for the width it actually has (a size container), so a
+   tablet, a narrow desktop window and the docked assistant all get a layout
+   whose figures fit. */
+.ov-balance {
+  container: ov-balance / inline-size;
+}
 .ov-balance__grid {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s5);
 }
 .ov-balance__title {
@@ -35,13 +42,13 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0 var(--s3);
+  gap: 0 var(--s2);
   margin: 0;
   line-height: 1.05;
 }
 .ov-hero__num {
-  /* Hero figure: ≥48px, same sans, proportional figures. */
-  font-size: clamp(3rem, 3.2vw + 2rem, 4rem);
+  /* Hero figure: ≥48px, same sans, proportional figures; sized by the card. */
+  font-size: clamp(3rem, 5.5cqi + 1rem, 4rem);
   font-weight: 650;
   letter-spacing: -0.025em;
   font-variant-numeric: proportional-nums;
@@ -71,7 +78,6 @@
   color: var(--muted);
 }
 .ov-fiat {
-  margin-top: var(--s4);
   padding-top: var(--s3);
   border-top: 1px solid var(--line);
 }
@@ -97,6 +103,11 @@
   max-width: 62ch;
 }
 
+.ov-balance__side {
+  /* The net change scales with its own column (cqi below). */
+  container-type: inline-size;
+  min-width: 0;
+}
 .ov-change__label {
   margin: 0 0 var(--s1);
   font-size: var(--fs-sm);
@@ -108,11 +119,24 @@
   align-items: center;
   gap: var(--s2);
   margin: 0 0 var(--s1);
-  font-size: var(--fs-xl);
+  /* Sized by its column so "+147.50 EXUSD" and its glyph share one line
+     (glyph ≈ 44px, figures ≈ 9em), between 20px and the 32px of wide cards;
+     a longer figure wraps its unit rather than overflow. */
+  font-size: clamp(1.25rem, calc((100cqi - 44px) / 10), 2rem);
   line-height: 1.2;
 }
 .ov-change__amount {
+  /* Number and unit stay whole; the space between them may wrap. */
+  min-width: 0;
+  white-space: normal;
   font-variant-numeric: proportional-nums;
+}
+.ov-change__num,
+.ov-change__unit {
+  white-space: nowrap;
+}
+.ov-change__value .dir {
+  flex: none;
 }
 .ov-change__text {
   margin: 0;
@@ -134,20 +158,33 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--s2);
-  margin-top: var(--s5);
+  margin-top: var(--s4);
 }
-@media (max-width: 479px) {
+@container ov-balance (max-width: 27.5rem) {
   .ov-actions .btn {
     flex: 1 1 100%;
   }
 }
-@media (min-width: 720px) {
+/* Two columns once each can hold its figure: the balance (and its USD
+   equivalent) on the left, the net change and the two actions on the right. */
+@container ov-balance (min-width: 38rem) {
   .ov-balance__grid {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-    gap: var(--s8);
+    grid-template-areas:
+      'main side'
+      'fiat side';
+    column-gap: var(--s8);
+    row-gap: var(--s4);
     align-items: start;
   }
+  .ov-balance__main {
+    grid-area: main;
+  }
+  .ov-balance__fiat {
+    grid-area: fiat;
+  }
   .ov-balance__side {
+    grid-area: side;
     border-left: 1px solid var(--line);
     padding-left: var(--s8);
     align-self: stretch;
@@ -183,6 +220,28 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--s2);
+}
+/* Wide cards: the two actions sit beside the text, so the notice takes two
+   lines instead of three and the balance journey starts higher. */
+@container ov-balance (min-width: 50rem) {
+  .ov-notin__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--s4);
+    align-items: center;
+  }
+  .ov-notin__text,
+  .ov-notin__detail {
+    grid-column: 1;
+  }
+  .ov-notin__detail {
+    margin-bottom: 0;
+  }
+  .ov-notin__actions {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    flex-wrap: nowrap;
+  }
 }
 
 /* Statement details */
@@ -314,13 +373,24 @@
 }
 
 /* ------------------------------------------------- Balance journey */
-/* Default (narrow): a compact, tappable list — one row per step with a
-   horizontal mini-bridge showing the level it moves between. */
+/* The journey lays out for its own width (a size container), never the
+   viewport: docking the assistant or a narrow window must not squeeze the
+   seven-column waterfall until labels break inside words or values collide.
+     < 36rem   tappable list: label and value, then count and a mini-bridge
+     ≥ 36rem   the same list, one line per step
+     ≥ 55rem   the waterfall (floating bars, group brackets above)
+   --jr-layout tells the script which layout is active (panel placement). */
+.ov-journey__body {
+  container: ov-journey / inline-size;
+}
 .jr {
+  --jr-layout: list;
   --plot-h: 196px;
   --bar-w: 24px;
   --gap: 8px;
   --pad: 12px;
+  --indent: var(--s4);
+  --c1: 7.5rem; /* count column of a total row; delta rows get --c1 minus --indent */
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 6px;
@@ -332,7 +402,10 @@
 .jr-step {
   position: relative;
   display: grid;
-  grid-template-columns: 6.75rem minmax(0, 1fr) auto;
+  /* Delta rows are indented under their group; their first column is narrower
+     by the same amount, so every mini-bridge starts and ends at the same x and
+     shares one scale. */
+  grid-template-columns: var(--c1) minmax(0, 1fr) auto;
   grid-template-areas:
     'label label value'
     'sub plot plot';
@@ -353,8 +426,10 @@
   background: var(--surface-2);
 }
 .jr-step--delta {
-  margin-left: var(--s4);
-  width: calc(100% - var(--s4));
+  --c1-row: calc(var(--c1) - var(--indent));
+  grid-template-columns: var(--c1-row) minmax(0, 1fr) auto;
+  margin-left: var(--indent);
+  width: calc(100% - var(--indent));
   border-color: var(--line);
   background: var(--surface);
 }
@@ -377,6 +452,9 @@ button.jr-step:hover {
   font-size: var(--fs-sm);
   font-weight: 650;
   min-width: 0;
+  /* Labels wrap between words only (never "Redemptio ns"). */
+  overflow-wrap: break-word;
+  hyphens: manual;
 }
 .jr-check {
   display: none;
@@ -397,6 +475,15 @@ button.jr-step:hover {
 [aria-pressed='true'] .jr-check {
   display: inline-flex;
 }
+/* On a step the check is a badge on the row's leading edge, out of the label's
+   flow, so a long label ("Transferencias enviadas") keeps its full width. */
+.jr-step .jr-check {
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  margin-top: -9px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
 .jr-value {
   grid-area: value;
   display: inline-flex;
@@ -413,9 +500,11 @@ button.jr-step:hover {
 }
 .jr-sub {
   grid-area: sub;
+  min-width: 0;
   font-size: var(--fs-xs);
   color: var(--muted);
-  white-space: nowrap;
+  /* May wrap (e.g. with WCAG 1.4.12 text spacing) rather than run under the bar. */
+  overflow-wrap: break-word;
 }
 .jr-plot {
   grid-area: plot;
@@ -449,9 +538,12 @@ button.jr-step:hover {
 .jr-link {
   display: none;
 }
-@media (max-width: 399px) {
+@container ov-journey (max-width: 20.5rem) {
+  .jr {
+    --c1: 7.25rem;
+    --indent: var(--s3);
+  }
   .jr-step {
-    grid-template-columns: 5.75rem minmax(0, 1fr) auto;
     padding-inline: 10px;
     column-gap: var(--s2);
   }
@@ -542,7 +634,7 @@ button.jr-step:hover {
 }
 .jr-step:focus-visible,
 .jr-group:focus-visible {
-  outline: none;
+  outline: 2px solid transparent;
   box-shadow: var(--focus-ring);
 }
 .jr-step[aria-pressed='true']:focus-visible,
@@ -572,9 +664,45 @@ button.jr-step:hover {
   animation-delay: calc(var(--i, 0) * 70ms);
 }
 
-/* Wide: a waterfall with floating delta bars, group brackets above. */
-@media (min-width: 900px) {
+/* Medium (tablet, docked assistant): one line per step — label, count,
+   mini-bridge, value — with fixed columns so every bar shares one scale. */
+@container ov-journey (min-width: 36rem) {
   .jr {
+    --c1: 10.5rem;
+    --c2: 7rem;
+    --c4: 8rem;
+  }
+  .jr-step,
+  .jr-step--delta {
+    grid-template-columns: var(--c1-row, var(--c1)) var(--c2) minmax(0, 1fr) var(--c4);
+    grid-template-areas: 'label sub plot value';
+    min-height: 52px;
+    column-gap: var(--s4);
+  }
+  .jr-group {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: var(--s4);
+  }
+  .jr-group__count {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  .jr-group__value {
+    grid-column: 3;
+  }
+}
+@container ov-journey (min-width: 44rem) {
+  .jr {
+    --c1: 12rem;
+    --c2: 7.5rem;
+    --c4: 8.5rem;
+  }
+}
+
+/* Wide: a waterfall with floating delta bars, group brackets above. */
+@container ov-journey (min-width: 55rem) {
+  .jr {
+    --jr-layout: waterfall;
     grid-template-columns: 3rem repeat(var(--cols), minmax(0, 1fr));
     column-gap: var(--gap);
     row-gap: 0;
@@ -620,7 +748,8 @@ button.jr-step:hover {
   .jr-grid__line--zero {
     border-top-color: var(--axis);
   }
-  .jr-step {
+  .jr-step,
+  .jr-step--delta {
     grid-row: 2;
     grid-column: var(--col);
     display: flex;
@@ -638,10 +767,7 @@ button.jr-step:hover {
     background: transparent;
   }
   .jr-step--delta {
-    margin-left: 0;
-    width: auto;
     border-color: transparent;
-    background: transparent;
   }
   button.jr-step:hover {
     background: color-mix(in srgb, var(--ink) 4%, transparent);
@@ -698,17 +824,22 @@ button.jr-step:hover {
     border-top: 1px solid var(--axis);
     margin-top: -1px;
   }
+  .jr-step .jr-check {
+    left: auto;
+    right: 6px;
+    top: 6px;
+    margin-top: 0;
+  }
   .jr-label {
     font-size: var(--fs-xs);
     font-weight: 650;
     color: var(--ink-2);
     line-height: 1.3;
+    /* Two lines reserved, so every value sits on the same baseline. */
     min-height: 2.6em;
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    overflow-wrap: anywhere;
-    hyphens: auto;
   }
   .jr-value {
     font-size: var(--fs-base);
@@ -790,21 +921,33 @@ button.jr-step:hover {
   display: none;
 }
 .jr > .ov-panel-slot {
-  margin-left: var(--s4);
+  margin-left: var(--indent);
 }
 .ov-panel {
+  container: ov-panel / inline-size;
   margin-top: var(--s2);
-  padding: var(--s4);
+  padding: var(--s3);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface-2);
 }
-@media (min-width: 720px) {
+/* Phones: the panel uses the full card width (no group indent). */
+@container ov-journey (max-width: 25.5rem) {
+  .jr > .ov-panel-slot {
+    margin-left: 0;
+  }
+}
+@container ov-journey (min-width: 30rem) {
+  .ov-panel {
+    padding: var(--s4);
+  }
+}
+@container ov-journey (min-width: 40rem) {
   .ov-panel {
     padding: var(--s5) var(--s6);
   }
 }
-@media (min-width: 900px) {
+@container ov-journey (min-width: 55rem) {
   .ov-journey__body > .ov-panel-slot .ov-panel {
     margin-top: var(--s4);
   }
@@ -830,12 +973,36 @@ button.jr-step:hover {
   font-size: var(--fs-lg);
   margin: 0 0 var(--s1);
 }
-.ov-panel__meta {
+/* Inline lists with "·" separators ("5 transactions · −450.00 EXUSD · Listed
+   by posted date", "Sep 3, 2026 · Sent"). Each item draws its own leading
+   separator in its left padding; the inner row is shifted left by one
+   separator and the wrapper clips it, so a separator that would start a
+   wrapped line is hidden and no line begins or ends with a stray "·". */
+.ov-seps {
+  --sep-w: 1.25em;
+  display: block;
+  overflow: hidden;
+}
+.ov-seps__in {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 2px var(--s2);
-  margin: 0;
+  row-gap: 2px;
+  margin: 0 0 0 calc(-1 * var(--sep-w));
+}
+.ov-seps__in > :not(.sr-only) {
+  position: relative;
+  padding-left: var(--sep-w);
+}
+.ov-seps__in > :not(.sr-only)::before {
+  content: '·' / '';
+  position: absolute;
+  left: 0;
+  width: var(--sep-w);
+  text-align: center;
+  color: var(--muted);
+}
+.ov-panel__meta {
   color: var(--ink-2);
   font-size: var(--fs-sm);
 }
@@ -883,7 +1050,7 @@ button.jr-step:hover {
   background: color-mix(in srgb, var(--surface-2) 40%, var(--surface));
 }
 .ov-tx:focus-visible {
-  outline: none;
+  outline: 2px solid transparent;
   box-shadow: var(--focus-ring);
 }
 .ov-tx__icon {
@@ -904,6 +1071,7 @@ button.jr-step:hover {
   min-width: 0;
   font-size: var(--fs-xs);
   color: var(--muted);
+  --sep-w: 1em;
 }
 .ov-tx__type {
   color: var(--ink-2);
@@ -911,15 +1079,12 @@ button.jr-step:hover {
 .ov-tx__go {
   display: none;
 }
-@media (max-width: 479px) {
+@container ov-panel (max-width: 24rem) {
   .ov-unit {
     display: none;
   }
-  .ov-panel {
-    padding: var(--s3);
-  }
 }
-@media (max-width: 379px) {
+@container ov-panel (max-width: 17.5rem) {
   .ov-tx {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
@@ -929,11 +1094,9 @@ button.jr-step:hover {
   .ov-tx__icon {
     display: none;
   }
-  .jr > .ov-panel-slot {
-    margin-left: 0;
-  }
 }
-@media (min-width: 720px) {
+/* A table-like row once the panel is wide enough for every column. */
+@container ov-panel (min-width: 36rem) {
   .ov-txhead,
   .ov-tx {
     grid-template-columns: 32px 8.5rem 6.5rem minmax(0, 1fr) auto 16px;
@@ -953,11 +1116,15 @@ button.jr-step:hover {
   .ov-tx {
     min-height: 52px;
   }
-  .ov-tx__when {
+  .ov-tx__when,
+  .ov-tx__when .ov-seps__in {
     display: contents;
   }
-  .ov-tx__sep {
-    display: none;
+  .ov-tx__when .ov-seps__in > * {
+    padding-left: 0;
+  }
+  .ov-tx__when .ov-seps__in > *::before {
+    content: none;
   }
   .ov-tx__date,
   .ov-tx__type {
@@ -977,11 +1144,13 @@ button.jr-step:hover {
   }
 }
 
-/* Sum line: the rows, added up, matching the step. */
+/* Sum line: the rows, added up, matching the step. The label and the total
+   share a line while they fit; otherwise the total drops below the label. */
 .ov-sum {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
   gap: var(--s1) var(--s4);
   margin-top: var(--s3);
   padding: var(--s3) 12px 0;
@@ -991,11 +1160,12 @@ button.jr-step:hover {
   font-weight: 700;
 }
 .ov-sum__value {
+  margin-left: auto;
   text-align: right;
   font-size: var(--fs-md);
 }
 .ov-sum__check {
-  grid-column: 1 / -1;
+  flex: 1 1 100%;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1009,18 +1179,19 @@ button.jr-step:hover {
   color: var(--danger);
 }
 .ov-sum__math {
-  grid-column: 1 / -1;
+  flex: 1 1 100%;
   font-size: var(--fs-xs);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-@media (min-width: 720px) {
+@container ov-panel (min-width: 36rem) {
   .ov-sum {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     padding-right: calc(12px + 16px + var(--s4));
   }
-  .ov-sum__check,
-  .ov-sum__math {
+  .ov-sum__check {
     grid-column: 1;
   }
   .ov-sum__math {
@@ -1036,7 +1207,7 @@ button.jr-step:hover {
   gap: var(--s2);
   margin-top: var(--s4);
 }
-@media (max-width: 479px) {
+@container ov-panel (max-width: 24rem) {
   .ov-panel__actions .btn {
     flex: 1 1 100%;
   }
@@ -1088,6 +1259,20 @@ button.jr-step:hover {
 /* Table views */
 .ov-tablebox {
   margin-top: var(--s4);
+}
+.ov-tablenote {
+  display: flex;
+  gap: var(--s2);
+  align-items: flex-start;
+  max-width: 72ch;
+  margin: var(--s1) 0 var(--s3);
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+}
+.ov-tablenote .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--muted);
 }
 .ov-tablebox > summary .icon,
 .ov-learn .icon {
@@ -1147,12 +1332,34 @@ button.jr-step:hover {
 }
 
 @media (max-width: 399px) {
+  /* Small phones: the table disclosures use the card's full width (its side
+     padding too), so the columns fit without breaking words or scrolling. */
+  .ov-tablebox {
+    margin-inline: calc(-1 * var(--s5));
+    border-radius: 0;
+    border-inline-width: 0;
+  }
+  .ov-tablebox > summary {
+    padding-inline: var(--s5);
+    border-radius: 0;
+  }
   .ov-tablebox .disclosure__body {
     padding: 0 0 var(--s2);
+  }
+  .ov-tablebox .ov-tablenote,
+  .ov-tablebox .ov-table caption {
+    padding-inline: var(--s5);
   }
   .ov-tablebox .table-wrap {
     border-width: 1px 0 0;
     border-radius: 0;
+  }
+  .ov-table th:first-child {
+    padding-left: var(--s4);
+  }
+  .ov-table th:last-child,
+  .ov-table td:last-child {
+    padding-right: var(--s4);
   }
   .ov-table {
     font-size: var(--fs-xs);
@@ -1162,8 +1369,9 @@ button.jr-step:hover {
     padding: 8px 6px;
   }
   .ov-table th[scope='row'] {
+    /* Wrap between words; break a word only if it cannot fit on a line at all. */
+    overflow-wrap: break-word;
     hyphens: auto;
-    overflow-wrap: anywhere;
   }
 }
 
@@ -1383,6 +1591,11 @@ button.jr-step:hover {
 }
 
 /* Mini rows (fees, low-data list) */
+@media (max-width: 479px) {
+  .ov-mini .ov-unit {
+    display: none;
+  }
+}
 .ov-minilist {
   list-style: none;
   margin: 0;
@@ -1496,11 +1709,21 @@ button.jr-step:hover {
   }
 }
 .ov-video__poster {
+  /* Deep in both schemes: in dark mode the brand primary is a light tint, and a
+     bright poster would outshine the closing balance. */
+  --poster-bg: var(--primary);
+  --poster-ink: var(--on-primary);
   position: relative;
   aspect-ratio: 16 / 9;
   border-radius: var(--radius);
   overflow: hidden;
-  background: var(--primary);
+  background: var(--poster-bg);
+}
+@media (prefers-color-scheme: dark) {
+  .ov-video__poster {
+    --poster-bg: color-mix(in srgb, var(--primary) 26%, var(--surface));
+    --poster-ink: var(--ink);
+  }
 }
 .ov-poster__svg,
 .ov-poster__img {
@@ -1510,40 +1733,43 @@ button.jr-step:hover {
   object-fit: cover;
 }
 .ov-poster__bg {
-  fill: var(--primary);
+  fill: var(--poster-bg);
 }
 .ov-poster__glow {
-  fill: var(--on-primary);
+  fill: var(--poster-ink);
   opacity: 0.08;
 }
 .ov-poster__logo {
-  fill: var(--on-primary);
+  fill: var(--poster-ink);
 }
 .ov-poster__logotext {
-  fill: var(--primary);
+  fill: var(--poster-bg);
   font-family: var(--yes-font);
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.04em;
 }
 .ov-poster__hello {
-  fill: var(--on-primary);
+  fill: var(--poster-ink);
   font-family: var(--yes-font);
   font-size: 21px;
   font-weight: 700;
 }
 .ov-poster__sub {
-  fill: var(--on-primary);
+  fill: var(--poster-ink);
   opacity: 0.88;
   font-family: var(--yes-font);
   font-size: 12px;
 }
 .ov-poster__bar {
-  fill: var(--on-primary);
-  opacity: 0.26;
+  fill: var(--poster-ink);
+  opacity: 0.3;
+}
+.ov-poster__bar--total {
+  opacity: 0.55;
 }
 .ov-poster__base {
-  stroke: var(--on-primary);
+  stroke: var(--poster-ink);
   stroke-width: 1;
   opacity: 0.4;
 }
@@ -1746,7 +1972,9 @@ button.jr-step:hover {
   }
 }
 
-/* Forced colours: keep the bridge and chart marks visible. */
+/* Forced colours: keep the bridge and chart marks visible and keep the legend
+   matching them. Three distinct marks, not only three colours: balance =
+   solid CanvasText, adds = solid Highlight, reduces = CanvasText stripes. */
 @media (forced-colors: active) {
   .jr-bar,
   .ov-key,
@@ -1755,15 +1983,48 @@ button.jr-step:hover {
     background: CanvasText;
   }
   .jr-step--in .jr-bar,
-  .ov-key--in {
+  .ov-key--in,
+  .jr-group--in::before {
     background: Highlight;
+  }
+  .jr-step--out .jr-bar,
+  .ov-key--out,
+  .jr-group--out::before {
+    background: repeating-linear-gradient(135deg, CanvasText 0 2px, Canvas 2px 4.5px);
+    box-shadow: inset 0 0 0 1px CanvasText;
+  }
+  .ov-key {
+    width: 12px;
+    height: 12px;
+  }
+  /* Steps that recede stay visible: an outline instead of a faint fill. */
+  .jr .is-dim .jr-bar {
+    opacity: 1;
+    background: Canvas;
+    box-shadow: inset 0 0 0 1px GrayText;
+  }
+  .jr-group.is-dim::before,
+  .jr-group.is-dim .jr-group__bracket {
+    opacity: 1;
+  }
+  .jr-group__bracket {
+    border-color: CanvasText;
   }
   .jr-step[aria-pressed='true'],
   .jr-group[aria-pressed='true'] {
     outline: 3px solid Highlight;
   }
+  .jr-check {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
   .ov-mk,
   .ov-chart__svg .c-line {
     forced-color-adjust: none;
+  }
+  .ov-video__poster {
+    forced-color-adjust: none;
+    border: 1px solid CanvasText;
   }
 }

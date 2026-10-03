@@ -4,7 +4,7 @@ A YES-branded, mobile-first statement that tells the account story instead of pr
 
 **Deliverable:** [`dist/yes-statement.html`](dist/yes-statement.html), one self-contained HTML file. It includes the styles, logic, English and Spanish copy, accessible graphics and fictional statement data. Open it straight from disk with no server and no network connection.
 
-> **Illustrative demo data.** The customer, account, amounts, references, blockchain and reserve details are all invented. Nothing you do in the file is sent anywhere.
+> **Illustrative demo data.** The customer, account, amounts, references, blockchain and reserve details are all invented. Nothing you do in the file is sent anywhere by the statement itself. When you are online, the page also loads the third-party UserWay accessibility widget (see below).
 
 ## Try it
 
@@ -72,7 +72,8 @@ The statement data lives in `src/js/01-data.js`.
 
 ```bash
 npm install          # playwright (preinstalled Chromium) + axe-core, dev only
-npm run build        # → dist/yes-statement.html (release gate + inline everything)
+npm run build        # → dist/yes-statement.html (release gate + inline everything, comments stripped)
+node build.mjs --no-minify   # same, with the sources inlined verbatim (debugging)
 npm test             # build, then every browser test offline (desktop + mobile)
 ```
 

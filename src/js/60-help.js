@@ -32,7 +32,7 @@
     { id: 'motion', icon: 'motion' },
     { id: 'zoom', icon: 'zoom' },
     { id: 'textAlt', icon: 'textalt' },
-    { id: 'colour', icon: 'contrast' },
+    { id: 'color', icon: 'contrast' },
     { id: 'languages', icon: 'globe' }
   ];
   var ENHANCEMENTS = [
@@ -831,6 +831,53 @@
     return '<div class="print-watermark' + (text.length > 24 ? ' print-watermark--long' : '') + '" aria-hidden="true">' + span + span + span + '</div>';
   }
 
+  /** The [YES_LOGO] slot as the masthead shows it: approved artwork when supplied, else the text placeholder. */
+  function printLogoHtml() {
+    var slot = YES.config.slots.YES_LOGO || {};
+    if (slot.svg) return '<span class="pr-logo pr-logo--art" data-slot="YES_LOGO" role="img" aria-label="' + esc(t('brand.logoAlt')) + '">' + slot.svg + '</span>';
+    return '<span class="pr-logo" data-slot="YES_LOGO">' + esc(slot.text || 'YES') + '</span>';
+  }
+
+  /** A CSS string literal that is also safe inside a <style> element. */
+  function cssStr(s) {
+    return (
+      '"' +
+      String(s)
+        .replace(/[\\"]/g, '\\$&')
+        .replace(/\r\n|[\r\n\f]/g, '\\A ')
+        .replace(/</g, '\\3C ') +
+      '"'
+    );
+  }
+
+  /**
+   * Running page footer for the statement of record: the statement ID and
+   * version at the bottom left of every printed page, "Page n of N" at the
+   * bottom right, in the current language (CSS @page margin boxes; a browser
+   * without them simply prints the trailing footer block). Appearance is in
+   * 60-help.css; only the localized content is generated here.
+   */
+  function pageFooterCss() {
+    var s = st();
+    var parts = t('help.print.pageOf').split(/\{(page|pages)\}/);
+    var counter = parts
+      .map(function (p, i) {
+        if (i % 2) return 'counter(' + p + ')';
+        return p ? cssStr(p) : '';
+      })
+      .filter(Boolean)
+      .join(' ');
+    return (
+      '@media print{@page{' +
+      '@bottom-left{content:' +
+      cssStr(t('footer.statementId', { id: s.id, version: s.version })) +
+      '}' +
+      '@bottom-right{content:' +
+      counter +
+      '}}}'
+    );
+  }
+
   function printHtml() {
     var s = st();
     var a = asset();
@@ -865,6 +912,12 @@
       })
       .join('');
 
+    /*
+     * Closing and total rows are the last rows of each table body, never a
+     * <tfoot>: print engines repeat a table footer at the bottom of every page
+     * fragment, which would put "Closing balance" under a mid-period running
+     * balance. Header rows (<thead>) do repeat, by design.
+     */
     var summaryRows =
       '<tr class="pr-total"><th scope="row">' +
       esc(t('cat.opening')) +
@@ -898,11 +951,11 @@
       .join(' ');
 
     var ledgerRows =
-      '<tr class="pr-total"><td>' +
+      '<tr class="pr-total" data-print-opening><td>' +
       esc(YES.fmt.date(s.periodStart, 'medium')) +
-      '</td><td></td><td colspan="3">' +
+      '</td><td></td><th scope="row" colspan="3">' +
       esc(t('cat.opening')) +
-      '</td><td class="num"></td><td class="num">' +
+      '</th><td class="num"></td><td class="num">' +
       esc(amt(s.opening)) +
       '</td></tr>' +
       posted
@@ -1001,15 +1054,25 @@
       .join('');
     var foreign = YES.calc.foreignFees();
 
+    // The ledger closes the way it opens: dated period end, label, balance.
+    var ledgerClosing =
+      '<tr class="pr-closing" data-print-ledger-closing><td>' +
+      esc(YES.fmt.date(s.periodEnd, 'medium')) +
+      '</td><td></td><th scope="row" colspan="3">' +
+      esc(t('cat.closing')) +
+      '</th><td class="num"></td><td class="num">' +
+      esc(amt(s.closing)) +
+      '</td></tr>';
+
     return (
       (YES.config.demo ? watermarkHtml() : '') +
       '<article class="pr" data-print-lang="' +
       esc(YES.i18n.lang) +
       '">' +
       '<header class="pr-head">' +
-      '<div class="pr-head__brand"><span class="pr-logo" data-slot="YES_LOGO">' +
-      esc((YES.config.slots.YES_LOGO || {}).text || 'YES') +
-      '</span><div><p class="pr-kicker">' +
+      '<div class="pr-head__brand">' +
+      printLogoHtml() +
+      '<div><p class="pr-kicker">' +
       esc(YES.L(YES.config.slots.PRODUCT_NAME)) +
       '</p><h1 class="pr-title">' +
       esc(t('help.print.title')) +
@@ -1055,11 +1118,11 @@
       esc(t('help.print.colAmount')) +
       '</th></tr></thead><tbody>' +
       summaryRows +
-      '</tbody><tfoot><tr class="pr-closing"><th scope="row">' +
+      '<tr class="pr-closing"><th scope="row">' +
       esc(t('cat.closing')) +
       '</th><td class="num"></td><td class="num" data-print-closing>' +
       esc(YES.fmt.amount(s.closing)) +
-      '</td></tr></tfoot></table>' +
+      '</td></tr></tbody></table>' +
       '<p class="pr-eq" data-print-eq>' +
       esc(eq) +
       '</p><p class="pr-note">' +
@@ -1088,11 +1151,8 @@
       esc(t('help.print.colBalance')) +
       '</th></tr></thead><tbody>' +
       ledgerRows +
-      '</tbody><tfoot><tr class="pr-closing"><th scope="row" colspan="6">' +
-      esc(t('cat.closing')) +
-      '</th><td class="num">' +
-      esc(amt(s.closing)) +
-      '</td></tr></tfoot></table></section>' +
+      ledgerClosing +
+      '</tbody></table></section>' +
       /* Not in balance */
       '<section class="pr-sec pr-pending" data-print-pending-section><h2>' +
       esc(t('help.print.pending')) +
@@ -1114,14 +1174,15 @@
       esc(t('help.print.colAmount')) +
       '</th></tr></thead><tbody>' +
       feeRows +
-      '</tbody><tfoot><tr class="pr-closing"><th scope="row" colspan="3">' +
+      '<tr class="pr-closing" data-print-fees-total><th scope="row" colspan="3">' +
       esc(t('help.print.feesTotal', { count: YES.txCount(feeCat ? feeCat.count : 0) })) +
       '</th><td class="num">' +
       esc(amt(YES.calc.feesTotal(), 'always')) +
-      '</td></tr></tfoot></table><p class="pr-note">' +
+      '</td></tr></tbody></table><p class="pr-note">' +
       esc(t(foreign.length ? 'help.print.foreignFees' : 'help.print.noForeignFees')) +
       '</p></section>' +
-      /* Disclosures */
+      /* Disclosures and footer print as one block, so the record's identification never sits alone on a page. */
+      '<div class="pr-end" data-print-end>' +
       '<section class="pr-sec pr-disc" data-slot="DISCLOSURES"><h2>' +
       esc(t('footer.disclosures')) +
       '</h2><p>' +
@@ -1140,7 +1201,7 @@
       esc(t('footer.generated', { date: dateTime(s.generatedAt) + ' ' + tzShort(s.generatedAt) })) +
       '</p><p>' +
       esc(t('footer.poweredBy')) +
-      '</p></footer>' +
+      '</p></footer></div>' +
       '</article>'
     );
   }
@@ -1148,6 +1209,13 @@
   function renderPrint() {
     if (!els.print) return;
     els.print.innerHTML = printHtml();
+    var style = doc.getElementById('help-print-page');
+    if (!style) {
+      style = doc.createElement('style');
+      style.id = 'help-print-page';
+      doc.head.appendChild(style);
+    }
+    style.textContent = pageFooterCss();
   }
 
   /* ------------------------------------------------------------------ */
@@ -1348,8 +1416,8 @@
         'help.a11y.f.zoom.body': 'Text can be enlarged, and the layout reflows down to 320 pixels wide without sideways scrolling.',
         'help.a11y.f.textAlt': 'Text alternatives for charts',
         'help.a11y.f.textAlt.body': 'Every chart has a table or written equivalent with the same figures.',
-        'help.a11y.f.colour': 'Never colour alone',
-        'help.a11y.f.colour.body': 'Direction and status are shown with signs, icons and words, not only colour.',
+        'help.a11y.f.color': 'Never color alone',
+        'help.a11y.f.color.body': 'Direction and status are shown with signs, icons and words, not only color.',
         'help.a11y.f.languages': 'Two languages',
         'help.a11y.f.languages.body': 'English and Spanish are built in, and switching keeps your place.',
         'help.a11y.review': 'A formal WCAG 2.2 AA review and UserWay integration sign-off are required before production.',
@@ -1389,7 +1457,7 @@
         'help.about.e.userway.now': 'Current status: {status}.',
         'help.about.e.userway.prod': 'One approved integration, by YES or the InfoSlips viewer — never two launchers.',
         'help.about.e.ai': 'AI explanations',
-        'help.about.e.ai.file': 'Curated demo explanations computed from this statement and labelled “Demo explanation”. No live AI model is used.',
+        'help.about.e.ai.file': 'Curated demo explanations computed from this statement and labeled “Demo explanation”. No live AI model is used.',
         'help.about.e.ai.prod': 'An approved, governed AI service grounded in the statement.',
         'help.about.e.inquiry': 'Transaction inquiry',
         'help.about.e.inquiry.file': 'A complete local mock. Its confirmation says “Demo only — no inquiry was sent”.',
@@ -1402,7 +1470,7 @@
         'help.about.e.feedback.prod': 'An approved feedback service.',
         'help.about.e.analytics': 'Analytics',
         'help.about.e.analytics.file': 'Nothing you do on this page is measured or sent.',
-        'help.about.e.analytics.prod': 'Approved, minimised engagement measurement.',
+        'help.about.e.analytics.prod': 'Approved, minimized engagement measurement.',
         'help.about.e.evidence': 'Reserve and blockchain evidence',
         'help.about.e.evidence.file': 'Illustrative layout: no reserve assertion and no live blockchain verification.',
         'help.about.e.evidence.prod': 'Verified facts only, with source, date and responsible entity.',
@@ -1451,7 +1519,8 @@
         'help.print.noForeignFees': 'Fees in other assets: none. Each fee is its own ledger line and is included in the balance summary.',
         'help.print.foreignFees': 'Fees in other assets are listed separately and are not included in this balance.',
         'help.print.issuer': 'Issuer or partner: {value}',
-        'help.print.snapshot': 'This statement is a period snapshot. An issued statement is never changed; corrections are issued as a new version.'
+        'help.print.snapshot': 'This statement is a period snapshot. An issued statement is never changed; corrections are issued as a new version.',
+        'help.print.pageOf': 'Page {page} of {pages}'
       },
       es: {
         'help.title': 'Ayuda y registro del estado de cuenta',
@@ -1560,8 +1629,8 @@
         'help.a11y.f.zoom.body': 'Puedes ampliar el texto, y el diseño se adapta hasta 320 píxeles de ancho sin desplazamiento lateral.',
         'help.a11y.f.textAlt': 'Alternativas de texto para gráficos',
         'help.a11y.f.textAlt.body': 'Cada gráfico tiene una tabla o un texto equivalente con las mismas cifras.',
-        'help.a11y.f.colour': 'Nunca solo el color',
-        'help.a11y.f.colour.body': 'La dirección y el estado se muestran con signos, iconos y palabras, no solo con colores.',
+        'help.a11y.f.color': 'Nunca solo el color',
+        'help.a11y.f.color.body': 'La dirección y el estado se muestran con signos, iconos y palabras, no solo con colores.',
         'help.a11y.f.languages': 'Dos idiomas',
         'help.a11y.f.languages.body': 'Incluye inglés y español, y al cambiar de idioma no pierdes tu lugar.',
         'help.a11y.review': 'Antes de producción se requiere una revisión formal de WCAG 2.2 AA y la aprobación de la integración de UserWay.',
@@ -1663,7 +1732,8 @@
         'help.print.noForeignFees': 'Comisiones en otros activos: ninguna. Cada comisión es una línea propia y está incluida en el resumen del saldo.',
         'help.print.foreignFees': 'Las comisiones en otros activos se muestran por separado y no se incluyen en este saldo.',
         'help.print.issuer': 'Emisor o socio: {value}',
-        'help.print.snapshot': 'Este estado de cuenta es una instantánea del período. Un estado de cuenta emitido nunca se modifica; las correcciones se emiten como una nueva versión.'
+        'help.print.snapshot': 'Este estado de cuenta es una instantánea del período. Un estado de cuenta emitido nunca se modifica; las correcciones se emiten como una nueva versión.',
+        'help.print.pageOf': 'Página {page} de {pages}'
       }
     },
 

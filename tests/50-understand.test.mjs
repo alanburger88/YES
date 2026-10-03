@@ -3,8 +3,9 @@
 // related transactions), YES.understand.openTopic + #/understand/<topic>
 // routes, statement versus live balance, the sample on-chain reference, the
 // illustrative reserve/transparency panel and its unavailable state, the
-// governance rules, language switch, accessibility (axe, light + dark),
-// touch targets and mobile reflow.
+// governance rules, language switch, copy quality (no repeated words, EN + ES),
+// accessibility (axe, light + dark), touch targets, mobile reflow and the
+// desktop layout (no empty column in any state, docked-assistant widths).
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
@@ -96,6 +97,51 @@ export default async function (t) {
     });
   const calls = () => page.evaluate(() => window.__calls.splice(0));
   const setExpanded = (list) => page.evaluate((l) => YES.set({ understand: Object.assign({}, YES.state.understand, { expanded: l }) }), list);
+  // Layout rows: basics and transparency span the layout; the two evidence panels
+  // pair up (same top and bottom) or stack. `trailing` is the empty space left at
+  // the end of the shorter paired card, the gap a reader would see beside the other.
+  const layout = () =>
+    page.evaluate(() => {
+      const b = (s) => document.querySelector(s).getBoundingClientRect();
+      const L = b('.und-layout');
+      const live = b('#und-live');
+      const oc = b('#und-onchain');
+      const tp = b('#und-transparency');
+      const trailing = (s) => {
+        const c = document.querySelector(s);
+        const end = Math.max(...[...c.children].map((k) => k.getBoundingClientRect().bottom));
+        return Math.round(c.getBoundingClientRect().bottom - parseFloat(getComputedStyle(c).paddingBottom) - end);
+      };
+      const tpCols = getComputedStyle(document.querySelector('.und-tp__grid')).gridTemplateColumns.split(' ').map(parseFloat);
+      return {
+        root: document.getElementById('understand-root').clientWidth,
+        basicsFull: Math.abs(b('#und-basics').width - L.width) < 2,
+        tpFull: Math.abs(tp.width - L.width) < 2,
+        paired: oc.left >= live.right && Math.abs(oc.top - live.top) < 2,
+        sameBottom: Math.abs(oc.bottom - live.bottom) < 2,
+        stacked: oc.top >= live.bottom && Math.abs(oc.left - live.left) < 2,
+        pairW: Math.round(Math.min(live.width, oc.width)),
+        tpBelow: tp.top >= Math.max(live.bottom, oc.bottom),
+        trailing: Math.max(trailing('#und-live'), trailing('#und-onchain')),
+        tpCols
+      };
+    });
+  const checkLayout = async (label) => {
+    const l = await layout();
+    t.assert(l.basicsFull && l.tpFull, `${label}: basics and transparency span the layout`);
+    t.assert(l.tpBelow, `${label}: transparency follows the evidence panels`);
+    t.assert(l.paired !== l.stacked, `${label}: evidence panels are either paired or stacked`);
+    if (l.paired) {
+      t.assert(l.pairW >= 380, `${label}: paired panels get at least 380px (${l.pairW})`);
+      t.assert(l.sameBottom, `${label}: paired panels end level`);
+      t.assert(l.trailing < 160, `${label}: no large empty area beside the longer panel (${l.trailing}px)`);
+    }
+    t.assert(l.tpCols.length === 1 || Math.min(...l.tpCols) >= 340, `${label}: transparency columns stay readable (${l.tpCols.map(Math.round).join('/')})`);
+    return l;
+  };
+  // Repeated words within a line ("cuenta cuenta"), across every visible string of the view.
+  const doubled = () =>
+    page.evaluate(() => [...document.getElementById('understand-root').innerText.matchAll(/(?<![\p{L}\p{N}-])(\p{L}{2,})[ \t\u00a0\u202f]+\1(?![\p{L}\p{N}-])/giu)].map((m) => m[0]));
   const shotEl = async (sel, label) => {
     const h = await page.addStyleTag({ content: '#masthead{visibility:hidden!important}' });
     await page.locator(sel).first().screenshot({ path: join(SHOTS, `understand-${t.viewport}-${label}.png`) });
@@ -127,6 +173,9 @@ export default async function (t) {
   );
   t.eq(missingFk, [], 'every interactive control has a data-fk');
   t.assert(await noHScroll(), 'no horizontal scroll');
+  // Default (all collapsed) state: the reviewer saw a ~1,400px empty column here.
+  const l0 = await checkLayout('default state');
+  t.assert(mobile ? l0.stacked : l0.paired, mobile ? 'phone: evidence panels stack' : 'desktop: evidence panels sit side by side');
   await settle(200);
   await t.shot('top');
 
@@ -231,6 +280,7 @@ export default async function (t) {
       feeDescs: c.category('fees').txIds.map((id) => YES.L(c.tx(id).description)),
       internal: tr('internal'),
       onchain: tr('onchain'),
+      onchainRef: posted.filter((x) => (x.type === 'transfer_in' || x.type === 'transfer_out') && x.rail === 'onchain' && x.onchain).length,
       posted: posted.length,
       pending: YES.fmt.amount(pend.reduce((a, x) => a + x.amount, 0)),
       pendingAbs: YES.fmt.amount(Math.abs(pend.reduce((a, x) => a + x.amount, 0))),
@@ -261,6 +311,14 @@ export default async function (t) {
   t.eq(await page.locator('#und-panel-usd_equivalent .tag--illustrative').count(), 1, 'USD rate tagged illustrative');
   const oc = await panel('onchain_vs_internal');
   t.assert(oc.includes(`${expect.internal} transactions`) && oc.includes(`${expect.onchain} transactions`), `on-chain vs internal: ${expect.internal} internal, ${expect.onchain} on-chain`);
+  // Only the sample transfer carries a network and hash; the note must not claim each one does.
+  t.assert(expect.onchainRef > 0 && expect.onchainRef < expect.onchain, `data: ${expect.onchainRef} of ${expect.onchain} on-chain transfers carry details`);
+  t.eq(
+    (await text('#und-panel-onchain_vs_internal .und-fact:nth-child(2) .und-fact__note')).trim(),
+    `Network and hash appear only when verified. This demo adds an illustrative sample to ${expect.onchainRef} of ${expect.onchain}.`,
+    'on-chain note says which transfers show a network and hash'
+  );
+  t.assert(!/each has/i.test(oc), 'no claim that every on-chain transfer has a network and hash');
   const ts = await panel('tx_status');
   t.assert(ts.includes(`${expect.posted} transactions`) && ts.includes(`${expect.pending}, not counted`), 'transaction status: posted count and pending amount not counted');
   t.eq(await page.locator('#und-panel-tx_status .status--pending').count(), 1, 'pending shown with a status chip');
@@ -443,11 +501,31 @@ export default async function (t) {
   t.assert((await text('#und-panel-fees details.und-meta')).includes('Texto de demostración — pendiente de aprobación de YES'), 'content record localised');
   t.eq(await page.getAttribute('[data-explain-id="fees"]', 'aria-label'), 'Explicar con IA: Comisiones', 'Explain label localised');
   t.eq(await page.evaluate(() => YES.i18n.audit()), {}, 'i18n parity');
+  await checkLayout('Spanish');
   await settle(200);
   if (mobile) await t.shot('es');
   else await shotEl('.und-layout', 'es');
   await page.evaluate(() => YES.setLang('en'));
   t.eq(await expanded('fees'), 'true', 'state survives the switch back');
+
+  t.step('copy reads cleanly in both languages');
+  await setExpanded(IDS.slice());
+  await page.evaluate(() => document.querySelectorAll('#understand-root details').forEach((d) => (d.open = true)));
+  await settle(100);
+  t.eq(await doubled(), [], 'no repeated word anywhere in the English view');
+  await page.evaluate(() => YES.setLang('es'));
+  t.eq(await doubled(), [], 'no repeated word anywhere in the Spanish view');
+  t.assert(
+    (await text('#und-panel-token_units')).includes('En este estado de cuenta, los tokens se expresan con 2 decimales, así que cada importe es exacto.'),
+    'Spanish token-units copy'
+  );
+  t.eq(
+    (await text('#und-panel-onchain_vs_internal .und-fact:nth-child(2) .und-fact__note')).trim(),
+    `La red y el hash solo aparecen cuando están verificados. Esta demostración añade un ejemplo ilustrativo a ${expect.onchainRef} de ${expect.onchain}.`,
+    'Spanish on-chain note'
+  );
+  await page.evaluate(() => YES.setLang('en'));
+  await setExpanded(['token_units', 'fees']);
 
   /* ------------------------------------------------------------------ */
   t.step('accessibility');
@@ -469,7 +547,7 @@ export default async function (t) {
   await seriousAxe('#view-understand', 'Understand view (all expanded, dark)');
   await page.evaluate(() => window.scrollTo(0, 0));
   await t.shot('dark', { fullPage: !mobile });
-  if (!mobile) await shotEl('.und-side', 'dark-side');
+  if (!mobile) await shotEl('.und-pair', 'dark-pair');
   await page.emulateMedia({ colorScheme: 'light' });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.evaluate(() => YES.understand.openTopic('usd_equivalent'));
@@ -490,14 +568,26 @@ export default async function (t) {
     await shotEl('#und-transparency', 'narrow-transparency');
     await page.setViewportSize({ width: 390, height: 844 });
   } else {
-    const cols = await page.evaluate(() => {
-      const m = document.querySelector('.und-main').getBoundingClientRect();
-      const s = document.querySelector('.und-side').getBoundingClientRect();
-      return { side: s.left > m.right, top: Math.abs(s.top - m.top) < 2 };
-    });
-    t.assert(cols.side && cols.top, 'desktop: basics and side panels sit in two columns');
+    t.assert((await checkLayout('all topics expanded')).paired, 'desktop: evidence panels stay side by side with every topic expanded');
     await page.evaluate(() => window.scrollTo(0, 0));
     await t.shot('full', { fullPage: true });
     await shotEl('#und-transparency', 'transparency');
+    // The docked assistant (html.assistant-docked, ≥1100px) narrows the page by the
+    // drawer's width: the layout follows the width the view actually has.
+    await setExpanded([]);
+    await page.evaluate(() => document.documentElement.classList.add('assistant-docked'));
+    await settle(150);
+    const docked = await checkLayout('docked assistant at 1280px');
+    t.assert(docked.root < 900, `docked: the view is narrowed (${docked.root}px)`);
+    t.eq(await overflowAt(docked.root), [], 'docked: nothing overflows the narrowed view');
+    await page.setViewportSize({ width: 1100, height: 900 });
+    await settle(250);
+    const docked1100 = await checkLayout('docked assistant at 1100px');
+    t.assert(docked1100.stacked && docked1100.tpCols.length === 1, 'docked at 1100px: panels stack instead of squeezing into columns');
+    t.eq(await overflowAt(docked1100.root), [], 'docked at 1100px: nothing overflows');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await t.shot('docked-1100', { fullPage: true });
+    await page.evaluate(() => document.documentElement.classList.remove('assistant-docked'));
+    await page.setViewportSize({ width: 1280, height: 900 });
   }
 }

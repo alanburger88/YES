@@ -35,7 +35,17 @@
     { key: 'f4', icon: 'search', at: 36 },
     { key: 'f5', icon: 'chat', at: 48 }
   ];
-  var WIDE_JOURNEY = '(min-width: 900px)';
+  /* Same-time chart markers (a movement and its fee) are dodged sideways by this many px. */
+  var DODGE = 8;
+
+  /* Net change uses a trend glyph: the tray arrows (arrow-in / arrow-out) mean
+     "received" / "sent" for a single transaction, and a downward "received"
+     arrow next to a positive change reads as a decrease. */
+  ui.registerIcons({
+    'trend-up': '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+    'trend-down': '<path d="m3 7 6 6 4-4 8 8"/><path d="M15 17h6v-6"/>',
+    'trend-flat': '<path d="M3 12h18"/><path d="m16 7 5 5-5 5"/>'
+  });
 
   /* Disclosure state survives re-renders and language switches. The selected
      journey step itself lives in the shared YES.state.journeyStep. */
@@ -44,6 +54,14 @@
   var pendingAnim = false;
   var chart = { pts: [], xs: [], ys: [], w: 0, lastW: 0, focusIdx: 0, hover: -1 };
   var observer = null;
+  /* The step selected before the latest change: lets onState keep the
+     explorer's step filter in step with the journey. */
+  var lastStep = YES.state.journeyStep || null;
+  /* Marks the history entry pushed when a step is selected from the unselected
+     journey, so Back (or Clear) returns to the full journey instead of leaving
+     the statement. Unique per page load: an entry restored from an earlier
+     load does not belong to this document. */
+  var ENTRY = 'ov-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
   /* ------------------------------------------------------------------ */
   /* Helpers                                                             */
@@ -95,8 +113,19 @@
     next[key] = value;
     YES.set({ overview: next });
   }
+  /**
+   * The journey picks its layout from its own width (a container query in
+   * 10-overview.css), not the viewport: the docked assistant narrows the column
+   * without changing the viewport. CSS publishes the active layout as --jr-layout.
+   */
   function wideJourney() {
-    return !!(root.matchMedia && root.matchMedia(WIDE_JOURNEY).matches);
+    var jr = doc.querySelector('#ov-journey-body .jr');
+    if (!jr || !root.getComputedStyle) return false;
+    return root.getComputedStyle(jr).getPropertyValue('--jr-layout').trim() === 'waterfall';
+  }
+  /** A sentence-final value that already ends in a full stop ("Daniel K.") takes no second one. */
+  function noStop(text) {
+    return String(text == null ? '' : text).replace(/\.\s*$/, '');
   }
   function sumOf(list) {
     var s = 0;
@@ -201,7 +230,7 @@
     if (fiatMinor === null || !a.fiat) return '';
     var f = a.fiat;
     return (
-      '<div class="ov-fiat">' +
+      '<div class="ov-fiat ov-balance__fiat">' +
       '<p class="ov-fiat__line"><span class="ov-fiat__value">≈ ' +
       esc(YES.fmt.fiat(fiatMinor, f.currency)) +
       '</span> <span class="ov-fiat__label">' +
@@ -227,6 +256,8 @@
     var s = st();
     var net = YES.calc.netChange();
     var dir = net < 0 ? 'out' : net > 0 ? 'in' : 'neutral';
+    // Number and unit are separate boxes so the unit can drop to its own line
+    // when the column is narrow, instead of running past the card's edge.
     return (
       '<div class="ov-change">' +
       '<p class="ov-change__label">' +
@@ -235,9 +266,17 @@
       '<p class="ov-change__value"><span class="dir dir--' +
       dir +
       '">' +
-      ui.icon(net < 0 ? 'arrow-out' : 'arrow-in', { size: 18 }) +
+      ui.icon(net < 0 ? 'trend-down' : net > 0 ? 'trend-up' : 'trend-flat', { size: 18 }) +
       '</span>' +
-      ui.amountHtml(net, { cls: 'ov-change__amount' }) +
+      '<span class="amount amount--' +
+      (net < 0 ? 'out' : net > 0 ? 'in' : 'zero') +
+      ' ov-change__amount"><span class="ov-change__num" aria-hidden="true">' +
+      esc(YES.fmt.amount(net, { sign: 'always', unit: false })) +
+      '</span> <span class="ov-change__unit" aria-hidden="true">' +
+      esc(sym()) +
+      '</span><span class="sr-only">' +
+      esc(YES.fmt.amountSpoken(net, { sign: 'always' })) +
+      '</span></span>' +
       '</p>' +
       '<p class="ov-change__text">' +
       esc(t('overview.balance.change', { opening: amt(s.opening), date: YES.fmt.date(s.periodStart, 'long') })) +
@@ -393,8 +432,10 @@
       '<span>' +
       esc(t('term.asOf', { date: stamp(s.asOf) })) +
       '</span></p>' +
-      fiatHtml() +
       '</div>' +
+      // Narrow: balance → net change → actions → USD equivalent, so the two
+      // primary actions reach the first screen. Wide: the USD equivalent sits
+      // under the balance and the net change and actions take the second column.
       '<div class="ov-balance__side">' +
       changeHtml() +
       '<div class="ov-actions">' +
@@ -410,7 +451,9 @@
       '<span>' +
       esc(t('overview.actions.explain')) +
       '</span></button>' +
-      '</div></div></div>' +
+      '</div></div>' +
+      fiatHtml() +
+      '</div>' +
       notInBalanceHtml() +
       detailsHtml() +
       '</section>'
@@ -491,7 +534,7 @@
       '</span><span class="jr-sub">' +
       esc(YES.txCount(s.count)) +
       '</span><span class="sr-only">' +
-      esc(t('overview.journey.after', { amount: YES.fmt.amountSpoken(s.end) })) +
+      esc(t('overview.journey.subtotal', { amount: YES.fmt.amountSpoken(s.end) })) +
       '</span></span></button>'
     );
   }
@@ -642,14 +685,14 @@
       '">' +
       ui.icon(ui.typeIcon(tx.type), { size: 16 }) +
       '</span>' +
-      '<span class="ov-tx__when"><span class="ov-tx__date">' +
+      '<span class="ov-tx__when ov-seps"><span class="ov-seps__in"><span class="ov-tx__date">' +
       esc(YES.fmt.date(tx.postedAt, 'medium')) +
-      '</span><span class="ov-tx__sep" aria-hidden="true"> · </span>' +
+      '</span><span class="sr-only">, </span>' +
       '<span class="ov-tx__type">' +
-      esc(ui.typeLabel(tx.type)) +
-      '</span></span>' +
+      esc(ui.typeLabel(tx)) +
+      '</span></span></span>' +
       '<span class="ov-tx__cp">' +
-      esc(YES.L(tx.counterparty)) +
+      ui.maskedHtml(YES.L(tx.counterparty)) +
       '</span>' +
       '<span class="ov-tx__amt">' +
       rowAmount(tx.amount) +
@@ -703,13 +746,14 @@
       '<h3 id="ov-panel-title" class="ov-panel__title" tabindex="-1" data-fk="ov-panel-title">' +
       esc(info.label) +
       '</h3>' +
-      '<p class="ov-panel__meta"><span>' +
+      // Separators are drawn by CSS and clipped at the start of a wrapped line.
+      '<div class="ov-panel__meta ov-seps"><p class="ov-seps__in"><span>' +
       esc(YES.txCount(rows.length)) +
-      '</span><span aria-hidden="true">·</span>' +
+      '</span><span>' +
       numHtml(info.value, { unit: true }) +
-      '<span aria-hidden="true">·</span><span>' +
+      '</span><span>' +
       esc(t('overview.panel.order')) +
-      '</span></p>' +
+      '</span></p></div>' +
       '</div>' +
       list +
       '<div class="ov-sum ' +
@@ -829,7 +873,11 @@
       '<span>' +
       esc(t('overview.journey.table')) +
       '</span></summary>' +
-      '<div class="disclosure__body"><div class="table-wrap"><table class="table ov-table ov-jtable">' +
+      '<div class="disclosure__body"><p class="ov-tablenote">' +
+      ui.icon('info', { size: 16 }) +
+      '<span>' +
+      esc(t('overview.journey.byType')) +
+      '</span></p><div class="table-wrap"><table class="table ov-table ov-jtable">' +
       '<caption>' +
       esc(t('overview.journey.caption', { period: periodText(), symbol: sym() })) +
       '</caption>' +
@@ -962,19 +1010,32 @@
     }
   }
 
-  /** Move the panel slot next to the selection on narrow screens, below the journey on wide ones. */
+  /**
+   * Move the panel slot next to the selection in the list layout, below the
+   * waterfall in the wide one. Moving a node drops focus, so focus inside the
+   * panel is put back on the same control.
+   */
   function placePanel(info) {
     var slot = doc.getElementById('ov-panel');
     var body = doc.getElementById('ov-journey-body');
     if (!slot || !body) return;
     var jr = body.querySelector('.jr');
+    if (!jr) return;
     var anchorId = panelAnchorId(info === undefined ? selectionInfo(YES.state.journeyStep) : info);
     var anchor = anchorId ? jr.querySelector('.jr-step[data-step="' + anchorId + '"]') : null;
+    var active = doc.activeElement;
+    var key = active && slot.contains(active) ? active.getAttribute('data-fk') : null;
+    var moved = false;
     if (anchor) {
-      if (anchor.nextElementSibling !== slot) anchor.parentNode.insertBefore(slot, anchor.nextSibling);
+      if (anchor.nextElementSibling !== slot) {
+        anchor.parentNode.insertBefore(slot, anchor.nextSibling);
+        moved = true;
+      }
     } else if (slot.parentNode !== body || slot.previousElementSibling !== jr) {
       body.insertBefore(slot, jr.nextSibling);
+      moved = true;
     }
+    if (moved && key && doc.activeElement !== active) ui.focusKey(key);
   }
 
   /** Scroll just enough to show the panel without hiding the control that opened it. */
@@ -991,22 +1052,58 @@
     if (Math.abs(delta) > 1 && root.scrollBy) root.scrollBy({ top: delta, behavior: ui.reducedMotion() ? 'auto' : 'smooth' });
   }
 
+  /* ---------------------------- History ----------------------------- */
+  /* Selecting a step from the full journey pushes a history entry, so the
+     browser's (or Android's) Back clears the selection instead of leaving the
+     statement; moving between steps replaces that entry. Clear goes back
+     through the same entry, so the history does not fill with copies. */
+  function onOwnEntry() {
+    var h = root.history && root.history.state;
+    return !!(h && h.ovEntry === ENTRY);
+  }
+  function markOwnEntry() {
+    try {
+      root.history.replaceState({ ovEntry: ENTRY }, '', root.location.href);
+    } catch (e) {
+      /* history unavailable: Back simply leaves, as before */
+    }
+  }
+  /** Reflect a new selection in the address (call after YES.set; prev = the step before). */
+  function routeTo(id, prev) {
+    if (YES.state.view !== 'overview' || !root.history) return;
+    if (!prev && id) {
+      YES.nav.go('overview', { param: id, focus: false }); // pushes #/overview/<id>
+      markOwnEntry();
+    } else {
+      var own = onOwnEntry();
+      YES.nav.setParam(id); // replaces the entry (and its state)
+      if (own) markOwnEntry();
+    }
+  }
+
+  function selectedMessage(info) {
+    return t('overview.journey.selected', {
+      label: info.label,
+      count: YES.txCount(rowsFor(info.txIds).length),
+      amount: YES.fmt.amountSpoken(info.value, { sign: 'always' })
+    });
+  }
+
   function select(id, opts) {
     opts = opts || {};
     var info = selectionInfo(id);
     if (!info) return false;
+    var prev = YES.state.journeyStep;
     pendingAnim = true;
-    if (opts.navigate && YES.state.view !== 'overview') YES.nav.go('overview', { param: id, focus: false });
-    YES.set({ journeyStep: id });
+    if (opts.navigate && YES.state.view !== 'overview') {
+      YES.nav.go('overview', { param: id, focus: false }); // show the view first, then select
+      YES.set({ journeyStep: id });
+    } else {
+      YES.set({ journeyStep: id });
+      routeTo(id, prev);
+    }
     pendingAnim = false;
-    if (YES.state.view === 'overview') YES.nav.setParam(id);
-    ui.announce(
-      t('overview.journey.selected', {
-        label: info.label,
-        count: YES.txCount(rowsFor(info.txIds).length),
-        amount: YES.fmt.amountSpoken(info.value, { sign: 'always' })
-      })
-    );
+    ui.announce(selectedMessage(info));
     var panel = doc.getElementById('ov-panel-section');
     if (panel) {
       if (opts.focusPanel) {
@@ -1021,12 +1118,40 @@
   }
 
   function clearSelection(opts) {
+    opts = opts || {};
     var prev = YES.state.journeyStep;
     if (!prev) return;
+    var back = !opts.fromHistory && YES.state.view === 'overview' && onOwnEntry();
+    var hadFocus = doc.activeElement && doc.getElementById('ov-panel') && doc.getElementById('ov-panel').contains(doc.activeElement);
     YES.set({ journeyStep: null });
-    if (YES.state.view === 'overview') YES.nav.setParam(null);
+    if (back) root.history.back();
+    else if (!opts.fromHistory && YES.state.view === 'overview') YES.nav.setParam(null);
     ui.announce(t('overview.journey.cleared'));
-    if (opts && opts.returnFocus) ui.focusKey('ov-step-' + prev);
+    if (opts.returnFocus || hadFocus) ui.focusKey('ov-step-' + prev);
+  }
+
+  /* --------------------- Explorer filter in step ---------------------- */
+  /* PRD 5.2: selecting a step filters the transaction explorer to exactly the
+     transactions behind it, and clearing it restores the full ledger. The
+     filter is shared state (YES.state.filters, shape from YES.defaultFilters),
+     so the Transactions view opens on the same rows with its "Step" chip and
+     "Back to balance journey" link — without an extra announcement here. */
+  function syncExplorer(prev, next) {
+    var cur = YES.state.filters || YES.defaultFilters();
+    var f;
+    if (next) {
+      if (cur.step === next && !cur.ids) return;
+      f = YES.defaultFilters();
+      f.step = next;
+    } else {
+      if (!prev || cur.step !== prev) return; // the customer changed it in Transactions: leave it
+      f = {};
+      Object.keys(cur).forEach(function (k) {
+        f[k] = cur[k];
+      });
+      f.step = null;
+    }
+    YES.set({ filters: f });
   }
 
   /* ------------------------------------------------------------------ */
@@ -1048,11 +1173,25 @@
   function pointLabel(p) {
     return t('overview.chart.point', {
       date: YES.fmt.date(p.iso, 'datetime'),
-      type: ui.typeLabel(p.tx.type),
+      type: ui.typeLabel(p.tx),
       amount: YES.fmt.amountSpoken(p.delta, { sign: 'always' }),
-      counterparty: YES.L(p.tx.counterparty),
+      // The template ends this clause with a full stop: "Daniel K." must not read "Daniel K..".
+      counterparty: noStop(YES.fmt.maskedSpoken(YES.L(p.tx.counterparty))),
       balance: YES.fmt.amountSpoken(p.balance)
     });
+  }
+
+  /** Rendered width of a 12px chart label, so axis labels are thinned before they collide. */
+  var measureCtx = null;
+  function textWidth(str) {
+    try {
+      if (!measureCtx) measureCtx = doc.createElement('canvas').getContext('2d');
+      var host = plotHost();
+      measureCtx.font = '12px ' + ((host && root.getComputedStyle(host).fontFamily) || 'sans-serif');
+      return measureCtx.measureText(str).width;
+    } catch (e) {
+      return str.length * 7;
+    }
   }
 
   /** The SVG chart plus its keyboard/pointer layer, drawn at the host's pixel width. */
@@ -1092,32 +1231,78 @@
       svg.push('<line class="' + (v === 0 ? 'c-zero' : 'c-grid') + '" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y + '" y2="' + y + '"/>');
       svg.push('<text class="c-tick" x="' + (m.l - 8) + '" y="' + y + '" text-anchor="end" dominant-baseline="middle">' + esc(tickLabel(v)) + '</text>');
     });
+    // A tick every week; a label only as often as the labels fit side by side
+    // (every week on a desktop, every second week on a 320px phone).
     var DAY = 86400000;
-    for (var d = 0; x0 + d * DAY <= x1; d += 7) {
-      var ms = x0 + d * DAY;
-      var x = X(ms);
+    var weeks = [];
+    for (var d = 0; x0 + d * DAY <= x1; d += 7) weeks.push({ ms: x0 + d * DAY, text: YES.fmt.date(new Date(x0 + d * DAY).toISOString(), 'short') });
+    var widest = 0;
+    weeks.forEach(function (wk) {
+      widest = Math.max(widest, textWidth(wk.text));
+    });
+    var perWeek = (pw * 7 * DAY) / Math.max(DAY, x1 - x0);
+    var every = 1;
+    while (every < weeks.length && perWeek * every < widest + 12) every++;
+    weeks.forEach(function (wk, k) {
+      var x = X(wk.ms);
       svg.push('<line class="c-xtick" x1="' + x + '" x2="' + x + '" y1="' + (H - m.b) + '" y2="' + (H - m.b + 4) + '"/>');
-      svg.push('<text class="c-tick" x="' + x + '" y="' + (H - m.b + 19) + '" text-anchor="middle">' + esc(YES.fmt.date(new Date(ms).toISOString(), 'short')) + '</text>');
-    }
+      if (k % every === 0) svg.push('<text class="c-tick" x="' + x + '" y="' + (H - m.b + 19) + '" text-anchor="middle">' + esc(wk.text) + '</text>');
+    });
     chart.pts = [];
     chart.xs = [];
     chart.ys = [];
     var path = 'M' + X(x0) + ' ' + Y(s.opening);
+    var lane = {}; // timestamp -> markers already placed there
     running.forEach(function (p) {
       var px = X(Date.parse(p.at));
       var py = Y(p.balance);
       path += 'H' + px + 'V' + py;
-      chart.pts.push({ id: p.txId, at: Date.parse(p.at), iso: p.at, balance: p.balance, delta: p.delta, tx: byId[p.txId] });
+      chart.pts.push({ id: p.txId, at: Date.parse(p.at), iso: p.at, balance: p.balance, delta: p.delta, tx: byId[p.txId], lane: 0 });
       chart.xs.push(px);
       chart.ys.push(py);
+    });
+    // Same-time markers (a movement and its fee) would sit exactly on top of
+    // each other: keep the movement on the line and dodge the others sideways,
+    // so every marker stays visible and can be picked.
+    var order = chart.pts
+      .map(function (p, i) {
+        return i;
+      })
+      .sort(function (a, b) {
+        var fa = chart.pts[a].tx.type === 'fee' ? 1 : 0;
+        var fb = chart.pts[b].tx.type === 'fee' ? 1 : 0;
+        return chart.pts[a].at - chart.pts[b].at || fa - fb || a - b;
+      });
+    order.forEach(function (i) {
+      var key = chart.pts[i].at;
+      var k = lane[key] || 0;
+      lane[key] = k + 1;
+      chart.pts[i].lane = k;
+      chart.xs[i] = r1(chart.xs[i] + k * DODGE);
     });
     path += 'H' + X(x1);
     var base = Y(Math.min(Math.max(0, y0), y1));
     svg.push('<path class="c-area" d="' + path + 'V' + base + 'H' + X(x0) + 'Z"/>');
     svg.push('<path class="c-line" d="' + path + '"/>');
-    chart.pts.forEach(function (p, i) {
-      svg.push('<path class="ov-mk ov-mk--' + (p.delta < 0 ? 'out' : 'in') + '" data-i="' + i + '" d="' + triPath(chart.xs[i], chart.ys[i], p.delta >= 0) + '"/>');
-    });
+    // Dodged markers first, so the movement on the line is drawn on top; fees are smaller.
+    order
+      .slice()
+      .sort(function (a, b) {
+        return chart.pts[b].lane - chart.pts[a].lane || a - b;
+      })
+      .forEach(function (i) {
+        var p = chart.pts[i];
+        svg.push(
+          '<path class="ov-mk ov-mk--' +
+            (p.delta < 0 ? 'out' : 'in') +
+            (p.tx.type === 'fee' ? ' ov-mk--minor' : '') +
+            '" data-i="' +
+            i +
+            '" d="' +
+            triPath(chart.xs[i], chart.ys[i], p.delta >= 0, p.tx.type === 'fee' ? 0.8 : 1) +
+            '"/>'
+        );
+      });
     var endBalance = running.length ? running[running.length - 1].balance : s.opening;
     svg.push('<text class="c-end" x="' + (W - m.r) + '" y="' + (Y(endBalance) - 12) + '" text-anchor="end">' + esc(plain(endBalance)) + '</text>');
 
@@ -1224,7 +1409,8 @@
         '" data-fk="ov-ctx-' +
         esc(tx.id) +
         '">' +
-        esc(ui.typeLabel(tx.type) + ' · ' + YES.L(tx.counterparty)) +
+        esc(ui.typeLabel(tx) + ' · ') +
+        ui.maskedHtml(YES.L(tx.counterparty)) +
         '</button></th><td class="num">' +
         ui.amountHtml(p.delta, { unit: false }) +
         '</td><td class="num">' +
@@ -1407,7 +1593,7 @@
       esc(t('overview.insight.title')) +
       '</h3>' +
       '<p class="ov-insight__body">' +
-      esc(t('overview.insight.body', { amount: amt(tx.amount, 'always'), date: YES.fmt.date(tx.postedAt, 'long'), description: YES.L(tx.description) })) +
+      esc(t('overview.insight.body', { amount: amt(tx.amount, 'always'), date: YES.fmt.date(tx.postedAt, 'long'), description: noStop(YES.L(tx.description)) })) +
       '</p>' +
       '<div class="ov-cardactions">' +
       '<button type="button" class="btn" data-ov-tx="' +
@@ -1461,10 +1647,21 @@
     var slot = YES.config.slots.VIDEO_POSTER;
     // An approved poster may be packaged as a data: URI; anything else would be a network request.
     if (typeof slot === 'string' && /^data:image\//.test(slot)) return '<img class="ov-poster__img" src="' + esc(slot) + '" alt="">';
-    var bars = [38, 58, 50, 30, 44];
-    var barSvg = bars
-      .map(function (h, i) {
-        return '<rect class="ov-poster__bar" x="' + (214 + i * 18) + '" y="' + (128 - h) + '" width="10" height="' + h + '" rx="2"/>';
+    // A miniature of this statement's own balance journey (opening → movements →
+    // closing), drawn from YES.calc like every other figure: a preview of what the
+    // video explains, not a decorative "performance" chart.
+    var steps = YES.calc.journey();
+    var hi = 0;
+    steps.forEach(function (sp) {
+      hi = Math.max(hi, sp.start, sp.end);
+    });
+    var slot = 100 / Math.max(1, steps.length);
+    var barSvg = steps
+      .map(function (sp, i) {
+        var top = 128 - (Math.max(sp.start, sp.end) / (hi || 1)) * 70;
+        var h = Math.max(2, (Math.abs(sp.end - sp.start) / (hi || 1)) * 70);
+        var cls = sp.kind === 'total' ? 'ov-poster__bar ov-poster__bar--total' : 'ov-poster__bar';
+        return '<rect class="' + cls + '" x="' + r1(206 + i * slot + slot * 0.2) + '" y="' + r1(top) + '" width="' + r1(slot * 0.6) + '" height="' + r1(h) + '" rx="1.5"/>';
       })
       .join('');
     return (
@@ -1547,7 +1744,7 @@
     if (big) {
       vars.amount = amt(big.amount, 'always');
       vars.date = YES.fmt.date(big.postedAt, 'long');
-      vars.description = YES.L(big.description);
+      vars.description = noStop(YES.L(big.description));
     }
     return { vars: vars, big: big };
   }
@@ -1677,7 +1874,7 @@
       '"/></svg><span><strong>' +
       esc(amt(p.delta, 'always')) +
       '</strong> ' +
-      esc(ui.typeLabel(p.tx.type)) +
+      esc(ui.typeLabel(p.tx)) +
       '</span></p>' +
       '<p class="ov-tip__meta">' +
       esc(YES.L(p.tx.counterparty)) +
@@ -1829,11 +2026,14 @@
     var el = doc.getElementById('overview-root');
     if (!el) return;
     ui.render(el, viewHtml());
+    placePanel(); // the first render cannot know the layout before the journey exists
     var host = plotHost();
     if (host && host.clientWidth && (!host.firstChild || Math.abs(host.clientWidth - chart.lastW) >= 1)) renderPlot();
     if (observer) {
       observer.disconnect();
       if (host) observer.observe(host);
+      var body = doc.getElementById('ov-journey-body');
+      if (body) observer.observe(body);
     }
     var dlg = doc.getElementById('video-dialog');
     if (dlg && dlg.open) ui.render(dlg, videoDialogHtml());
@@ -1901,23 +2101,25 @@
         'overview.details.maskNote': 'Account and wallet identifiers are masked to protect your account. Showing them in full is not available in this statement.',
 
         'overview.journey.title': 'Balance journey',
-        'overview.journey.lede': 'How your balance moved from {opening} to {closing}. Select any step to see the transactions behind it.',
+        'overview.journey.lede': 'How your balance moved from {opening} to {closing}, with this period’s movements grouped by type. Select any step to see the transactions behind it.',
         'overview.journey.unit': 'Amounts in {symbol} {unit}',
         'overview.journey.legendLabel': 'Legend',
         'overview.journey.legendIn': 'Adds to balance',
         'overview.journey.legendOut': 'Reduces balance',
-        'overview.journey.legendTotal': 'Balance',
+        'overview.journey.legendTotal': 'Opening and closing balance',
         'overview.journey.stepsLabel': 'Balance journey steps',
-        'overview.journey.after': 'Balance after this step: {amount}',
+        'overview.journey.subtotal': 'Running subtotal after this step: {amount}',
         'overview.journey.selected': '{label} selected: {count}, {amount}. The transactions are listed below.',
         'overview.journey.cleared': 'Selection cleared. The full journey is shown.',
         'overview.journey.eqTitle': 'In numbers',
         'overview.journey.equals': 'equals',
         'overview.journey.table': 'Show the journey as a table',
         'overview.journey.caption': 'Balance journey, {period}. Amounts in {symbol}.',
+        'overview.journey.byType':
+          'Steps are grouped by type, not by date, so the subtotals between the opening and closing balance are not balances your account held. For your balance on each date, see Running balance.',
         'overview.journey.colStep': 'Step',
         'overview.journey.colChange': 'Change',
-        'overview.journey.colAfter': 'Balance after step',
+        'overview.journey.colAfter': 'Running subtotal',
         'overview.journey.colCount': 'Transactions',
         'overview.journey.net': 'Net change',
         'overview.journey.exTitle': 'The balance journey can’t be shown',
@@ -2067,23 +2269,25 @@
         'overview.details.maskNote': 'Los identificadores de cuenta y de monedero están enmascarados para proteger tu cuenta. En este estado de cuenta no es posible mostrarlos completos.',
 
         'overview.journey.title': 'Recorrido del saldo',
-        'overview.journey.lede': 'Cómo pasó tu saldo de {opening} a {closing}. Selecciona cualquier paso para ver los movimientos que lo forman.',
+        'overview.journey.lede': 'Cómo pasó tu saldo de {opening} a {closing}, con los movimientos del período agrupados por tipo. Selecciona cualquier paso para ver los movimientos que lo forman.',
         'overview.journey.unit': 'Importes en {unit} {symbol}',
         'overview.journey.legendLabel': 'Leyenda',
         'overview.journey.legendIn': 'Suma al saldo',
         'overview.journey.legendOut': 'Reduce el saldo',
-        'overview.journey.legendTotal': 'Saldo',
+        'overview.journey.legendTotal': 'Saldo inicial y final',
         'overview.journey.stepsLabel': 'Pasos del recorrido del saldo',
-        'overview.journey.after': 'Saldo después de este paso: {amount}',
+        'overview.journey.subtotal': 'Subtotal acumulado tras este paso: {amount}',
         'overview.journey.selected': 'Seleccionaste {label}: {count}, {amount}. Los movimientos aparecen debajo.',
         'overview.journey.cleared': 'Selección borrada. Se muestra el recorrido completo.',
         'overview.journey.eqTitle': 'En cifras',
         'overview.journey.equals': 'es igual a',
         'overview.journey.table': 'Ver el recorrido como tabla',
-        'overview.journey.caption': 'Recorrido del saldo, {period}. Importes en {symbol}.',
+        'overview.journey.caption': 'Recorrido del saldo del {period}. Importes en {symbol}.',
+        'overview.journey.byType':
+          'Los pasos se agrupan por tipo, no por fecha, así que los subtotales entre el saldo inicial y el final no son saldos que haya tenido tu cuenta. Para ver tu saldo en cada fecha, consulta Saldo acumulado.',
         'overview.journey.colStep': 'Paso',
-        'overview.journey.colChange': 'Variación',
-        'overview.journey.colAfter': 'Saldo tras el paso',
+        'overview.journey.colChange': 'Cambio',
+        'overview.journey.colAfter': 'Subtotal',
         'overview.journey.colCount': 'Movimientos',
         'overview.journey.net': 'Cambio neto',
         'overview.journey.exTitle': 'No se puede mostrar el recorrido del saldo',
@@ -2109,7 +2313,7 @@
         'overview.why.lede': 'Cuándo se movió tu saldo, qué lo movió y cuánto costó.',
         'overview.why.withheld': 'El gráfico del saldo acumulado, el resumen de comisiones y los datos destacados se retienen porque este estado de cuenta no cuadra.',
         'overview.chart.title': 'Saldo acumulado',
-        'overview.chart.lede': 'Tu saldo después de cada movimiento registrado, {period}. Selecciona un punto para abrir ese movimiento.',
+        'overview.chart.lede': 'Tu saldo después de cada movimiento registrado del {period}. Selecciona un punto para abrir ese movimiento.',
         'overview.chart.legendLine': 'Saldo',
         'overview.chart.legendIn': 'Movimiento de entrada',
         'overview.chart.legendOut': 'Movimiento de salida o comisión',
@@ -2120,7 +2324,7 @@
         'overview.chart.sameTime': '+{n} más a la misma hora',
         'overview.chart.openHint': 'Selecciona para abrir el movimiento',
         'overview.chart.table': 'Ver los datos del gráfico como tabla',
-        'overview.chart.caption': 'Saldo después de cada movimiento registrado, {period}. Importes en {symbol}.',
+        'overview.chart.caption': 'Saldo después de cada movimiento registrado del {period}. Importes en {symbol}.',
         'overview.chart.colTx': 'Movimiento',
         'overview.chart.colAfter': 'Saldo después',
         'overview.chart.low': 'Con solo {count} en este período, un gráfico no sería útil. Aquí tienes cada cambio.',
@@ -2288,32 +2492,46 @@
         true
       );
 
-      // Deep link: #/overview/<step> selects that step.
+      // Deep link (or Forward): #/overview/<step> selects that step. Within the
+      // Overview (Forward, an edited address) the selection is announced; when
+      // the view itself changes the router announces the view instead.
+      var routeView = null;
       YES.on('route', function (r) {
-        if (r.view !== 'overview' || !r.param || r.param === YES.state.journeyStep || !selectionInfo(r.param)) return;
+        var sameView = routeView === 'overview';
+        routeView = r.view;
+        if (r.view !== 'overview' || !r.param || r.param === YES.state.journeyStep) return;
+        var info = selectionInfo(r.param);
+        if (!info) return;
         pendingAnim = true;
         YES.set({ journeyStep: r.param });
         pendingAnim = false;
+        if (sameView) ui.announce(selectedMessage(info));
+      });
+      // Back (or an edited address) to plain #/overview restores the full journey.
+      // Only the browser fires 'hashchange'; the navigation's own links push
+      // #/overview without one, and a selection survives those.
+      root.addEventListener('hashchange', function () {
+        if (!YES.nav.isRouteHash(root.location.hash)) return;
+        var r = YES.nav.current();
+        if (r.view === 'overview' && !r.param && YES.state.journeyStep) clearSelection({ fromHistory: true });
       });
 
-      // Layout changes: redraw the chart at its new width; move the panel between layouts.
+      // Layout changes: redraw the chart at its new width; move the panel when
+      // the journey switches between the list and the waterfall (its own width
+      // decides, so docking the assistant counts too).
       if (root.ResizeObserver) {
         observer = new root.ResizeObserver(function () {
           root.requestAnimationFrame(function () {
             var host = plotHost();
             if (host && host.clientWidth && Math.abs(host.clientWidth - chart.lastW) >= 2) renderPlot();
+            placePanel();
           });
         });
       } else {
-        root.addEventListener('resize', renderPlot);
-      }
-      if (root.matchMedia) {
-        var mq = root.matchMedia(WIDE_JOURNEY);
-        var onChange = function () {
+        root.addEventListener('resize', function () {
+          renderPlot();
           placePanel();
-        };
-        if (mq.addEventListener) mq.addEventListener('change', onChange);
-        else if (mq.addListener) mq.addListener(onChange);
+        });
       }
 
       render();
@@ -2322,7 +2540,11 @@
     render: render,
 
     onState: function (keys) {
-      if (keys.indexOf('journeyStep') !== -1) syncJourney();
+      if (keys.indexOf('journeyStep') === -1) return;
+      var prev = lastStep;
+      lastStep = YES.state.journeyStep || null;
+      syncJourney();
+      syncExplorer(prev, lastStep);
     }
   });
 })(window);

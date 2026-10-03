@@ -4,9 +4,10 @@
 // detail, full-screen sheet on mobile, axe, no network.
 export const meta = { name: 'inquiry', viewports: ['desktop', 'mobile'] };
 
-const TX = 'TX-260909-2051';
-const TX2 = 'TX-260918-2011';
-const PENDING = 'TX-260930-2247';
+const TX = 'TX-260909-2051'; // posted, on-chain, with a linked fee
+const TX2 = 'TX-260918-2011'; // posted, no fee
+const PENDING = 'TX-260930-2247'; // pending, no fee
+const FEE = 'TX-260909-2052'; // a fee line
 const REF_RE = /^DEMO-INQ-[2-9A-HJ-NP-Z]{4}$/;
 
 export default async function (t) {
@@ -87,6 +88,21 @@ export default async function (t) {
     await waitClosed();
   };
   const realExplorer = await page.evaluate(() => !!document.querySelector('#h-transactions'));
+  const reasons = () => page.$$eval('#inquiry-dialog input[name="inq-reason"]', (as) => as.map((a) => a.value));
+  // Every live region in the dialog (the module's own and any the shared ui.announce added).
+  const liveText = () => page.$$eval('#inquiry-dialog > [aria-live]', (rs) => rs.map((r) => r.textContent).join('|').replace(/^\|+|\|+$/g, ''));
+  /** Where the focused control sits against the dialog's footer: fully visible, and on top at its centre? */
+  const focusedClearOfFooter = (sel) =>
+    page.evaluate((s) => {
+      const a = document.activeElement;
+      const box = (s ? a.closest(s) : null) || a;
+      const r = box.getBoundingClientRect();
+      const foot = document.querySelector('#inquiry-dialog .inq-foot').getBoundingClientRect();
+      const body = document.querySelector('#inquiry-dialog .inq-body').getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return { id: a.id, visible: r.top >= body.top - 1 && r.bottom <= foot.top + 1, onTop: !!hit && box.contains(hit) };
+    }, sel);
+  const nextFrames = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 
   /* ------------------------------------------------------------------ */
   t.step('open on the transaction step');
@@ -129,10 +145,13 @@ export default async function (t) {
   await page.click('[data-inq-next]');
   t.eq(await step(), 'details', 'Details is the current step');
   await expectFocus('inq-h-details', 'focus moves to the step heading');
-  t.eq(await page.locator('#inquiry-dialog input[name="inq-reason"]').count(), 5, 'five reasons');
+  // A posted transfer with a linked fee: "still pending" would contradict its status.
+  t.eq(await reasons(), ['unrecognized', 'amount', 'fee', 'other'], 'reasons that fit a posted transaction with a fee');
   t.eq(await page.locator('#inquiry-dialog input[name="inq-channel"]').count(), 3, 'three reply channels');
   const s2 = await dialogText();
-  for (const r of ['I don’t recognise this transaction', 'The amount looks wrong', 'It’s still pending', 'I have a question about a fee', 'Something else']) t.assert(s2.includes(r), 'reason: ' + r);
+  for (const r of ['I don’t recognize this transaction', 'The amount looks wrong', 'I have a question about a fee', 'Something else']) t.assert(s2.includes(r), 'reason: ' + r);
+  t.assert(!s2.includes('It’s still pending'), '“It’s still pending” is not offered for a posted transaction');
+  t.assert(!/recognis|colour/.test(s2), 'US spelling, like the en-US dates and numbers');
   for (const c of ['In-app message', 'Email on file', 'Phone call on file']) t.assert(s2.includes(c), 'channel: ' + c);
   t.assert(s2.includes('This demo collects no contact details'), 'says the demo collects no contact details');
   t.assert(s2.includes('details already on your account'), 'production uses the details already on the account');
@@ -147,14 +166,47 @@ export default async function (t) {
   t.eq(await noHScroll(), { page: true, dialog: true, body: true }, 'no horizontal scroll');
   await shot('step2');
 
+  t.step('tabbing to a field shows all of it above the footer');
+  await page.focus('#inq-reason-unrecognized');
+  await page.keyboard.press('Tab');
+  await nextFrames();
+  await settle();
+  t.eq(await focusedClearOfFooter('[data-inq-reveal]'), { id: 'inq-desc', visible: true, onTop: true }, 'description field and its counter clear of the footer');
+  await shot('tab-description');
+  await page.keyboard.press('Tab');
+  await nextFrames();
+  await settle();
+  t.eq(await focusedClearOfFooter('[data-inq-reveal]'), { id: 'inq-channel-in_app', visible: true, onTop: true }, 'reply-channel choice clear of the footer');
+  await page.evaluate(() => document.querySelector('#inquiry-dialog .inq-body').scrollTo(0, 0));
+
   /* ------------------------------------------------------------------ */
   t.step('missing required fields: error summary and inline errors');
+  await page.evaluate(() => {
+    // Record what reaches assistive technology when the errors appear.
+    window.__inqA11y = [];
+    const d = document.getElementById('inquiry-dialog');
+    new MutationObserver((ms) =>
+      ms.forEach((m) => {
+        const live = m.target.nodeType === 1 ? m.target.closest('[aria-live]') : m.target.parentElement && m.target.parentElement.closest('[aria-live]');
+        if (live && live.textContent) window.__inqA11y.push('live:' + live.textContent);
+        m.addedNodes.forEach((n) => {
+          if (n.nodeType === 1 && (n.matches('[role="alert"]') || n.querySelector('[role="alert"]'))) window.__inqA11y.push('alert');
+        });
+      })
+    ).observe(d, { childList: true, subtree: true, characterData: true });
+  });
   await page.click('[data-inq-next]');
   t.eq(await step(), 'details', 'stays on Details');
   const summary = page.locator('#inquiry-dialog .inq-errors');
   t.assert(await summary.isVisible(), 'error summary shown');
-  t.eq(await summary.getAttribute('role'), 'alert', 'summary has role=alert');
   await expectFocus('inq-errors', 'focus moves to the error summary');
+  t.eq(
+    [await summary.getAttribute('role'), await summary.getAttribute('aria-labelledby'), await summary.getAttribute('aria-describedby')],
+    ['group', 'inq-errors-title', 'inq-errors-list'],
+    'summary is a named group described by its list (announced once, when it takes focus)'
+  );
+  await page.waitForTimeout(250); // longer than any queued announcement
+  t.eq(await page.evaluate(() => window.__inqA11y), [], 'no role=alert and no live-region message competing with the focused summary');
   const links = await page.$$eval('#inquiry-dialog .inq-errors a', (as) => as.map((a) => [a.getAttribute('data-inq-errlink'), a.textContent.trim()]));
   t.eq(links, [['reason', 'Choose what your inquiry is about.'], ['channel', 'Choose how YES should reply.']], 'summary links, in form order');
   const inv = await page.evaluate(() => {
@@ -179,8 +231,6 @@ export default async function (t) {
   t.assert(/Error:\s*Choose what your inquiry is about\./.test(inv.reasonMsg || ''), 'inline reason error with prefix');
   t.assert(/Choose how YES should reply\./.test(inv.channelMsg || ''), 'inline channel error');
   t.eq(inv.descInvalid, null, 'optional description is not invalid');
-  await page.waitForFunction(() => document.querySelector('#inquiry-dialog [data-inq-live-a]').textContent.includes('2 answers need your attention'), null, { timeout: 2000 }).catch(() => {});
-  t.assert((await text('#inquiry-dialog [data-inq-live-a]')).includes('2 answers need your attention'), 'error count announced assertively inside the dialog');
   await seriousAxe('error state');
   await shot('errors');
   const hashBefore = await page.evaluate(() => location.hash);
@@ -188,7 +238,7 @@ export default async function (t) {
   await expectFocus('inq-channel-in_app', 'summary link moves focus to the channel field');
   t.eq(await page.evaluate(() => location.hash), hashBefore, 'summary links never change the route');
   await page.click('[data-inq-errlink="reason"]');
-  await expectFocus('inq-reason-unrecognised', 'summary link moves focus to the reason field');
+  await expectFocus('inq-reason-unrecognized', 'summary link moves focus to the reason field');
 
   t.step('answering a field clears its error');
   await page.click('label[for="inq-reason-amount"]');
@@ -199,6 +249,29 @@ export default async function (t) {
   t.eq(await page.locator('#inquiry-dialog .inq-errors').count(), 0, 'summary removed once everything is answered');
 
   t.step('description: counter and sensitive-number guard');
+  // What the guard must let through: the statement's own identifiers and ordinary numbers.
+  const hash = await page.evaluate((id) => YES.calc.tx(id).onchain.hash, TX);
+  const randomHashes = await page.evaluate(() => {
+    const hex = () => Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, '0')).join('');
+    return Array.from({ length: 6 }, (_, i) => (i % 2 ? '0x' + hex() : hex().toUpperCase())).join(' ');
+  });
+  for (const ok of [
+    'This is the network hash: ' + hash,
+    'Network hash ' + hash.toLowerCase() + ' on statement YES-STM-202609-000184.',
+    randomHashes,
+    'Between 2026-09-24 2026-09-30 I sent 500 200 450 100 to TX-260909-2051.',
+    'I expected 1,147.50, not 1,000,000,000,000.00.'
+  ]) {
+    await page.fill('#inq-desc', ok);
+    await page.click('[data-inq-next]');
+    t.eq([await step(), await page.evaluate(() => YES.state.inquiry.errors)], ['review', null], 'not mistaken for a card or account number: ' + ok.slice(0, 48));
+    await page.click('[data-inq-prev]');
+  }
+  for (const bad of ['account 000123456789', 'card:4111111111111111', 'Amex 3782 822463 10005', '4111 1111 1111 1111 123']) {
+    await page.fill('#inq-desc', bad);
+    await page.click('[data-inq-next]');
+    t.eq(await page.evaluate(() => YES.state.inquiry.errors), { description: 'sensitive' }, 'blocked: ' + bad);
+  }
   await page.fill('#inq-desc', 'My card is 4111 1111 1111 1111');
   await page.click('[data-inq-next]');
   t.eq(await step(), 'details', 'a full card number blocks the step');
@@ -210,6 +283,21 @@ export default async function (t) {
   t.eq(await page.getAttribute('#inq-desc', 'aria-invalid'), null, 'error clears once the number is removed');
   t.eq(await page.locator('#inquiry-dialog .inq-errors').count(), 0, 'summary cleared');
   t.eq((await text('#inq-desc-count')).trim(), `${500 - desc.length} characters left`, 'counter follows the text');
+
+  t.step('live regions never keep a message from an earlier step');
+  await page.fill('#inq-desc', 'Long note. '.repeat(38)); // 418 characters: the counter speaks up
+  await page.waitForFunction(() => /characters left/.test(document.querySelector('#inquiry-dialog [data-inq-live]').textContent), null, { timeout: 3000 }).catch(() => {});
+  t.assert(/82 characters left/.test(await liveText()), 'remaining characters announced politely near the limit');
+  await page.focus('#inq-desc');
+  await page.keyboard.press('End');
+  await page.keyboard.type('x'); // queues another count announcement…
+  await page.click('[data-inq-next]'); // …and leaves the step before it is spoken
+  t.eq(await step(), 'review', 'at Review');
+  t.eq(await liveText(), '', 'the Details announcement is gone at Review');
+  await page.waitForTimeout(1000);
+  t.eq(await liveText(), '', 'and no queued Details announcement arrives later');
+  await page.click('[data-inq-edit="description"]');
+  await page.fill('#inq-desc', desc);
   await page.locator('[data-inq-group="channel"]').scrollIntoViewIfNeeded();
   await shot('channel');
   const st = await page.evaluate(() => YES.state.inquiry);
@@ -334,6 +422,15 @@ export default async function (t) {
   await page.click('[data-fk="inq-done"]');
   await waitClosed();
   await expectFocus('inq-test-trigger', 'focus returns to the trigger');
+  t.eq(await liveText(), '', 'closing empties the dialog’s live regions');
+  // In Spanish, a new inquiry about another transaction carries nothing of the English confirmation.
+  await page.evaluate(() => YES.setLang('es'));
+  await openWith(PENDING);
+  const fresh = await page.evaluate(() => document.getElementById('inquiry-dialog').textContent);
+  t.assert(!fresh.includes('Demo only — no inquiry was sent') && !fresh.includes(ref), 'no English confirmation or earlier reference left in the dialog');
+  t.eq(await liveText(), '', 'live regions empty on a new inquiry');
+  await close();
+  await page.evaluate(() => YES.setLang('en'));
   const d2 = await draft(TX);
   t.eq([d2 && d2.status, d2 && d2.ref], ['submitted', ref], 'draftFor returns the submitted demo inquiry');
   await openWith(TX);
@@ -374,12 +471,12 @@ export default async function (t) {
   });
   await openWith(TX2);
   await page.click('[data-inq-next]');
-  await page.click('label[for="inq-reason-unrecognised"]');
+  await page.click('label[for="inq-reason-unrecognized"]');
   await page.click('[data-inq-backtx]');
   await waitClosed();
   t.eq(await page.evaluate(() => window.__openTx), [{ id: TX2, trigger: 'inq-test-trigger' }], 'YES.explorer.openTx(txId, { trigger })');
   const d4 = await draft(TX2);
-  t.eq([d4 && d4.status, d4 && d4.step, d4 && d4.reason], ['draft', 'details', 'unrecognised'], 'draft kept');
+  t.eq([d4 && d4.status, d4 && d4.step, d4 && d4.reason], ['draft', 'details', 'unrecognized'], 'draft kept');
   t.eq((await draft(TX)) && (await draft(TX)).status, 'submitted', 'other transaction’s inquiry kept separately');
   if (realExplorer) {
     await page.waitForFunction(() => document.getElementById('tx-dialog').open, null, { timeout: 3000 });
@@ -398,11 +495,20 @@ export default async function (t) {
   await page.evaluate(() => YES.inquiry.resume({ trigger: document.getElementById('inq-test-trigger') }));
   await waitOpen();
   t.eq(await step(), 'details', 'resume opens the draft at its step');
-  t.assert(await page.isChecked('#inq-reason-unrecognised'), 'with its answers');
+  t.assert(await page.isChecked('#inq-reason-unrecognized'), 'with its answers');
   await close();
 
   /* ------------------------------------------------------------------ */
   t.step('hand-off from the transaction detail');
+  // The detail is closed through the explorer's API (never by reaching into its dialog).
+  await page.evaluate(() => {
+    window.__closeTx = [];
+    const orig = YES.explorer.closeTx;
+    YES.explorer.closeTx = function (o) {
+      window.__closeTx.push(o || null);
+      return orig.apply(this, arguments);
+    };
+  });
   if (realExplorer) {
     await page.evaluate((id) => YES.explorer.openTx(id, { trigger: document.getElementById('inq-test-trigger') }), PENDING);
     await page.waitForFunction(() => document.getElementById('tx-dialog').open);
@@ -425,6 +531,7 @@ export default async function (t) {
   }
   await waitOpen();
   t.assert(!(await page.evaluate(() => document.getElementById('tx-dialog').open)), 'transaction detail closed first');
+  if (!realExplorer) t.eq(await page.evaluate(() => window.__closeTx), [{ how: 'back' }], 'closed with YES.explorer.closeTx, like a customer close');
   t.eq(await page.evaluate(() => document.querySelectorAll('dialog[open]').length), 1, 'only one modal open');
   t.eq(await step(), 'transaction', 'starts on the transaction step');
   await expectFocus('inq-title', 'focus in the inquiry');
@@ -483,7 +590,7 @@ export default async function (t) {
   await page.focus('[data-inq-next]');
   await page.keyboard.press('Enter');
   t.eq(await step(), 'details', 'Enter on Next');
-  await page.focus('#inq-reason-unrecognised');
+  await page.focus('#inq-reason-unrecognized');
   await page.keyboard.press('Space');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
@@ -508,4 +615,43 @@ export default async function (t) {
   await close();
   t.eq(await draft(PENDING), null, 'nothing kept for a discarded draft');
   t.eq((await draft(TX)) && (await draft(TX)).status, 'submitted', 'other inquiries untouched');
+
+  /* ------------------------------------------------------------------ */
+  t.step('reasons follow the transaction');
+  for (const [id, want, label] of [
+    [PENDING, ['unrecognized', 'amount', 'pending', 'other'], 'a pending transaction without fees'],
+    [FEE, ['unrecognized', 'amount', 'fee', 'other'], 'a fee line'],
+    [TX2, ['unrecognized', 'amount', 'other'], 'a posted transaction without fees']
+  ]) {
+    await openWith(id);
+    if ((await step()) === 'done') await page.click('[data-inq-new]'); // already completed: start a new demo inquiry
+    const at = await step();
+    if (at === 'transaction') await page.click('[data-inq-next]');
+    else if (at === 'review') await page.click('[data-inq-edit="reason"]');
+    t.eq(await step(), 'details', 'at Details for ' + label);
+    t.eq(await reasons(), want, 'reasons for ' + label);
+    await close();
+  }
+  // A saved answer this transaction does not offer (state written from elsewhere) is dropped and re-asked.
+  await page.evaluate((id) => {
+    const s = YES.state.inquiry || {};
+    const others = Object.assign({}, s.others || {});
+    if (s.txId) {
+      const cur = Object.assign({}, s);
+      delete cur.others;
+      others[s.txId] = cur;
+    }
+    others[id] = { txId: id, step: 'review', reason: 'pending', channel: 'email', description: '', status: 'draft', seq: 999 };
+    YES.set({ inquiry: { txId: null, others } });
+  }, TX2);
+  await openWith(TX2);
+  t.eq(await step(), 'details', 'back to Details instead of reviewing an answer that is not offered');
+  t.eq(await page.locator('#inquiry-dialog input[name="inq-reason"]:checked').count(), 0, 'no reason selected');
+  t.assert(await page.isChecked('#inq-channel-email'), 'valid answers kept');
+  t.eq([(await draft(TX2)).reason, (await draft(TX2)).step], ['', 'details'], 'draft re-validated');
+  await page.click('[data-inq-next]');
+  await expectFocus('inq-errors', 'the missing reason is asked for');
+  t.eq(await page.$$eval('#inquiry-dialog .inq-errors a', (as) => as.map((a) => a.getAttribute('data-inq-errlink'))), ['reason'], 'only the reason');
+  await close();
+  t.eq(await page.evaluate(() => YES.i18n.audit()), {}, 'i18n parity');
 }

@@ -10,7 +10,12 @@
  * The conversation lives in YES.state.assistant as intents (topic + id, curated
  * question id, or the visitor's own words plus the matched intent) — never as
  * rendered text — so a language switch re-renders the whole thread in the new
- * language.
+ * language. A question typed in the other language is answered in that language
+ * (the entry keeps `lang`) until the visitor next chooses a language.
+ *
+ * Free text is matched with keyword tiers: everyday words ("today", "network",
+ * "cost") count only alongside a statement word, so off-topic questions get the
+ * honest fallback rather than an unrelated curated answer.
  *
  * Drawer modes
  *   docked  ≥1100px: non-modal, html.assistant-docked reflows the page so the
@@ -52,6 +57,7 @@
   var mode = null; // null (closed) | 'docked' | 'modal' | 'stacked'
   var returnTo = null; // element that gets focus back on close
   var animateId = null; // entry id that animates in on the next render
+  var inqSig = ''; // inquiry states behind the rendered inquiry actions (see inquirySig)
   var mqDock = root.matchMedia ? root.matchMedia('(min-width: 1100px)') : null;
 
   /* ------------------------------------------------------------------ */
@@ -72,6 +78,12 @@
   function pl(one, many) {
     return function (v) {
       return fill(v.n === 1 ? one : many, v);
+    };
+  }
+  /** String that picks `withIt` when vars[name] is non-empty, else `without`. */
+  function ifVar(name, withIt, without) {
+    return function (v) {
+      return fill(v[name] ? withIt : without, v);
     };
   }
   /** Translate `key`, escape it, then splice in pre-built HTML for `html` vars. */
@@ -187,6 +199,38 @@
   function bodyEl() {
     return els.dlg ? els.dlg.querySelector('.asst__body') : null;
   }
+  /** What scrolls: the conversation body, or the whole drawer on very short viewports (CSS). */
+  function scrollerEl() {
+    var b = bodyEl();
+    if (!b) return null;
+    return root.getComputedStyle(b).overflowY === 'visible' ? els.dlg : b;
+  }
+  function isLang(l) {
+    return YES.config.languages.indexOf(l) !== -1;
+  }
+  /**
+   * Run `fn` with strings, numbers and dates in `lang`, then restore the UI
+   * language. Synchronous and self-contained: every YES.t / YES.fmt / YES.L call
+   * inside reads YES.i18n.lang, and their caches are keyed by language.
+   */
+  function withLang(lang, fn) {
+    var ui0 = YES.i18n.lang;
+    if (!isLang(lang) || lang === ui0) return fn();
+    YES.i18n.lang = lang;
+    try {
+      return fn();
+    } finally {
+      YES.i18n.lang = ui0;
+    }
+  }
+  /** A localised { en, es } value built by running `fn` in each language. */
+  function localized(fn) {
+    var out = {};
+    YES.config.languages.forEach(function (l) {
+      out[l] = withLang(l, fn);
+    });
+    return out;
+  }
 
   /* Transaction ids never break at their hyphens. */
   function idHtml(id) {
@@ -244,6 +288,10 @@
       via: entry.via || 'context',
       text: entry.text || null
     };
+    // A typed question in the other language is answered in that language.
+    if (entry.lang && isLang(entry.lang)) e.lang = entry.lang;
+    // The language of the visitor's own words, when clear (for a lang attribute).
+    if (entry.qlang && isLang(entry.qlang)) e.qlang = entry.qlang;
     var id;
     if (sameIntent(last, e)) {
       id = last.id;
@@ -304,32 +352,83 @@
     value: /\b(price|value|worth|go up|go down|rise|fall|increase|decrease|drop|crash|gain|lose|precio|valor|vale|valdra|subir|bajar|sube|baja)\b/,
     predictEs: /\b(subira|bajara|va a subir|va a bajar)\b/,
     human: /\b(person|human|agent|someone|representative|call|phone|email|support|complain|complaint|dispute|fraud|contact|speak|talk to|inquiry|persona|humano|agente|alguien|representante|llamar|telefono|correo|soporte|reclamo|reclamacion|queja|disputa|fraude|contacto|contactar|hablar con|consulta)\b/,
-    live: /\b(live|current|currently|right now|real time|today|in the app|app balance|en vivo|actual|actualmente|ahora|tiempo real|hoy|en la app)\b/,
-    pending: /\b(pending|not included|excluded|missing|awaiting|processing|in progress|on hold|not posted|unposted|pendiente|pendientes|en proceso|en curso|sin registrar)\b|\b(no registrad|no incluid|excluid)/,
-    fees: /\b(fee|fees|charge|charges|charged|commission|commissions|cost|costs|comision|comisiones|cargo|cargos|cobro|cobros|cobraron|cobran|coste|costes|costo|costos)\b/,
-    chart: /\b(chart|graph|running balance|peak|grafico|grafica|saldo acumulado)\b/,
+    /*
+     * Two tiers per topic. A strong pattern names a statement topic on its own
+     * ("fees", "blockchain", "pending"). A weak pattern (…Weak) is an everyday
+     * word that means that topic only in a question about this statement
+     * ("today", "network", "rate", "cost"), so it routes only when the question
+     * also has an anchor (below). "What is the weather today?" or "network
+     * password for wifi" then reach the honest fallback, not a curated answer.
+     */
+    anchor: /\b(statement|statements|account|accounts|balance|balances|transaction|transactions|movement|movements|money|funds|token|tokens|exusd|stablecoin|stablecoins|transfer|transfers|transferred|payment|payments|deposit|deposits|redemption|redemptions|fee|fees|sent|send|received|paid|dollar|dollars|usd|month|period|estado de cuenta|cuenta|saldo|saldos|movimiento|movimientos|dinero|fondos|transferencia|transferencias|pago|pagos|deposito|depositos|canje|canjes|comision|comisiones|envie|enviado|recibi|recibido|pague|dolar|dolares|mes|periodo)\b/,
+    liveStrong: /\b(live (balance|balances|account|data|status|value|figures?)|real time|realtime|in the app|app balance|en vivo|tiempo real|en la app)\b/,
+    liveNow: /\b(live|current|currently|right now|now|today|latest|up to date|actual|actualmente|ahora|hoy|al dia)\b/,
+    liveWhat: /\b(balance|balances|account|holdings|saldo|saldos|cuenta)\b/,
+    pending: /\b(pending|not included|excluded|awaiting|processing|in progress|on hold|not posted|unposted|pendiente|pendientes|en proceso|en curso|sin registrar)\b|\b(no registrad|no incluid|excluid)/,
+    pendingWeak: /\b(missing|falta|faltan)\b/,
+    fees: /\b(fee|fees|charges|charged|commission|commissions|comision|comisiones|cobraron|cobran)\b/,
+    feesWeak: /\b(charge|cost|costs|cargo|cargos|cobro|cobros|coste|costes|costo|costos|cuesta)\b/,
+    chart: /\b(chart|graph|running balance|grafico|grafica|saldo acumulado)\b/,
+    chartWeak: /\b(peak|trend|tendencia)\b/,
     highLow: /\b(highest|lowest|maximum|minimum|max|min|high point|low point|mas alto|mas bajo|maximo|minimo|punto mas)\b/,
     balanceWord: /\b(balance|saldo)\b/,
-    largest: /\b(largest|biggest|mayor|mas grande)\b|\b(highest|most|mas alto|maximo)\b.*\b(movement|transaction|amount|transfer|payment|movimiento|importe|transferencia|pago)\b/,
-    onchain: /\b(on chain|onchain|blockchain|external wallet|wallet|wallets|network|hash|explorer|confirmation|confirmations|en cadena|monedero|monederos|billetera|cartera|red|redes|confirmacion|confirmaciones)\b/,
+    largest: /\b(highest|most|mas alto|maximo)\b.*\b(movement|transaction|amount|transfer|payment|movimiento|importe|transferencia|pago)\b/,
+    largestWeak: /\b(largest|biggest|mayor|mas grande)\b/,
+    onchain: /\b(on chain|onchain|blockchain|blockchains|external wallet|external wallets|hash|en cadena|cadena de bloques|monedero externo|monederos externos)\b/,
+    onchainWeak: /\b(wallet|wallets|network|networks|explorer|confirmation|confirmations|monedero|monederos|billetera|billeteras|cartera|red|redes|confirmacion|confirmaciones)\b/,
     internal: /\b(internal|interna|interno|internas|internos)\b/,
     send: /\b(send|sent|sending|sends|paid|transfer|transferred|envie|envio|envios|enviado|enviados|enviar|mande|mandado|transferi)\b/,
-    transparency: /\b(reserve|reserves|attestation|attestations|backed|backing|issuer|audit|audited|custody|custodian|collateral|transparency|reserva|reservas|certificacion|atestacion|respaldo|respaldada|respaldado|emisor|auditoria|auditada|auditado|custodia|custodio|garantia|transparencia)\b/,
-    usd: /\b(usd|dollar|dollars|rate|exchange rate|price|conversion|fiat|equivalent|dolar|dolares|tasa|tipo de cambio|precio|equivalente)\b/,
+    transparency: /\b(reserves|attestation|attestations|backing|issuer|issuers|custodian|collateral|transparency|reservas|certificacion|atestacion|respaldo|respaldada|respaldado|emisor|custodio|transparencia)\b/,
+    transparencyWeak: /\b(reserve|backed|audit|audits|audited|auditor|custody|reserva|auditoria|auditada|auditado|custodia|garantia)\b/,
+    usd: /\b(usd|dollar|dollars|fiat|exchange rate|conversion rate|dolar|dolares|tipo de cambio|tasa de cambio)\b/,
+    usdWeak: /\b(rate|price|value|worth|conversion|equivalent|tasa|precio|valor|equivalente)\b/,
     define: /\b(what is a|what is an|whats a|what does|mean|means|meaning|define|definition|que es un|que es una|que significa|significa|significado)\b/,
     defineGeneral: /^(what are|que son)\b/,
     mine: /\b(my|mine|i|mi|mis|yo)\b/,
     redeem: /\b(redeem|redeemed|redemption|redemptions|cash out|cashed out|withdraw|withdrew|withdrawal|withdrawals|payout|canje|canjes|canjee|canjeado|canjear|retiro|retiros|retire|retirada)\b/,
-    deposit: /\b(deposit|deposits|deposited|top up|topped up|card|deposito|depositos|deposite|depositado|ingreso|ingrese|tarjeta)\b/,
+    deposit: /\b(deposit|deposits|deposited|top up|topped up|deposito|depositos|deposite|depositado|ingreso|ingrese)\b/,
+    depositWeak: /\b(card|cards|tarjeta|tarjetas)\b/,
     outGroup: /\b(outgoing|money out|spent|spend|spending|salidas|salida|gaste|gastado|gasto|gastos)\b/,
     inGroup: /\b(incoming|money in|entradas|entrada|ingresos)\b/,
     sent: /\b(sent|send|paid|payment|payments|transfers out|transfer out|transfer to|envie|enviado|enviados|enviadas|pague|pagado|pago|pagos)\b/,
-    received: /\b(received|receive|got|transfers in|transfer in|transfer from|recibi|recibido|recibidos|recibidas|me enviaron|me pagaron)\b/,
-    token: /\b(token unit|token units|unit|units|decimal|decimals|token|tokens|exusd|unidad|unidades|decimales)\b/,
-    status: /\b(status|posted|failed|settled|registrado|registrados|fallido|fallidos|liquidado)\b/,
-    balance: /\b(balance|change|changed|closing|opening|net|went up|went down|saldo|cambio|cambiado|cambia|final|inicial|neto)\b/,
+    received: /\b(received|receive|transfers in|transfer in|transfer from|recibi|recibido|recibidos|recibidas|me enviaron|me pagaron)\b/,
+    receivedWeak: /\b(got|get)\b/,
+    token: /\b(token unit|token units|token|tokens|exusd|unidad de token|unidades de token)\b/,
+    tokenWeak: /\b(unit|units|decimal|decimals|unidad|unidades|decimales)\b/,
+    status: /\b(posted|settled|registrado|registrados|registrada|liquidado|transaction status)\b/,
+    statusWeak: /\b(status|failed|fail|fails|failure|fallido|fallidos|fallo)\b|\bestado\b(?! de cuenta)/,
+    balance: /\b(balance|saldo|went up|went down|net change|cambio neto)\b|\bhow much (money )?(do i have|have i got|is left|is (left )?in my)\b|\bcuanto (dinero )?(tengo|me queda|hay en mi)\b/,
+    balanceWeak: /\b(change|changed|changes|closing|opening|net|final|inicial|neto|cambio|cambios|cambiado|cambia|cambiaron)\b/,
     greet: /^(hi|hello|hey|hola|buenas|buenos dias|good morning|good afternoon|help|ayuda|start|menu|inicio)\b|\b(thanks|thank you|gracias)\b/
   };
+
+  /*
+   * Spanish words that are different everyday words in English ("Red Sox", "final
+   * score", "the mayor", "actual", "retire", "cargo"): ignored unless the
+   * question reads as Spanish.
+   */
+  var ES_ONLY = /\b(red|final|mayor|actual|retire|cargo|cargos)\b/g;
+  /* Function words and statement words that tell the two languages apart. */
+  var LANG_WORDS = {
+    es: /\b(que|por|porque|para|mi|mis|tu|tus|yo|el|la|los|las|del|de|en|un|una|unos|unas|es|son|fue|fueron|cual|cuales|cuanto|cuanta|cuantos|cuantas|donde|adonde|como|cuando|quien|esta|estan|estaba|hay|tengo|tiene|tuve|se|le|les|con|sin|al|y|pero|mas|muy|este|estos|esto|ese|esa|eso|si|saldo|comision|comisiones|movimiento|movimientos|cuenta|dinero|hola|gracias|ayuda|cambio|siempre|vale|dolar|dolares|pendiente|pendientes|deberia|puedes|quiero|hablar|persona|pague|envie|recibi|gaste|deposite|hoy|ahora|ayer|mes)\b/g,
+    en: /\b(the|is|are|was|were|be|been|my|mine|what|whats|why|how|did|do|does|i|im|ive|you|your|of|to|for|in|on|at|and|or|it|its|this|that|these|those|much|many|where|when|which|who|can|could|will|would|should|have|had|get|got|about|from|with|money|fees|paid|sent|received|transaction|transactions|please|show|tell|explain|hello|hi|thanks|there|any|all|not|dont|didnt)\b/g
+  };
+
+  /**
+   * The language a question is written in: { lang: 'en' | 'es' | null, sure }.
+   * `sure` needs at least two signals and twice as many as the other language,
+   * so a lone "fees" or "hola" never switches the answer language.
+   */
+  function detectLang(raw, n) {
+    var es = (n.match(LANG_WORDS.es) || []).length;
+    var en = (n.match(LANG_WORDS.en) || []).length;
+    if (/[¿¡ñÑ]/.test(raw)) es += 2;
+    if (/[áéíóúÁÉÍÓÚ]/.test(raw)) es += 1;
+    var lang = es > en ? 'es' : en > es ? 'en' : null;
+    var win = Math.max(es, en);
+    var lose = Math.min(es, en);
+    return { lang: lang, sure: !!lang && win >= 2 && win >= 2 * lose };
+  }
 
   /** Counterparty first names / merchants the visitor might mention. */
   function counterparties() {
@@ -342,56 +441,81 @@
   }
 
   /**
-   * Map free text to a supported intent: { topic, id }. Order matters:
+   * Map free text to a supported intent: { topic, id, lang }. Order matters:
    * refusals first, then specific statement topics, then an honest fallback.
+   * `lang` is the language the question is clearly written in (else null), so
+   * the answer can be given in that language.
    */
   function match(text) {
     var raw = String(text || '');
     var n = norm(raw);
-    if (!n) return { topic: 'fallback', id: null };
-    var isQ = RX.question.test(n);
+    var d = detectLang(raw, n);
+    var m = route(raw, n, d.lang || YES.i18n.lang);
+    m.lang = d.sure ? d.lang : null;
+    return m;
+  }
 
-    if (RX.actAny.test(n) || (!isQ && (RX.actEn.test(n) || RX.actEs.test(n)))) return { topic: 'action', id: null };
-    if (RX.peg.test(n)) return { topic: 'peg', id: null };
-    if (RX.advice.test(n) || RX.predictEs.test(n) || (RX.future.test(n) && RX.value.test(n))) return { topic: 'advice', id: null };
+  function route(raw, n, lang) {
+    function R(topic, id) {
+      return { topic: topic, id: id || null };
+    }
+    if (lang !== 'es') n = n.replace(ES_ONLY, ' ').replace(/\s+/g, ' ').trim();
+    if (!n) return R('fallback');
+    var isQ = RX.question.test(n);
+    var anchored = RX.anchor.test(n);
+    // A curated question to offer first when only a weak word matched.
+    var hint = null;
+    function has(strong, weak, hintQ) {
+      if (strong && strong.test(n)) return true;
+      if (weak && weak.test(n)) {
+        if (anchored) return true;
+        if (hintQ && !hint) hint = hintQ;
+      }
+      return false;
+    }
+
+    if (RX.actAny.test(n) || (!isQ && (RX.actEn.test(n) || RX.actEs.test(n)))) return R('action');
+    if (RX.peg.test(n)) return R('peg');
+    if (RX.advice.test(n) || RX.predictEs.test(n) || (RX.future.test(n) && RX.value.test(n))) return R('advice');
 
     var txm = raw.match(/\bTX-?(\d{6})-?(\d{4})\b/i);
-    if (txm) return { topic: 'transaction', id: 'TX-' + txm[1] + '-' + txm[2] };
+    if (txm) return R('transaction', 'TX-' + txm[1] + '-' + txm[2]);
     var refm = raw.match(/\bREF-[A-Z0-9]{4}-[A-Z0-9]{4}\b/i);
     if (refm) {
       var ref = refm[0].toUpperCase();
       var hit = calc.all().filter(function (x) {
         return x.reference === ref;
       })[0];
-      return hit ? { topic: 'transaction', id: hit.id } : { topic: 'transaction', id: ref };
+      return R('transaction', hit ? hit.id : ref);
     }
 
-    if (RX.human.test(n)) return { topic: 'human', id: null };
-    if (RX.live.test(n)) return { topic: 'edu', id: 'statement_vs_live' };
-    if (RX.pending.test(n)) return { topic: 'pending', id: null };
+    if (RX.human.test(n)) return R('human');
+    if (RX.liveStrong.test(n) || (RX.liveNow.test(n) && RX.liveWhat.test(n))) return R('edu', 'statement_vs_live');
+    if (has(RX.pending, RX.pendingWeak, 'pending')) return R('pending');
     var def = RX.define.test(n) || (RX.defineGeneral.test(n) && !RX.mine.test(n));
-    if (RX.fees.test(n)) return def ? { topic: 'edu', id: 'fees' } : { topic: 'fees', id: null };
-    if (RX.chart.test(n) || (RX.highLow.test(n) && RX.balanceWord.test(n))) return { topic: 'chart', id: null };
-    if (RX.largest.test(n)) return { topic: 'largest', id: null };
-    if (RX.onchain.test(n)) return RX.send.test(n) && !def ? { topic: 'onchain_sent', id: null } : { topic: 'edu', id: 'onchain_vs_internal' };
-    if (RX.internal.test(n)) return { topic: 'edu', id: 'onchain_vs_internal' };
-    if (RX.transparency.test(n)) return { topic: 'edu', id: 'transparency' };
-    if (RX.usd.test(n)) return { topic: 'edu', id: 'usd_equivalent' };
+    if (has(RX.fees, RX.feesWeak, 'fees_paid')) return def ? R('edu', 'fees') : R('fees');
+    if (has(RX.chart, RX.chartWeak) || (RX.highLow.test(n) && RX.balanceWord.test(n))) return R('chart');
+    if (has(RX.largest, RX.largestWeak, 'largest')) return R('largest');
+    if (has(RX.onchain, RX.onchainWeak, 'onchain_sent')) return RX.send.test(n) && !def ? R('onchain_sent') : R('edu', 'onchain_vs_internal');
+    if (RX.internal.test(n)) return R('edu', 'onchain_vs_internal');
+    if (has(RX.transparency, RX.transparencyWeak)) return R('edu', 'transparency');
+    if (has(RX.usd, RX.usdWeak)) return R('edu', 'usd_equivalent');
     var cps = counterparties();
     for (var i = 0; i < cps.length; i++) {
-      if (new RegExp('\\b' + cps[i] + '\\b').test(n)) return { topic: 'counterparty', id: cps[i] };
+      if (new RegExp('\\b' + cps[i] + '\\b').test(n)) return R('counterparty', cps[i]);
     }
-    if (RX.redeem.test(n)) return def ? { topic: 'edu', id: 'redemption' } : { topic: 'step', id: 'redemptions' };
-    if (RX.deposit.test(n)) return { topic: 'step', id: 'deposits' };
-    if (RX.outGroup.test(n)) return { topic: 'step', id: 'outgoing' };
-    if (RX.inGroup.test(n)) return { topic: 'step', id: 'incoming' };
-    if (RX.sent.test(n)) return { topic: 'step', id: 'transfers_out' };
-    if (RX.received.test(n)) return { topic: 'step', id: 'transfers_in' };
-    if (RX.token.test(n)) return { topic: 'edu', id: 'token_units' };
-    if (RX.status.test(n)) return { topic: 'edu', id: 'tx_status' };
-    if (RX.balance.test(n)) return { topic: 'balance', id: null };
-    if (RX.greet.test(n)) return { topic: 'general', id: null };
-    return { topic: 'fallback', id: null };
+    if (RX.redeem.test(n)) return def ? R('edu', 'redemption') : R('step', 'redemptions');
+    if (has(RX.deposit, RX.depositWeak)) return R('step', 'deposits');
+    if (RX.outGroup.test(n)) return R('step', 'outgoing');
+    if (RX.inGroup.test(n)) return R('step', 'incoming');
+    if (RX.sent.test(n)) return R('step', 'transfers_out');
+    if (has(RX.received, RX.receivedWeak)) return R('step', 'transfers_in');
+    if (has(RX.token, RX.tokenWeak)) return R('edu', 'token_units');
+    if (has(RX.status, RX.statusWeak)) return R('edu', 'tx_status');
+    if (has(RX.balance, RX.balanceWeak)) return R('balance');
+    if (RX.greet.test(n)) return R('general');
+    // Out of scope. The id, if any, is a curated question to suggest first.
+    return R('fallback', hint);
   }
 
   /* ------------------------------------------------------------------ */
@@ -667,6 +791,7 @@
       figs: figs,
       rows: rows,
       rowsSubject: tx.id,
+      inquiry: tx.id,
       illustrative: !!tx.onchain
     };
   };
@@ -898,8 +1023,12 @@
   B.human = function () {
     return { title: t('assistant.talk'), paras: [P('assistant.human.p1'), P('assistant.human.p2'), P('assistant.human.p3')] };
   };
-  B.fallback = function () {
-    return { title: t('assistant.fallback.title'), paras: [P('assistant.fallback.p1'), P('assistant.fallback.p2')], policy: true, suggest: ['why_balance', 'fees_paid', 'pending'] };
+  /** `hint`: a curated question the visitor's words were close to, offered first. */
+  B.fallback = function (hint) {
+    var suggest = (Q_TOPIC[hint] ? [hint] : []).concat(['why_balance', 'fees_paid', 'pending']).filter(function (q, i, a) {
+      return a.indexOf(q) === i;
+    });
+    return { title: t('assistant.fallback.title'), paras: [P('assistant.fallback.p1'), P('assistant.fallback.p2')], policy: true, suggest: suggest.slice(0, 3) };
   };
 
   /* ---------------------------- Education ---------------------------- */
@@ -1084,7 +1213,7 @@
       case 'human':
         return B.human();
       case 'fallback':
-        return B.fallback();
+        return B.fallback(r.id);
       default:
         return B.general();
     }
@@ -1186,7 +1315,54 @@
     );
   }
 
-  function answerHtml(e, m, s) {
+  /** The inquiry for a transaction, if one was started: see YES.inquiry.draftFor. */
+  function inquiryFor(txId) {
+    var d = null;
+    try {
+      d = YES.inquiry.draftFor(txId);
+    } catch (err) {
+      d = null;
+    }
+    return d && (!d.txId || d.txId === txId) ? d : null;
+  }
+
+  /** The inquiry state of every transaction answer in the thread, as one string. */
+  function inquirySig() {
+    return S()
+      .thread.map(function (e) {
+        var r = resolve(e);
+        if ((r.topic !== 'transaction' && r.topic !== 'pending') || !r.id) return '';
+        var d = inquiryFor(String(r.id));
+        return d ? d.status + ':' + (d.ref || '') : '-';
+      })
+      .join('|');
+  }
+
+  /** Next step for a transaction answer: start, continue or view its demo inquiry. */
+  function inquiryHtml(id, txId) {
+    var d = inquiryFor(txId);
+    var k = d && d.status === 'submitted' ? 'done' : d ? 'draft' : 'new';
+    return (
+      '<div class="asst-inq"><p class="asst-inq__text" id="' +
+      id +
+      '-inq-text">' +
+      P('assistant.inquiry.' + k + 'Text', { ref: d && d.ref ? d.ref : '' }, { id: idHtml(txId) }) +
+      '</p><button type="button" class="btn asst-inq__btn" data-asst-inquiry="' +
+      esc(txId) +
+      '" data-fk="' +
+      id +
+      '-inquiry" aria-describedby="' +
+      id +
+      '-inq-text">' +
+      ui.icon('question', { size: 16 }) +
+      '<span>' +
+      esc(t('assistant.inquiry.' + k)) +
+      '</span></button></div>'
+    );
+  }
+
+  /** offerLang: this answer is in another language than the page; offer to switch the page. */
+  function answerHtml(e, m, s, offerLang) {
     var id = 'asst-' + esc(e.id);
     var h = '<article class="asst-ans' + (m.policy ? ' asst-ans--policy' : '') + (m.plain ? ' asst-ans--welcome' : '') + '" aria-labelledby="' + id + '-h">';
     h += '<p class="asst-ans__tags">' + demoTag(id + '-tag') + (m.policy ? '<span class="tag asst-tag-policy">' + ui.icon('shield', { size: 14 }) + '<span>' + esc(t('assistant.policyTag')) + '</span></span>' : '') + (m.illustrative ? ui.illustrativeTag('assistant.illustrativeTag') : '') + '</p>';
@@ -1245,6 +1421,8 @@
       h += '</div></div>';
     }
 
+    if (m.inquiry && calc.tx(m.inquiry)) h += inquiryHtml(id, m.inquiry);
+
     if (m.suggest && m.suggest.length) {
       h += '<div class="asst-inline-q"><p class="asst-inline-q__k">' + esc(t('assistant.tryThese')) + '</p><ul class="asst-qlist">' + m.suggest.map(function (q) {
         return qButton(q, id + '-q-' + q);
@@ -1294,13 +1472,37 @@
         '</span></p></div>';
     }
     h += '<div class="asst-ans__links">';
+    if (offerLang) {
+      h +=
+        '<button type="button" class="btn btn--ghost" data-asst-lang="' +
+        esc(offerLang) +
+        '" data-fk="' +
+        id +
+        '-lang">' +
+        ui.icon('globe', { size: 16 }) +
+        '<span>' +
+        esc(t('assistant.langOffer')) +
+        '</span></button>';
+    }
     if (m.more) h += '<button type="button" class="btn btn--ghost" data-asst-read="' + esc(m.more) + '" data-fk="' + id + '-read">' + ui.icon('book', { size: 16 }) + '<span>' + esc(t('assistant.readMore')) + '</span></button>';
     h += '<button type="button" class="btn btn--ghost" data-asst-talk data-fk="' + id + '-talk">' + ui.icon('user', { size: 16 }) + '<span>' + esc(t('assistant.talk')) + '</span></button>';
     h += '</div></div></article>';
     return h;
   }
 
-  function turnHtml(e, s) {
+  /** An entry pinned to a language other than the page's (see push). */
+  function pinned(e) {
+    return !!(e && e.lang && e.lang !== YES.i18n.lang && isLang(e.lang));
+  }
+  /** A turn, rendered in its pinned language when it has one. */
+  function turnFor(e, s, offer) {
+    if (!pinned(e)) return turnHtml(e, s, null, false);
+    return withLang(e.lang, function () {
+      return turnHtml(e, s, e.lang, offer);
+    });
+  }
+
+  function turnHtml(e, s, lang, offer) {
     var m = model(e);
     var you = '';
     if (e.via === 'typed') you = esc(e.text || '');
@@ -1311,9 +1513,11 @@
       (e.id === animateId ? ' asst-turn--new' : '') +
       '" id="asst-turn-' +
       esc(e.id) +
-      '">' +
-      (you ? '<p class="asst-you' + (e.via === 'context' ? ' asst-you--ctx' : '') + '"><span class="sr-only">' + esc(t('assistant.you')) + ' </span>' + you + '</p>' : '') +
-      answerHtml(e, m, s) +
+      '"' +
+      (lang ? ' lang="' + esc(lang) + '"' : '') +
+      '>' +
+      (you ? '<p class="asst-you' + (e.via === 'context' ? ' asst-you--ctx' : '') + '"' + (e.via === 'typed' && e.qlang && e.qlang !== YES.i18n.lang ? ' lang="' + esc(e.qlang) + '"' : '') + '><span class="sr-only">' + esc(t('assistant.you')) + ' </span>' + you + '</p>' : '') +
+      answerHtml(e, m, s, offer ? lang : null) +
       '</li>'
     );
   }
@@ -1344,8 +1548,13 @@
       '</summary><p>' +
       esc(t('assistant.privacy.prod')) +
       '</p></details></div></div>';
+    // Only the most recent answer in another language offers to switch the page.
+    var offerId = null;
+    s.thread.forEach(function (e) {
+      if (pinned(e)) offerId = e.id;
+    });
     h += '<ol class="asst-thread" aria-label="' + esc(t('assistant.threadLabel')) + '">' + s.thread.map(function (e) {
-      return turnHtml(e, s);
+      return turnFor(e, s, e.id === offerId);
     }).join('') + '</ol>';
     h += '<section class="asst-sugg" aria-labelledby="asst-sugg-h"><h3 id="asst-sugg-h" class="asst-sugg__h">' + esc(t('assistant.suggestTitle')) + '</h3><ul class="asst-qlist">' + QUESTIONS.map(function (q) {
       return qButton(q, 'asst-q-' + q);
@@ -1376,11 +1585,12 @@
 
   function render() {
     if (!els.dlg) return;
-    var b = bodyEl();
+    var b = scrollerEl();
     var top = b ? b.scrollTop : 0;
     ui.render(els.dlg, drawerHtml());
+    inqSig = inquirySig();
     animateId = null;
-    b = bodyEl();
+    b = scrollerEl();
     if (b) b.scrollTop = top;
   }
 
@@ -1424,7 +1634,7 @@
   }
 
   function scrollToTurn(eid, smooth) {
-    var b = bodyEl();
+    var b = scrollerEl();
     var el = eid && ENTRY_ID.test(eid) ? els.dlg.querySelector('#asst-turn-' + eid) : null;
     if (!b || !el) return;
     var top = el.getBoundingClientRect().top - b.getBoundingClientRect().top + b.scrollTop - 12;
@@ -1495,12 +1705,12 @@
     if (want === mode) return;
     var a = doc.activeElement;
     var fk = a && d.contains(a) ? a.getAttribute('data-fk') : null;
-    var b = bodyEl();
+    var b = scrollerEl();
     var top = b ? b.scrollTop : 0;
     d.close(); // the async 'close' event sees the dialog open again and is ignored
     openAs(want);
     if (want === 'docked') doc.documentElement.classList.toggle('has-modal', ui.anyModalOpen());
-    b = bodyEl();
+    b = scrollerEl();
     if (b) b.scrollTop = top;
     var target = fk ? d.querySelector(fkSel(fk)) : null;
     (target || d.querySelector('#asst-title')).focus({ preventScroll: true });
@@ -1555,7 +1765,7 @@
       return null;
     }
     var m = match(q);
-    var eid = push({ topic: m.topic, tid: m.id, via: 'typed', text: q }, { draft: '' });
+    var eid = push({ topic: m.topic, tid: m.id, via: 'typed', text: q, qlang: m.lang, lang: m.lang && m.lang !== YES.i18n.lang ? m.lang : null }, { draft: '' });
     show();
     render();
     focusEntry(eid, true);
@@ -1629,7 +1839,11 @@
       var rowIds = (m.rows || []).filter(function (r, i, a) {
         return a.indexOf(r) === i && calc.tx(r);
       });
-      var label = t('assistant.rowsChip', { subject: m.rowsSubject || m.title });
+      // Localised in every language, so the chip follows a later language switch.
+      var label = localized(function () {
+        var lm = model(en);
+        return t('assistant.rowsChip', { subject: lm.rowsSubject || lm.title });
+      });
       handOff(function () {
         YES.explorer.showRows(rowIds, label);
       });
@@ -1643,6 +1857,25 @@
     });
     ui.delegate(d, 'click', '[data-asst-fb]', function (e, b) {
       setFeedback(b.getAttribute('data-entry'), b.getAttribute('data-asst-fb'));
+    });
+    ui.delegate(d, 'click', '[data-asst-inquiry]', function (e, b) {
+      var id = b.getAttribute('data-asst-inquiry');
+      if (mode === 'stacked') {
+        // Above another dialog: hand back to it so the inquiry is not opened underneath.
+        var back = returnTo;
+        close({ returnFocus: false });
+        YES.inquiry.start(id, { trigger: back && visible(back) ? back : null });
+      } else {
+        YES.inquiry.start(id, { trigger: b });
+      }
+    });
+    ui.delegate(d, 'click', '[data-asst-lang]', function (e, b) {
+      var l = b.getAttribute('data-asst-lang');
+      var turn = b.closest('.asst-turn');
+      var eid = turn ? turn.id.replace(/^asst-turn-/, '') : null;
+      if (!isLang(l) || l === YES.i18n.lang) return;
+      YES.setLang(l);
+      focusEntry(eid); // the offer is gone once the page matches the answer
     });
     ui.delegate(d, 'click', '[data-asst-talk]', function () {
       handOff(function () {
@@ -1745,6 +1978,13 @@
         'assistant.helpfulThanks': 'Thanks. Your feedback is kept only in this browser session for the demo. Nothing was sent.',
         'assistant.talk': 'Talk to a person',
         'assistant.readMore': 'Read more in Understand',
+        'assistant.langOffer': 'Show the whole statement in English',
+        'assistant.inquiry.new': 'Ask about this transaction',
+        'assistant.inquiry.draft': 'Continue your inquiry',
+        'assistant.inquiry.done': 'View your demo inquiry',
+        'assistant.inquiry.newText': 'Something not right? Start a demo inquiry with {id} already filled in. Nothing is sent.',
+        'assistant.inquiry.draftText': 'You have a draft inquiry about {id}. Pick up where you left off.',
+        'assistant.inquiry.doneText': ifVar('ref', 'You completed a demo inquiry about {id} (reference {ref}). Nothing was sent.', 'You completed a demo inquiry about {id}. Nothing was sent.'),
         'assistant.suggestTitle': 'Suggested questions',
         'assistant.tryThese': 'Try one of these:',
         'assistant.clear': 'Clear conversation',
@@ -1794,7 +2034,7 @@
         'assistant.step.rail.other': pl('{count} used a linked bank account or card', '{count} used a linked bank account or card'),
         'assistant.step.rails': '{parts}.',
         'assistant.step.linkedFees': pl('A linked fee of {amount} is counted separately under Fees, not in this step.', 'Linked fees of {amount} are counted separately under Fees, not in this step.'),
-        'assistant.step.prior': '{id} was started on {initiated}, in the previous period, and posted on {posted}. Statements use the posted date, so it counts in this period.',
+        'assistant.step.prior': '{id} was initiated on {initiated}, in the previous period, and posted on {posted}. Statements use the posted date, so it counts in this period.',
         'assistant.step.pending': 'A further {amount} ({count}) was pending at the statement cut-off and is not included.',
 
         'assistant.group.in': pl('In {period}, {count} added {amount} to your balance.', 'In {period}, {count} added {amount} to your balance.'),
@@ -1802,8 +2042,8 @@
         'assistant.group.parts': 'That is made up of {parts}.',
 
         'assistant.tx.posted': '{amount} posted on {date} at {time}, taking your statement balance from {before} to {after}.',
-        'assistant.tx.pending': 'This transaction ({amount}) was started on {initiated} and was still pending at the statement cut-off ({asOf}).',
-        'assistant.tx.notPosted': 'This transaction ({amount}) was started on {initiated}; its status at the statement cut-off ({asOf}) was “{status}”.',
+        'assistant.tx.pending': 'This transaction ({amount}) was initiated on {initiated} and was still pending at the statement cut-off ({asOf}).',
+        'assistant.tx.notPosted': 'This transaction ({amount}) was initiated on {initiated}; its status at the statement cut-off ({asOf}) was “{status}”.',
         'assistant.tx.excluded':
           'Only posted transactions count, so it is not included in the statement balance of {closing}, the balance journey or the chart. If it completes, it will appear on your next statement.',
         'assistant.tx.noLive': 'This statement can’t show its current status; your live account may have an update.',
@@ -1811,8 +2051,8 @@
         'assistant.tx.onchain':
           'It went over a blockchain network. Its network details ({network}, reference {hash}, {confirmations} confirmations) are marked “Illustrative reference — no live blockchain verification”: they have not been checked on a live blockchain, and there is no explorer link.',
         'assistant.tx.onchainUnverified': 'It went over a blockchain network. Blockchain details are shown only when verified, and none are available for it in this demo.',
-        'assistant.tx.prior': 'It was started on {initiated}, in the previous period, and posted on {posted}. Statements use the posted date, so it belongs to this statement.',
-        'assistant.tx.dates': 'It was started on {initiated} and posted on {posted}. The statement uses the posted date.',
+        'assistant.tx.prior': 'It was initiated on {initiated}, in the previous period, and posted on {posted}. Statements use the posted date, so it belongs to this statement.',
+        'assistant.tx.dates': 'It was initiated on {initiated} and posted on {posted}. The statement uses the posted date.',
         'assistant.tx.hasFee': 'A separate {kind} of {amount} ({id}) was charged for it. It appears as its own line so each amount can be traced.',
         'assistant.tx.feeOf': 'This is a {kind} for {parentId}, “{parentDesc}” ({parentAmount}) on {parentDate}. Fees are recorded as separate lines linked to the transaction they belong to.',
         'assistant.tx.memo': 'Your note on it: “{memo}”.',
@@ -1847,7 +2087,7 @@
           '{count} had not posted by the statement cut-off ({asOf}), so it is listed but not included in your balance:',
           '{count} had not posted by the statement cut-off ({asOf}), so they are listed but not included in your balance:'
         ),
-        'assistant.pending.item': '{amount}: {description} (started {date}; {status})',
+        'assistant.pending.item': '{amount}: {description} (initiated {date}; {status})',
         'assistant.pending.p2': 'Anything that completes later will appear on your next statement. Your statement balance of {closing} does not change, and this demo can’t show live status.',
 
         'assistant.largest.title': 'Your largest movement',
@@ -1938,11 +2178,11 @@
         'assistant.fig.linkedFees': 'Linked fees, counted under Fees',
         'assistant.fig.amount': 'Amount',
         'assistant.fig.posted': 'Posted',
-        'assistant.fig.initiated': 'Started',
+        'assistant.fig.initiated': 'Initiated',
         'assistant.fig.before': 'Balance before',
         'assistant.fig.after': 'Balance after',
         'assistant.fig.status': 'Status',
-        'assistant.fig.rail': 'Channel and method',
+        'assistant.fig.rail': 'Rail and method',
         'assistant.fig.counterparty': 'Counterparty',
         'assistant.fig.reference': 'Reference',
         'assistant.fig.fee': 'Linked fee ({id})',
@@ -2015,6 +2255,13 @@
         'assistant.helpfulThanks': 'Gracias. Tu opinión se guarda solo en esta sesión del navegador para la demostración. No se envió nada.',
         'assistant.talk': 'Hablar con una persona',
         'assistant.readMore': 'Leer más en Entender',
+        'assistant.langOffer': 'Ver todo el estado de cuenta en español',
+        'assistant.inquiry.new': 'Preguntar por este movimiento',
+        'assistant.inquiry.draft': 'Continuar tu consulta',
+        'assistant.inquiry.done': 'Ver tu consulta de demostración',
+        'assistant.inquiry.newText': '¿Algo no te cuadra? Inicia una consulta de demostración con {id} ya indicado. No se envía nada.',
+        'assistant.inquiry.draftText': 'Tienes un borrador de consulta sobre {id}. Continúa donde lo dejaste.',
+        'assistant.inquiry.doneText': ifVar('ref', 'Completaste una consulta de demostración sobre {id} (referencia {ref}). No se envió nada.', 'Completaste una consulta de demostración sobre {id}. No se envió nada.'),
         'assistant.suggestTitle': 'Preguntas sugeridas',
         'assistant.tryThese': 'Prueba con una de estas:',
         'assistant.clear': 'Borrar conversación',
@@ -2271,6 +2518,25 @@
     },
     render: function () {
       render();
+    },
+    onState: function (keys) {
+      // An explicit language choice wins: every answer follows the page again.
+      if (keys.indexOf('lang') !== -1) {
+        var s = S();
+        if (s.thread.some(function (e) {
+          return e.lang;
+        })) {
+          s.thread = s.thread.map(function (e) {
+            var c = copy(e);
+            delete c.lang;
+            return c;
+          });
+          save(s);
+        }
+      }
+      // "Ask about this transaction" becomes "Continue" / "View" as the inquiry moves
+      // on. The inquiry saves on every keystroke, so re-render only when a label changes.
+      if (keys.indexOf('inquiry') !== -1 && els.dlg && els.dlg.open && inquirySig() !== inqSig) render();
     }
   });
 })(window);

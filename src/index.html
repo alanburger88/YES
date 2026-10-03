@@ -17,6 +17,7 @@
     <a class="skip-link" href="#main">Skip to statement</a>
     <div id="app">
       <header class="masthead" id="masthead"></header>
+      <!-- Withheld-statement message (shell): only when reconciliation fails; it is then the main landmark -->
       <div id="integrity-root"></div>
       <main id="main" tabindex="-1">
         <section class="view" id="view-overview" data-view="overview" aria-labelledby="h-overview">
@@ -49,7 +50,8 @@
     <!-- Shared live regions and toast -->
     <div id="live-polite" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     <div id="live-assertive" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
-    <div id="toast" class="toast" aria-hidden="true"></div>
+    <!-- Manual popover: re-shown on each toast so it paints above open modal dialogs -->
+    <div id="toast" class="toast" aria-hidden="true" popover="manual"></div>
 
     <noscript>{{NOSCRIPT}}</noscript>
     <script>

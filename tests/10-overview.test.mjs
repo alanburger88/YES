@@ -21,6 +21,92 @@ async function noHorizontalOverflow(page) {
   });
 }
 
+/** Journey layout facts: active layout, labels broken inside words, colliding values, text spilling out of a step. */
+async function journeyLayout(page) {
+  return page.evaluate(() => {
+    const jr = document.querySelector('#ov-journey-body .jr');
+    const layout = getComputedStyle(jr).getPropertyValue('--jr-layout').trim();
+    const broken = [...jr.querySelectorAll('.jr-step .jr-label > span:last-child')]
+      .filter((e) => {
+        // A label wrapped inside a word renders more lines than it has words.
+        const lh = parseFloat(getComputedStyle(e).lineHeight) || 16;
+        return Math.round(e.getBoundingClientRect().height / lh) > e.textContent.trim().split(/\s+/).length;
+      })
+      .map((e) => e.textContent.trim());
+    const vals = [...jr.querySelectorAll('.jr-step .jr-value')].map((e) => e.getBoundingClientRect());
+    const overlaps = [];
+    for (let i = 0; i < vals.length; i++)
+      for (let j = i + 1; j < vals.length; j++) {
+        const a = vals[i];
+        const b = vals[j];
+        if (a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5) overlaps.push(i + '/' + j);
+      }
+    const spill = [...jr.querySelectorAll('.jr-step')]
+      .filter((s) => {
+        const p = s.getBoundingClientRect();
+        return [...s.querySelectorAll('.jr-value, .jr-label, .jr-sub')].some((c) => {
+          const r = c.getBoundingClientRect();
+          return r.left < p.left - 0.5 || r.right > p.right + 0.5 || c.scrollWidth > c.clientWidth + 1;
+        });
+      })
+      .map((s) => s.dataset.step);
+    const valueTops = layout === 'waterfall' ? [...new Set(vals.map((r) => Math.round(r.top)))] : [];
+    return { layout, broken, overlaps, spill, valueRows: valueTops.length, width: document.getElementById('ov-journey-body').clientWidth };
+  });
+}
+
+/** Rendered x-axis date labels of the running-balance chart that collide. */
+async function axisCollisions(page) {
+  return page.evaluate(() => {
+    const svg = document.querySelector('.ov-chart__svg');
+    if (!svg) return ['no chart'];
+    const labels = [...svg.querySelectorAll('text.c-tick[text-anchor="middle"]')].map((tx) => tx.getBoundingClientRect());
+    labels.sort((a, b) => a.left - b.left);
+    const out = [];
+    for (let i = 1; i < labels.length; i++) if (labels[i].left < labels[i - 1].right + 2) out.push(i);
+    return out;
+  });
+}
+
+/** Poster colours (contrast of its text on its background, background luminance) and its bars. */
+async function posterFacts(page) {
+  return page.evaluate(() => {
+    const el = document.querySelector('.ov-video__poster');
+    const ctx = document.createElement('canvas').getContext('2d');
+    const rgb = (c) => {
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = c;
+      ctx.fillRect(0, 0, 1, 1);
+      return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
+    };
+    const lum = (c) => {
+      const f = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+      return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+    };
+    const bg = lum(rgb(getComputedStyle(el).backgroundColor));
+    const ink = lum(rgb(getComputedStyle(el.querySelector('.ov-poster__hello')).fill));
+    return {
+      contrast: Math.round(((Math.max(bg, ink) + 0.05) / (Math.min(bg, ink) + 0.05)) * 10) / 10,
+      bg: Math.round(bg * 100) / 100,
+      bars: el.querySelectorAll('.ov-poster__bar').length,
+      steps: YES.calc.journey().length
+    };
+  });
+}
+
+/** Elements whose text wraps inside a word (more rendered lines than words). */
+async function brokenWords(page, sel) {
+  return page.$$eval(sel, (els) =>
+    els
+      .filter((e) => e.getClientRects().length)
+      .filter((e) => {
+        const lh = parseFloat(getComputedStyle(e).lineHeight) || parseFloat(getComputedStyle(e).fontSize) * 1.5;
+        return Math.round(e.getBoundingClientRect().height / lh) > e.textContent.trim().split(/\s+/).length;
+      })
+      .map((e) => e.textContent.trim())
+  );
+}
+
 async function spy(page) {
   await page.evaluate(() => {
     window.__calls = [];
@@ -102,6 +188,35 @@ export default async function (t) {
   const change = norm(await page.locator('.ov-change').innerText());
   t.assert(change.includes('+147.50 EXUSD') && change.includes('1,000.00 EXUSD'), 'signed net change since opening: ' + change);
   t.eq(await page.locator('.ov-change__value .dir--in').count(), 1, 'direction icon on the net change');
+  // A positive change takes the upward trend glyph, never the downward "received" tray arrow.
+  const netIcon = await page.evaluate(() => {
+    const parse = (name) => {
+      const box = document.createElement('div');
+      box.innerHTML = YES.ui.icon(name);
+      return box.querySelector('svg').innerHTML;
+    };
+    const inner = document.querySelector('.ov-change__value .dir svg').innerHTML;
+    return { up: inner === parse('trend-up'), arrowIn: inner === parse('arrow-in') };
+  });
+  t.eq(netIcon, { up: true, arrowIn: false }, 'net change +147.50 uses the trend-up glyph');
+  const netFit = await page.evaluate(() => {
+    const side = document.querySelector('.ov-balance__side').getBoundingClientRect();
+    const parts = [...document.querySelectorAll('.ov-change__value > *')].map((e) => e.getBoundingClientRect());
+    return parts.every((r) => r.right <= side.right + 0.5 && r.left >= side.left - 0.5);
+  });
+  t.assert(netFit, 'net change stays inside its column');
+
+  t.step('first screen');
+  const fold = await page.evaluate(() => ({
+    actions: Math.round(Math.max(...[...document.querySelectorAll('.ov-actions .btn')].map((b) => b.getBoundingClientRect().bottom + scrollY))),
+    journey: Math.round(document.getElementById('ov-journey-title').getBoundingClientRect().top + scrollY),
+    vh: innerHeight
+  }));
+  if (vp === 'mobile') t.assert(fold.actions <= fold.vh, 'both primary actions are on the first screen of a 390×844 phone (bottom ' + fold.actions + ')');
+  if (wide) t.assert(fold.journey + 32 <= fold.vh, 'the balance journey starts on the first screen at 1280×900 (heading at ' + fold.journey + ')');
+  const p0 = await posterFacts(page);
+  t.eq(p0.bars, p0.steps, 'poster bars are this statement’s journey steps, not a decorative chart');
+  t.assert(p0.contrast >= 4.5, 'poster text contrast (light): ' + p0.contrast);
 
   t.step('not-in-balance notice');
   const notin = norm(await page.locator('.ov-notin').innerText());
@@ -159,11 +274,38 @@ export default async function (t) {
   t.assert(groups[1].text.includes('Outgoing activity and fees') && groups[1].text.includes('−552.50'), 'outgoing group label/value');
   t.eq(await page.locator('.jr-step--in .jr-dir, .jr-step--out .jr-dir').count(), 5, 'icons accompany direction (not colour alone)');
   t.assert(norm(await page.locator('[data-ov-step="transfers_out"] .sr-only').first().innerText()).includes('minus 450.00 EXUSD'), 'spoken amount says minus');
+  // Steps are grouped by type: the levels between them are subtotals, not balances
+  // the account held (the ledger never went above 1,250.00).
+  const stepText = norm(await page.locator('[data-ov-step="transfers_in"]').innerText());
+  t.assert(stepText.includes('Running subtotal after this step: 1,700.00 EXUSD') && !/balance after/i.test(stepText), 'intermediate level is a running subtotal: ' + stepText);
+  t.eq(
+    await page.$$eval('#view-overview', (els) => (els[0].textContent.match(/Balance after this step|Balance after step/g) || []).length),
+    0,
+    'no "balance after" label on journey subtotals'
+  );
+  t.assert(norm(await page.locator('.ov-sechead .ov-legend').innerText()).includes('Opening and closing balance'), 'dark bars keyed as opening and closing balance');
+  const layout0 = await journeyLayout(page);
+  t.eq(layout0.layout, wide ? 'waterfall' : 'list', 'journey layout for a ' + layout0.width + 'px column');
+  t.eq([layout0.broken, layout0.overlaps, layout0.spill], [[], [], []], 'labels wrap between words, values neither collide nor spill');
+  if (wide) t.eq(layout0.valueRows, 1, 'waterfall values share one baseline');
+  t.eq(
+    await page.evaluate(() => [getComputedStyle(document.querySelector('.jr-label')).overflowWrap, getComputedStyle(document.querySelector('.jr-sub')).whiteSpace]),
+    ['break-word', 'normal'],
+    'labels never break anywhere; counts may wrap (text spacing)'
+  );
 
   t.step('select outgoing transfers with the keyboard');
+  const histBefore = await page.evaluate(() => history.length);
   await page.focus('[data-ov-step="transfers_out"]');
   await page.keyboard.press('Enter');
   t.eq(await page.evaluate(() => YES.state.journeyStep), 'transfers_out', 'state.journeyStep set');
+  // PRD 5.2: selecting a step filters the transaction explorer to exactly its transactions.
+  t.eq(
+    await page.evaluate(() => YES.state.filters),
+    await page.evaluate(() => Object.assign(YES.defaultFilters(), { step: 'transfers_out' })),
+    'the explorer filter follows the selected step (fresh filter, step only)'
+  );
+  t.eq(await page.evaluate(() => history.length), histBefore + 1, 'selecting from the full journey adds a history entry (Back clears it)');
   t.eq(await page.getAttribute('[data-ov-step="transfers_out"]', 'aria-pressed'), 'true', 'pressed');
   t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-fk')), 'ov-step-transfers_out', 'focus stays on the toggle');
   t.eq(await page.evaluate(() => location.hash), '#/overview/transfers_out', 'deep link reflects the selection');
@@ -212,6 +354,7 @@ export default async function (t) {
   t.step('clear selection');
   await page.click('[data-ov-clear]');
   t.eq(await page.evaluate(() => YES.state.journeyStep), null, 'cleared');
+  t.eq(await page.evaluate(() => YES.state.filters.step), null, 'clearing the step restores the full ledger in the explorer');
   t.eq(await page.locator('#ov-panel-section').count(), 0, 'panel removed');
   t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-fk')), 'ov-step-transfers_out', 'focus returns to the step');
   t.eq(await page.evaluate(() => location.hash), '#/overview', 'deep link cleared');
@@ -222,6 +365,34 @@ export default async function (t) {
   t.eq(await page.getAttribute('[data-ov-step="outgoing"]', 'aria-pressed'), 'true', 'group pressed');
   t.eq(await page.locator('#ov-panel-section [data-ov-tx]').count(), 9, 'outgoing group lists 9 rows (5 transfers, 1 redemption, 3 fees)');
   t.eq(await page.getAttribute('.ov-sum', 'data-sum'), '-55250', 'group sum −552.50');
+  t.eq(await page.evaluate(() => YES.state.filters.step), 'outgoing', 'a group filters the explorer too');
+  const panelFacts = await page.evaluate(() => {
+    const sum = document.querySelector('.ov-sum__label');
+    const lh = parseFloat(getComputedStyle(sum).lineHeight);
+    const jr = document.querySelector('.jr').getBoundingClientRect();
+    const panel = document.getElementById('ov-panel-section').getBoundingClientRect();
+    const seps = [...document.querySelectorAll('#ov-panel-section .ov-seps')];
+    const lineStartsClipped = seps.every((w) => {
+      if (getComputedStyle(w).display === 'contents') return true; // table-like row: no separators
+      const wl = w.getBoundingClientRect().left;
+      let top = null;
+      return [...w.querySelectorAll('.ov-seps__in > :not(.sr-only)')].every((it) => {
+        const r = it.getBoundingClientRect();
+        const starts = top === null || r.top > top + 2;
+        top = r.top;
+        // An item that starts a line sits one separator left of the wrapper: its "·" is clipped.
+        return !starts || r.left + parseFloat(getComputedStyle(it).paddingLeft) <= wl + 0.5;
+      });
+    });
+    return {
+      sumOneLine: sum.getBoundingClientRect().height < lh * 1.6,
+      textDots: seps.some((w) => /·/.test(w.textContent)),
+      lineStartsClipped,
+      fullWidth: Math.abs(panel.left - jr.left) < 1
+    };
+  });
+  t.eq([panelFacts.sumOneLine, panelFacts.textDots, panelFacts.lineStartsClipped], [true, false, true], 'panel: "Sum of these rows" on one line; separators drawn by CSS and hidden at line starts');
+  if (vp === 'narrow') t.assert(panelFacts.fullWidth, 'phones: the panel uses the full card width (no group indent)');
   t.eq(await page.locator('.jr-step.is-member').count(), 3, 'member steps highlighted');
   t.eq(await page.locator('.jr-check:visible').count(), 1, 'check icon marks the pressed toggle');
   await page.click('[data-ov-step="incoming"]');
@@ -241,7 +412,12 @@ export default async function (t) {
   t.assert(norm(await page.locator('#ov-panel-section').innerText()).includes('450,00'), 'Spanish number format 450,00');
   t.eq(await page.locator('#ov-panel-section [data-ov-tx]').count(), 5, 'same 5 rows');
   t.assert(norm(await page.locator('#h-overview').innerText()).includes('septiembre de 2026'), 'h1 in Spanish');
-  t.assert(norm(await page.locator('.ov-handshake').innerText()).startsWith('Hola, Sam. Aquí tienes tu actividad de YES del'), 'Spanish handshake');
+  t.eq(
+    norm(await page.locator('.ov-handshake').innerText()).trim(),
+    'Hola, Sam. Aquí tienes tu actividad de YES del 1 al 30 de septiembre de 2026. Empieza por lo esencial y explora cualquier movimiento que quieras entender mejor. Si algo no te cuadra, estamos aquí para ayudarte.',
+    'Spanish handshake reads naturally ("del 1 al 30 de septiembre")'
+  );
+  t.assert(norm(await page.locator('[data-ov-step="transfers_in"]').innerText()).includes('Subtotal acumulado tras este paso: 1.700,00 EXUSD'), 'Spanish subtotal wording');
   t.assert(norm(await page.locator('.ov-hero__num').innerText()).includes('147,50'), 'hero in Spanish format');
   t.eq(await page.evaluate(() => YES.state.overview.details), true, 'details disclosure state survives');
   t.eq(await page.locator('.ov-details').evaluate((d) => d.open), true, 'details still open');
@@ -256,6 +432,9 @@ export default async function (t) {
   const ovEs = await noHorizontalOverflow(page);
   t.assert(ovEs.scroll, 'no horizontal scroll in Spanish');
   t.eq(ovEs.offenders, [], 'nothing overflows in Spanish');
+  t.eq(await brokenWords(page, '.ov-jtable th[scope="row"] .ov-table__label, .ov-jtable th[scope="row"] .ov-table__sub'), [], 'table row headers wrap between words in Spanish');
+  const esJourney = await journeyLayout(page);
+  t.eq([esJourney.broken, esJourney.overlaps, esJourney.spill], [[], [], []], 'Spanish journey: no broken labels, collisions or spills');
   await page.click('[data-fk="ov-jtable"]');
   await page.click('[data-fk="ov-ctable"]');
   await shot(t, 'spanish');
@@ -301,6 +480,27 @@ export default async function (t) {
   t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-ov-pt')), '1', 'arrow key moves to the next point');
   t.assert(norm(await page.locator('.ov-tip').innerText()).includes('1,130.00 EXUSD'), 'tooltip shows balance after the second transaction');
   t.assert(norm(await page.locator('[data-ov-pt="1"]').getAttribute('aria-label')).includes('Balance after: 1,130.00 EXUSD'), 'point has a full accessible name');
+  const ptLabels = await page.$$eval('[data-ov-pt]', (els) => els.map((e) => e.getAttribute('aria-label')));
+  t.eq(ptLabels.filter((l) => /\.\.|•/.test(l)), [], 'point names: no doubled full stop ("Daniel K.."), masked ids spoken, not bullets');
+  t.assert(norm(ptLabels[1]).includes('Daniel K. Balance after') && ptLabels.some((l) => /ending in 4821/.test(l)), 'abbreviated name ends the clause once; masked id read as "ending in"');
+  t.eq(await axisCollisions(page), [], 'x-axis date labels do not collide');
+  const dodge = await page.evaluate(() => {
+    // Same-time markers (a movement and its fee) must not sit on top of each other.
+    const at = {};
+    document.querySelectorAll('.ov-chart__svg .ov-mk').forEach((mk) => {
+      const i = +mk.getAttribute('data-i');
+      const b = document.querySelector('[data-ov-pt="' + i + '"]');
+      const r = mk.getBoundingClientRect();
+      const label = b.getAttribute('aria-label');
+      const key = label.slice(0, label.indexOf(': ')); // the date and time
+      (at[key] = at[key] || []).push(r.left + r.width / 2);
+    });
+    return Object.values(at)
+      .filter((xs) => xs.length > 1)
+      .map((xs) => Math.round(Math.abs(xs[1] - xs[0])));
+  });
+  t.eq(dodge.length, 3, 'three same-time pairs (Sep 9, 12 and 20)');
+  t.assert(dodge.every((d) => d >= 6), 'same-time markers are dodged so both show: ' + dodge.join(', '));
   await page.keyboard.press('End');
   t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-ov-pt')), '14', 'End moves to the last point');
   await spy(page);
@@ -472,9 +672,137 @@ export default async function (t) {
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' });
   await fresh(t, '#/overview/transfers_out');
   await axeOk(t, '#view-overview', 'dark scheme');
+  const pd = await posterFacts(page);
+  t.assert(pd.contrast >= 4.5 && pd.bg < 0.2, 'dark poster stays deep (luminance ' + pd.bg + ') with readable text (' + pd.contrast + ')');
   await shot(t, 'dark');
   if (wide) {
     await page.evaluate(() => document.getElementById('ov-why-title').scrollIntoView());
     await shot(t, 'dark-why');
+  }
+  /* ------------------------------------------------------------ history */
+  t.step('browser Back clears the selection instead of leaving the statement');
+  await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
+  await page.goto('about:blank');
+  await t.goto('#/overview');
+  const len0 = await page.evaluate(() => history.length);
+  await page.click('[data-ov-step="transfers_out"]');
+  await page.click('[data-ov-step="deposits"]');
+  t.eq(await page.evaluate(() => [location.hash, history.length]), ['#/overview/deposits', len0 + 1], 'one entry for the selection; moving between steps replaces it');
+  await page.goBack();
+  await page.waitForFunction(() => YES.state.journeyStep === null);
+  t.eq(
+    await page.evaluate(() => [location.protocol, location.hash, YES.state.view, YES.state.filters.step, !!document.getElementById('ov-panel-section')]),
+    ['file:', '#/overview', 'overview', null, false],
+    'Back restores the full journey and the full ledger, still inside the statement'
+  );
+  await page.waitForFunction(() => /Selection cleared/.test(document.getElementById('live-polite').textContent));
+  await page.goForward();
+  await page.waitForFunction(() => YES.state.journeyStep === 'deposits');
+  await page.waitForFunction(() => /Deposits selected/.test(document.getElementById('live-polite').textContent));
+  t.eq(await page.evaluate(() => YES.state.filters.step), 'deposits', 'Forward selects the step again (and filters again)');
+  await page.click('[data-ov-clear]');
+  await page.waitForFunction(() => location.hash === '#/overview');
+  t.eq(await page.evaluate(() => history.length), len0 + 1, 'Clear steps back through the same entry, so history does not grow');
+  t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-fk')), 'ov-step-deposits', 'focus returns to the step');
+  await page.click('[data-ov-step="fees"]');
+  await page.click('.nav__link[data-nav="transactions"]');
+  await page.goBack();
+  await page.waitForFunction(() => YES.state.view === 'overview');
+  t.eq(await page.evaluate(() => YES.state.journeyStep), 'fees', 'Back from Transactions returns to the selected step');
+  await page.goBack();
+  await page.waitForFunction(() => YES.state.journeyStep === null);
+  t.eq(await page.evaluate(() => location.protocol), 'file:', 'and the next Back returns to the full journey');
+
+  /* ------------------------------------------------------------ text spacing */
+  t.step('WCAG 1.4.12 text spacing');
+  await fresh(t, '#/overview');
+  await page.addStyleTag({
+    content: '* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }'
+  });
+  await page.waitForTimeout(150);
+  const hidden = await page.evaluate(() =>
+    [...document.querySelectorAll('.jr-sub')]
+      .filter((e) => {
+        const r = e.getBoundingClientRect();
+        const plot = e.closest('.jr-step').querySelector('.jr-plot').getBoundingClientRect();
+        const underBar = r.right > plot.left + 0.5 && r.left < plot.right - 0.5 && r.bottom > plot.top + 0.5 && r.top < plot.bottom - 0.5;
+        return e.scrollWidth > e.clientWidth + 1 || underBar;
+      })
+      .map((e) => e.textContent)
+  );
+  t.eq(hidden, [], 'step counts wrap instead of running under the bar');
+
+  /* ------------------------------------------------------------ forced colours */
+  t.step('forced colours: the legend matches the bars');
+  await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark', forcedColors: 'active' });
+  await fresh(t, '#/overview');
+  const paint = (sel) =>
+    page.evaluate((s) => {
+      const cs = getComputedStyle(document.querySelector(s));
+      return cs.backgroundImage !== 'none' ? 'stripes' : cs.backgroundColor;
+    }, sel);
+  const keys = { in: await paint('.ov-key--in'), out: await paint('.ov-key--out'), total: await paint('.ov-key--total') };
+  const bars = { in: await paint('.jr-step--in .jr-bar'), out: await paint('.jr-step--out .jr-bar'), total: await paint('.jr-step--total .jr-bar') };
+  t.eq(bars, keys, 'each bar looks like its legend key');
+  t.eq(new Set(Object.values(keys)).size, 3, 'adds, reduces and balance are three different marks');
+  t.eq(keys.out, 'stripes', 'reduces is a pattern, not only a colour');
+  await page.click('[data-ov-step="transfers_out"]');
+  const dim = await page.evaluate(() => {
+    const cs = getComputedStyle(document.querySelector('.jr-step.is-dim .jr-bar'));
+    return { opacity: cs.opacity, outline: /inset/.test(cs.boxShadow) };
+  });
+  t.eq(dim, { opacity: '1', outline: true }, 'receding steps stay visible as outlines');
+  await shot(t, 'forced-colors');
+  await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light', forcedColors: 'none' });
+
+  /* ------------------------------------------------------------ container layout */
+  if (wide) {
+    t.step('journey and balance card lay out for the width they have (docked assistant, narrow windows)');
+    const cases = [
+      [1100, true, 'en'],
+      [1280, true, 'en'],
+      [1280, true, 'es'],
+      [1440, true, 'en'],
+      [900, false, 'en'],
+      [900, false, 'es'],
+      [1024, false, 'es'],
+      [860, false, 'en'],
+      [800, false, 'es'],
+      [768, false, 'en'],
+      [720, false, 'es']
+    ];
+    for (const [w, docked, lang] of cases) {
+      await page.setViewportSize({ width: w, height: 900 });
+      await fresh(t, '#/overview/transfers_out');
+      if (lang === 'es') await page.click('[data-lang="es"]');
+      await page.evaluate((d) => document.documentElement.classList.toggle('assistant-docked', d), docked);
+      await page.waitForTimeout(200); // resize observer + rAF
+      const L = await journeyLayout(page);
+      const where = `${w}px${docked ? ' docked' : ''} ${lang} (${L.width}px column, ${L.layout})`;
+      t.eq([L.broken, L.overlaps, L.spill], [[], [], []], 'no broken labels, collisions or spills at ' + where);
+      if (L.layout === 'waterfall') t.eq(L.valueRows, 1, 'one value baseline at ' + where);
+      t.eq(L.layout, L.width >= 880 ? 'waterfall' : 'list', 'the waterfall only when its column can hold it at ' + where);
+      const placed = await page.evaluate(() => (document.getElementById('ov-panel').parentElement.classList.contains('jr') ? 'list' : 'waterfall'));
+      t.eq(placed, L.layout, 'the panel sits where the layout puts it at ' + where);
+      const card = await page.evaluate(() => {
+        const inside = (sel, outer) => [...document.querySelectorAll(sel)].every((e) => e.getBoundingClientRect().right <= outer.right + 0.5);
+        const box = document.querySelector('.ov-balance').getBoundingClientRect();
+        const side = document.querySelector('.ov-balance__side').getBoundingClientRect();
+        return inside('.ov-hero > :not(.sr-only), .ov-notin__actions .btn, .ov-fiat__line', box) && inside('.ov-change__value > *, .ov-actions .btn', side);
+      });
+      t.assert(card, 'balance card figures and actions stay inside the card at ' + where);
+      t.eq(await axisCollisions(page), [], 'chart axis labels do not collide at ' + where);
+    }
+    t.step('docking while the panel has focus keeps focus');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await fresh(t, '#/overview/transfers_out');
+    await page.focus('[data-fk="ov-panel-clear"]');
+    await page.evaluate(() => document.documentElement.classList.add('assistant-docked'));
+    await page.waitForFunction(() => document.getElementById('ov-panel').parentElement.classList.contains('jr'));
+    t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-fk')), 'ov-panel-clear', 'focus stays on the same control when the panel moves');
+    await shot(t, 'docked-list');
+    await page.evaluate(() => document.documentElement.classList.remove('assistant-docked'));
+    await page.waitForFunction(() => !document.getElementById('ov-panel').parentElement.classList.contains('jr'));
+    t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-fk')), 'ov-panel-clear', 'and when it moves back below the waterfall');
   }
 }

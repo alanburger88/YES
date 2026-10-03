@@ -1,8 +1,9 @@
 /*
  * Transaction inquiry — a complete LOCAL mock (PRD 5.4, 9 "Inquiry").
  *
- * Four steps in the #inquiry-dialog: (1) the transaction carried in, (2) reason,
- * optional description and preferred reply channel, (3) review, (4) a
+ * Four steps in the #inquiry-dialog: (1) the transaction carried in, (2) reason
+ * (only the reasons that fit that transaction: see reasonsFor), optional
+ * description and preferred reply channel, (3) review, (4) a
  * confirmation that says "Demo only — no inquiry was sent" with a clearly
  * fictional local reference. Nothing is sent, nothing is stored outside
  * YES.state, and no contact details are ever requested.
@@ -25,15 +26,16 @@
   var doc = root.document;
 
   var STEPS = ['transaction', 'details', 'review', 'done'];
-  var REASONS = ['unrecognised', 'amount', 'pending', 'fee', 'other'];
+  /* Every reason the form knows, in display order; reasonsFor(tx) offers the ones that fit. */
+  var REASONS = ['unrecognized', 'amount', 'pending', 'fee', 'other'];
   var CHANNELS = ['in_app', 'email', 'phone'];
   var CHANNEL_ICONS = { in_app: 'chat', email: 'mail', phone: 'phone' };
   var FIELDS = ['reason', 'description', 'channel']; // form order (error summary order)
   var MAX = 500;
   var SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
   var REF_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // no 0/O or 1/I look-alikes
-  /* A run of 12+ digits (spaces or hyphens allowed) looks like a full card or account number. */
-  var SENSITIVE_NUMBER = /(?:\d[ -]?){12,}/;
+  /* Digits written together, or in groups of 3+ split by one space or hyphen (see looksSensitive). */
+  var DIGIT_RUN = /\d{3,}(?:[  -]\d{3,})*/g;
 
   var els = { dlg: null, shell: null, live: null, liveA: null };
   /* DOM references cannot live in state: the control focus returns to, and the
@@ -42,6 +44,7 @@
   var timers = {};
   var seqCounter = 0;
   var selfWrite = false;
+  var revealing = false; // focusField scrolls the field itself; the focusin reveal stands aside
 
   /* ------------------------------------------------------------------ */
   /* State helpers                                                       */
@@ -75,12 +78,15 @@
     if (STEPS.indexOf(r.step) === -1) r.step = r.status === 'submitted' ? 'done' : 'transaction';
     if (r.status === 'submitted') r.step = 'done';
     else if (r.step === 'done') r.step = 'review';
-    if (REASONS.indexOf(r.reason) === -1) r.reason = '';
+    // A saved reason this transaction no longer offers (e.g. "pending" once it has posted) is dropped.
+    if (reasonsFor(YES.calc.tx(r.txId)).indexOf(r.reason) === -1) r.reason = '';
     if (CHANNELS.indexOf(r.channel) === -1) r.channel = '';
     r.description = typeof r.description === 'string' ? r.description.slice(0, MAX) : '';
     r.attempt = r.attempt > 0 ? Math.floor(r.attempt) : 1;
     if (r.status === 'submitted' && !r.ref) r.ref = makeRef(r.txId, r.attempt);
     if (!r.errors || typeof r.errors !== 'object') r.errors = null;
+    // Never review answers that would not pass: back to the form to complete them.
+    if (r.step === 'review' && validate(r)) r.step = 'details';
     return r;
   }
   /** The persistable part of one inquiry (transient UI flags dropped). */
@@ -155,12 +161,103 @@
     return 'DEMO-INQ-' + code + (attempt > 1 ? '-' + attempt : '');
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Reasons and validation                                              */
+  /* ------------------------------------------------------------------ */
+  function hasFee(tx) {
+    return tx.type === 'fee' || !!(tx.fees && tx.fees.length) || YES.calc.feesFor(tx.id).length > 0;
+  }
+  /**
+   * The reasons that make sense for this transaction: "It's still pending" only
+   * while it is pending, "a question about a fee" only for a fee line or a
+   * transaction with linked fees. The others always apply.
+   */
+  function reasonsFor(tx) {
+    if (!tx) return REASONS.slice();
+    return REASONS.filter(function (id) {
+      if (id === 'pending') return tx.status === 'pending';
+      if (id === 'fee') return hasFee(tx);
+      return true;
+    });
+  }
+  function reasonsOf(s) {
+    return reasonsFor(s && s.txId ? YES.calc.tx(s.txId) : null);
+  }
+
+  /** Luhn checksum: every real payment-card number passes it. */
+  function luhn(digits) {
+    var sum = 0;
+    var dbl = false;
+    for (var i = digits.length - 1; i >= 0; i--) {
+      var n = digits.charCodeAt(i) - 48;
+      if (dbl) n = n * 2 > 9 ? n * 2 - 9 : n * 2;
+      sum += n;
+      dbl = !dbl;
+    }
+    return sum % 10 === 0;
+  }
+  /** Identifiers the statement itself shows (ids, references, network hashes): quoting them is fine. */
+  function ownIdentifiers() {
+    var d = YES.data || {};
+    var st = d.statement || {};
+    var ids = [st.id, st.account && st.account.walletMasked];
+    (d.transactions || []).forEach(function (tx) {
+      ids.push(tx.id, tx.reference);
+      if (tx.onchain) ids.push(tx.onchain.hash, tx.onchain.hashDisplay);
+    });
+    return ids
+      .filter(function (v) {
+        return typeof v === 'string' && v.length > 3;
+      })
+      .map(function (v) {
+        return v.toLowerCase();
+      });
+  }
+  /**
+   * Is the character `ch` (with `beyond` on its far side) part of the same token
+   * as an adjacent digit run? A letter or digit is; so is an id joiner ("-", "_")
+   * with a letter or digit beyond it, or a decimal/thousands mark between digits.
+   */
+  function glued(ch, beyond) {
+    return /[a-z0-9]/i.test(ch) || (/[-_]/.test(ch) && /[a-z0-9]/i.test(beyond)) || (/[.,]/.test(ch) && /\d/.test(beyond));
+  }
+  /**
+   * Does the description contain what looks like a full card or account number?
+   * Only a number that stands on its own counts: digits inside a longer token
+   * (a hex hash "0x…", an id like "YES-STM-202609-000184", an amount) never do,
+   * and the statement's own identifiers are ignored. It counts when it holds
+   *   - 12 or more digits written together (an account or card number), or
+   *   - card-style groups of 4–6 digits ("4111 1111 1111 1111", "3782 822463
+   *     10005") totalling 13–19 digits that pass the Luhn check — also when
+   *     more digits follow, such as a security code.
+   */
   function looksSensitive(text) {
-    return SENSITIVE_NUMBER.test(String(text || ''));
+    var s = String(text || '').toLowerCase();
+    if (!/\d{3}/.test(s)) return false;
+    ownIdentifiers().forEach(function (id) {
+      if (s.indexOf(id) !== -1) s = s.split(id).join(' ');
+    });
+    DIGIT_RUN.lastIndex = 0;
+    var m;
+    while ((m = DIGIT_RUN.exec(s))) {
+      var start = m.index;
+      var end = start + m[0].length;
+      if (glued(s.charAt(start - 1), s.charAt(start - 2)) || glued(s.charAt(end), s.charAt(end + 1))) continue;
+      var groups = m[0].split(/[  -]/);
+      for (var i = 0; i < groups.length; i++) {
+        if (groups[i].length >= 12) return true;
+        var acc = '';
+        for (var j = i; j < groups.length && groups[j].length >= 4 && groups[j].length <= 6 && acc.length < 19; j++) {
+          acc += groups[j];
+          if (j > i && acc.length >= 13 && acc.length <= 19 && luhn(acc)) return true;
+        }
+      }
+    }
+    return false;
   }
   function validate(s) {
     var e = {};
-    if (REASONS.indexOf(s.reason) === -1) e.reason = 'required';
+    if (reasonsOf(s).indexOf(s.reason) === -1) e.reason = 'required';
     if (looksSensitive(s.description)) e.description = 'sensitive';
     if (CHANNELS.indexOf(s.channel) === -1) e.channel = 'required';
     return Object.keys(e).length ? e : null;
@@ -189,6 +286,20 @@
   }
   function q(sel) {
     return els.shell ? els.shell.querySelector(sel) : null;
+  }
+  /**
+   * Empty every live region in the dialog (ours, and any the shared ui.announce
+   * added) and drop queued messages, so screen-reader browse mode never finds a
+   * message from an earlier step, transaction or language.
+   */
+  function clearLive() {
+    clearTimeout(timers.say);
+    clearTimeout(timers.sayA);
+    clearTimeout(timers.count);
+    if (!els.dlg) return;
+    ui.$$(':scope > [aria-live]', els.dlg).forEach(function (r) {
+      r.textContent = '';
+    });
   }
   /** Announce inside the open dialog (content outside a modal dialog is inert); otherwise via the shared regions. */
   function say(msg, assertive) {
@@ -394,21 +505,28 @@
   }
   function firstInputId(field, s) {
     if (field === 'description') return 'inq-desc';
-    var list = field === 'reason' ? REASONS : CHANNELS;
+    var list = field === 'reason' ? reasonsOf(s) : CHANNELS;
     var v = s && s[field];
     return 'inq-' + field + '-' + (list.indexOf(v) !== -1 ? v : list[0]);
   }
+  /*
+   * The error summary is announced once, by moving focus to it (showErrors): a
+   * named group whose description is the list of problems. It is deliberately
+   * not role="alert" and nothing else is announced, so a screen reader hears it
+   * once instead of an alert, the focused summary and a live-region message
+   * talking over each other.
+   */
   function summaryHtml(e, s) {
     var fields = FIELDS.filter(function (f) {
       return e && e[f];
     });
     if (!fields.length) return '';
     return (
-      '<div class="inq-errors" role="alert" tabindex="-1" data-fk="inq-errors" aria-labelledby="inq-errors-title">' +
+      '<div class="inq-errors" role="group" tabindex="-1" data-fk="inq-errors" aria-labelledby="inq-errors-title" aria-describedby="inq-errors-list">' +
       ui.icon('alert', { size: 22 }) +
       '<div class="inq-errors__body"><h3 id="inq-errors-title" class="inq-errors__title">' +
       esc(t('inquiry.err.title')) +
-      '</h3><ul class="inq-errors__list">' +
+      '</h3><ul class="inq-errors__list" id="inq-errors-list">' +
       fields
         .map(function (f) {
           return (
@@ -447,7 +565,7 @@
         var inputId = 'inq-' + field + '-' + id;
         var hint = o.choiceHint ? t('inquiry.' + field + '.' + id + '.hint') : '';
         return (
-          '<label class="choice inq-choice" for="' +
+          '<label class="choice inq-choice" data-inq-reveal for="' +
           inputId +
           '"><input type="radio" id="' +
           inputId +
@@ -535,6 +653,8 @@
       '<div data-inq-errslot="description">' +
       (err ? errorHtml('description') : '') +
       '</div>' +
+      // The field and its counter scroll into view together when focused (revealFocused).
+      '<div class="inq-descbox" data-inq-reveal>' +
       // A leading newline is dropped by the HTML parser, so a description that starts with one survives re-renders.
       '<textarea id="inq-desc" class="textarea inq-textarea" rows="4" maxlength="' +
       MAX +
@@ -550,11 +670,12 @@
       '" id="inq-desc-count" data-inq-count>' +
       esc(countText(len)) +
       '</p>' +
+      '</div>' +
       '</div>'
     );
   }
 
-  function detailsStepHtml(s) {
+  function detailsStepHtml(s, tx) {
     var e = s.errors || {};
     return (
       '<div data-inq-summary>' +
@@ -563,7 +684,7 @@
       noticeHtml(s) +
       stepHeading(s, 'inquiry.details.heading') +
       '<div class="inq-form">' +
-      radioGroupHtml('reason', REASONS, s, e, { legend: 'inquiry.reason.legend' }) +
+      radioGroupHtml('reason', reasonsFor(tx), s, e, { legend: 'inquiry.reason.legend' }) +
       descriptionHtml(s, e) +
       radioGroupHtml('channel', CHANNELS, s, e, { legend: 'inquiry.channel.legend', hint: 'inquiry.channel.hint', choiceHint: true, icons: CHANNEL_ICONS }) +
       '</div>' +
@@ -574,7 +695,7 @@
   /* ----------------------------- Review ----------------------------- */
   function reviewRow(key, valueHtml, edit) {
     return (
-      '<div class="inq-review__row" data-inq-row="' +
+      '<div class="inq-review__row" data-inq-reveal data-inq-row="' +
       edit +
       '"><dt>' +
       esc(t(key)) +
@@ -731,21 +852,28 @@
 
   function shellHtml(s, tx) {
     var body;
-    if (s.step === 'details') body = detailsStepHtml(s);
+    if (s.step === 'details') body = detailsStepHtml(s, tx);
     else if (s.step === 'review') body = reviewStepHtml(s, tx);
     else if (s.step === 'done') body = doneStepHtml(s, tx);
     else body = txStepHtml(s, tx);
     return headHtml(s) + '<div class="dlg__body inq-body" data-inq-body data-step="' + esc(s.step) + '">' + body + '</div>' + footHtml(s);
   }
 
+  /**
+   * Render the dialog from state. Every render (a step change, start or resume,
+   * a language switch, a change from outside) also empties the live regions:
+   * whatever they said belonged to the screen being replaced.
+   */
   function renderShell(opts) {
-    var s = current();
-    var tx = s ? YES.calc.tx(s.txId) : null;
-    if (!els.shell || !s || !tx) return;
+    var cur = current();
+    var tx = cur ? YES.calc.tx(cur.txId) : null;
+    if (!els.shell || !cur || !tx) return;
+    var s = normalize(cur);
     var body = q('[data-inq-body]');
     var same = body && body.getAttribute('data-step') === s.step;
     var scroll = body ? body.scrollTop : 0;
-    ui.render(els.shell, shellHtml(normalize(s), tx));
+    clearLive();
+    ui.render(els.shell, shellHtml(s, tx));
     els.dlg.setAttribute('data-step', s.step);
     var nb = q('[data-inq-body]');
     if (!nb) return;
@@ -786,15 +914,55 @@
     var h = q('[data-inq-heading]') || q('#inquiry-dialog-title');
     if (h) h.focus({ preventScroll: true });
   }
+  /** The element that scrolls the step content: the body, or the whole sheet on short viewports. */
+  function scroller() {
+    var body = q('[data-inq-body]');
+    if (!body) return null;
+    var oy = root.getComputedStyle(body).overflowY;
+    return oy === 'auto' || oy === 'scroll' ? body : els.dlg;
+  }
+  /** What must be fully visible when `el` has focus: its choice card, the description with its counter, its review row. */
+  function revealBox(el) {
+    return el.closest('[data-inq-reveal]') || el;
+  }
+  /**
+   * Show the focused control in full (WCAG 2.4.11/2.4.12). A browser only
+   * reveals a textarea's caret line, which can leave the field, its counter and
+   * most of a choice card under the dialog's footer.
+   */
+  function revealFocused(el, smooth) {
+    var target = revealBox(el);
+    if (!target.scrollIntoView) return;
+    target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: smooth && !ui.reducedMotion() ? 'smooth' : 'auto' });
+  }
+  function onFocusIn(e) {
+    var el = e.target;
+    var body = q('[data-inq-body]');
+    if (revealing || !body || el === body || !body.contains(el)) return;
+    // After the browser's own focus scrolling (and any re-render that restored focus).
+    root.cancelAnimationFrame(timers.reveal);
+    timers.reveal = root.requestAnimationFrame(function () {
+      if (doc.activeElement === el && el.isConnected) revealFocused(el, false);
+    });
+  }
   function focusField(field) {
     var el =
       field === 'description'
         ? q('#inq-desc')
         : q('input[name="inq-' + field + '"]:checked') || q('input[name="inq-' + field + '"]');
     if (!el) return;
-    el.focus({ preventScroll: true });
-    var target = el.closest('[data-inq-group]') || el;
-    if (target.scrollIntoView) target.scrollIntoView({ block: 'nearest', behavior: ui.reducedMotion() ? 'auto' : 'smooth' });
+    revealing = true;
+    try {
+      el.focus({ preventScroll: true });
+    } finally {
+      revealing = false;
+    }
+    // The whole question (legend, hint, error and choices) when it fits; otherwise the field itself.
+    var group = el.closest('[data-inq-group]');
+    var sc = scroller();
+    var fits = group && sc && group.getBoundingClientRect().height <= sc.clientHeight - 32;
+    if (fits) group.scrollIntoView({ block: 'nearest', behavior: ui.reducedMotion() ? 'auto' : 'smooth' });
+    else revealFocused(el, true);
   }
 
   /* ------------------------------------------------------------------ */
@@ -816,10 +984,9 @@
     renderShell({ enter: !!step });
     var body = q('[data-inq-body]');
     if (body) body.scrollTop = 0;
+    // Focus alone announces the summary (its name and the list of problems); see summaryHtml.
     var sum = q('[data-fk="inq-errors"]');
     if (sum) sum.focus({ preventScroll: true });
-    var n = Object.keys(errors).length;
-    say(n === 1 ? t('inquiry.err.announce1') : t('inquiry.err.announceN', { n: YES.fmt.count(n) }), true);
   }
 
   function next() {
@@ -863,6 +1030,7 @@
   function setField(field, value) {
     var s = current();
     if (!s || FIELDS.indexOf(field) === -1) return;
+    if (field !== 'description' && (field === 'reason' ? reasonsOf(s) : CHANNELS).indexOf(value) === -1) return; // only choices on offer
     var p = {};
     p[field] = value;
     var fixed = !!(s.errors && s.errors[field]);
@@ -956,18 +1124,26 @@
   /* Dialog hand-offs                                                    */
   /* ------------------------------------------------------------------ */
   /**
-   * If the transaction detail is open, close it first (no focus return) and
-   * remember the control that opened it, so focus returns somewhere sensible.
+   * If the transaction detail is still open, close it first and remember the
+   * control that opened it, so focus returns somewhere sensible. Only shared
+   * APIs are used: ui.dialogTrigger / ui.setDialogReturn (core) for the focus
+   * hand-off, and YES.explorer.closeTx for the close itself, so the explorer
+   * settles its own state, route and history. ({ how: 'back' } is what the
+   * explorer does for its own hand-offs: the detail's history entry is stepped
+   * over, as when the customer closes it.)
    */
   function leaveTxDetail(trigger) {
     var txd = doc.getElementById('tx-dialog');
-    var origin = null;
-    if (txd && txd.open) {
-      origin = txd._trigger || null; // set by ui.openDialog: the row or button that opened the detail
-      ui.closeDialog(txd, { returnFocus: false });
-    }
+    var open = !!(txd && txd.open);
+    var origin = open ? ui.dialogTrigger(txd) : null;
+    // A trigger inside the detail (its "Ask about this transaction" button) goes away with it.
     if (trigger && txd && txd.contains(trigger)) trigger = null;
     if (trigger && els.dlg && els.dlg.contains(trigger)) trigger = null;
+    if (open) {
+      ui.setDialogReturn(txd, null); // focus moves into the inquiry, not back to the row behind it
+      YES.explorer.closeTx({ how: 'back' });
+      if (txd.open) ui.closeDialog(txd, { returnFocus: false }); // no explorer module (isolated build): close the bare dialog
+    }
     origin = resolve(origin);
     trigger = resolve(trigger) || origin;
     if (!trigger) {
@@ -981,14 +1157,14 @@
     var s = current();
     if (!s) return;
     var target = resolve(ctx.origin) || resolve(ctx.trigger);
-    els.dlg._trigger = null; // hand-off: the transaction detail takes focus, not the old trigger
+    ui.setDialogReturn(els.dlg, null); // hand-off: the transaction detail takes focus, not the old trigger
     ui.closeDialog(els.dlg, { returnFocus: false });
     YES.explorer.openTx(s.txId, target ? { trigger: target } : {});
   }
 
   function onClose() {
-    clearTimeout(timers.count);
     if (!els.dlg || els.dlg.open) return; // re-opened before a late 'close' event
+    clearLive();
     var s = raw();
     var cur = current();
     if (cur) {
@@ -1126,6 +1302,7 @@
     ui.delegate(d, 'input', '[data-inq-desc]', function (e, ta) {
       setDescription(ta.value);
     });
+    d.addEventListener('focusin', onFocusIn);
     root.addEventListener('resize', function () {
       clearTimeout(timers.resize);
       timers.resize = setTimeout(syncScrollable, 120);
@@ -1172,7 +1349,7 @@
         'inquiry.required': 'Required',
         'inquiry.optional': 'Optional',
         'inquiry.reason.legend': 'What is your inquiry about?',
-        'inquiry.reason.unrecognised': 'I don’t recognise this transaction',
+        'inquiry.reason.unrecognized': 'I don’t recognize this transaction',
         'inquiry.reason.amount': 'The amount looks wrong',
         'inquiry.reason.pending': 'It’s still pending',
         'inquiry.reason.fee': 'I have a question about a fee',
@@ -1197,8 +1374,6 @@
         'inquiry.err.reason': 'Choose what your inquiry is about.',
         'inquiry.err.description': 'Remove what looks like a full card or account number from your description.',
         'inquiry.err.channel': 'Choose how YES should reply.',
-        'inquiry.err.announce1': '1 answer needs your attention.',
-        'inquiry.err.announceN': '{n} answers need your attention.',
 
         'inquiry.review.heading': 'Check your inquiry',
         'inquiry.review.demoStrong': 'Demo only — nothing will be sent.',
@@ -1217,7 +1392,7 @@
         'inquiry.done.prodTitle': 'What would happen in production',
         'inquiry.done.prod.auth': 'Your inquiry would be submitted through an authenticated, auditable YES service.',
         'inquiry.done.prod.case': 'You would receive a genuine case ID and could follow its status.',
-        'inquiry.done.prod.dup': 'A second inquiry about the same transaction would be recognised as a duplicate and linked to the existing case.',
+        'inquiry.done.prod.dup': 'A second inquiry about the same transaction would be recognized as a duplicate and linked to the existing case.',
         'inquiry.done.prod.redact': 'Sensitive details you type would be redacted from analytics.',
         'inquiry.done.prod.reply': 'YES would reply through the channel you chose, using the contact details already on your account.',
         'inquiry.done.formalTitle': 'Inquiry, dispute or fraud report?',
@@ -1270,7 +1445,7 @@
         'inquiry.required': 'Obligatorio',
         'inquiry.optional': 'Opcional',
         'inquiry.reason.legend': '¿Sobre qué es tu consulta?',
-        'inquiry.reason.unrecognised': 'No reconozco este movimiento',
+        'inquiry.reason.unrecognized': 'No reconozco este movimiento',
         'inquiry.reason.amount': 'El importe no parece correcto',
         'inquiry.reason.pending': 'Sigue pendiente',
         'inquiry.reason.fee': 'Tengo una pregunta sobre una comisión',
@@ -1295,8 +1470,6 @@
         'inquiry.err.reason': 'Elige sobre qué es tu consulta.',
         'inquiry.err.description': 'Quita de tu descripción lo que parece un número completo de tarjeta o de cuenta.',
         'inquiry.err.channel': 'Elige cómo quieres que YES te responda.',
-        'inquiry.err.announce1': '1 respuesta necesita tu atención.',
-        'inquiry.err.announceN': '{n} respuestas necesitan tu atención.',
 
         'inquiry.review.heading': 'Revisa tu consulta',
         'inquiry.review.demoStrong': 'Solo demostración: no se enviará nada.',
@@ -1350,8 +1523,12 @@
     onState: function (keys) {
       if (selfWrite || keys.indexOf('inquiry') === -1 || !els.dlg || !els.dlg.open) return;
       // Changed from outside this module while the dialog is open.
-      if (!current() || !YES.calc.tx(current().txId)) ui.closeDialog(els.dlg);
-      else renderShell();
+      var cur = current();
+      if (!cur || !YES.calc.tx(cur.txId)) return ui.closeDialog(els.dlg);
+      var n = normalize(cur); // e.g. a reason this transaction does not offer, or a step that no longer applies
+      delete n.others;
+      write(n, othersOf(raw()));
+      renderShell();
     }
   });
 })(window);

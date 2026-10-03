@@ -17,7 +17,7 @@ The showcase is **one HTML file** (`dist/yes-statement.html`) assembled by `buil
 | `src/js/02-calc.js` | foundation | Pure arithmetic + reconciliation (also run by the build's release gate) |
 | `src/js/03-i18n.js` | foundation | `YES.t`, `YES.L`, `YES.fmt.*`, shared EN/ES strings |
 | `src/js/04-core.js` | foundation | Events, state, module registry, router, UI toolkit, icons, API stubs |
-| `src/js/05-shell.js` | foundation | Masthead, nav, language switch, footer, withheld state |
+| `src/js/05-shell.js` | foundation | Skip link, masthead, nav, language switch, footer, document title, withheld state |
 | `src/js/06-userway.js` | foundation | UserWay loader (online only, once, graceful failure) |
 | `src/js/99-boot.js` | foundation | Boot sequence |
 | `src/js/10-overview.js`, `src/css/10-overview.css` | overview | First screen, balance card, statement details, balance journey, running-balance chart, video card |
@@ -53,13 +53,13 @@ Files are concatenated in filename order, so module files run after the foundati
 Rules:
 
 1. **Strings**: every user-visible string comes from `YES.t(key)` with keys prefixed by the module name (`explorer.*`). Provide **both** `en` and `es`; `YES.i18n.audit()` must return `{}`. Localised data fields use `YES.L(obj)`.
-2. **Numbers and dates**: only via `YES.fmt.plain` (machine-readable, CSV), `YES.fmt.isoTime`, `YES.fmt.amount` (value and unit joined by a no-break space, U+00A0; four-digit amounts are always grouped), `YES.fmt.amountSpoken`, `YES.fmt.date(iso, style)`, `YES.fmt.isoDate`, `YES.fmt.range`, `YES.fmt.tz`, `YES.fmt.fiat`, `YES.fmt.count`, `YES.txCount(n)`. Amounts are **integer minor units**; never do float arithmetic on them.
-3. **Figures** come from `YES.calc.*` (categories, journey, running, posted, notInBalance, tx, feesFor, largest, fiat, reconcile). Never hard-code a total.
+2. **Numbers and dates**: only via `YES.fmt.plain` (machine-readable, CSV), `YES.fmt.isoTime`, `YES.fmt.amount` (value and unit joined by a no-break space, U+00A0; four-digit amounts are always grouped), `YES.fmt.amountSpoken`, `YES.fmt.date(iso, style)`, `YES.fmt.isoDate`, `YES.fmt.range`, `YES.fmt.tz`, `YES.fmt.fiat` (grouped like token amounts), `YES.fmt.count`, `YES.txCount(n)`, `YES.fmt.maskedSpoken(text)`. `YES.fmt.range` is worded to read naturally on its own and after a preposition ("September 1–30, 2026"; "1 al 30 de septiembre de 2026", so Spanish templates say "del {period}"). Amounts are **integer minor units**; never do float arithmetic on them.
+3. **Figures** come from `YES.calc.*` (categories, journey, running, posted, notInBalance, tx, feesFor, largest, fiat, fiatAvailable, reconcile). Never hard-code a total. `calc.fiat()` returns `null` unless the asset's rate has a source and timestamp **and** is `verified` (in demo mode an `illustrative` rate is allowed and must be labelled Illustrative).
 4. **Rendering**: build HTML strings with `esc()` on every interpolated value and write them with `ui.render(el, html)`. Give every interactive control a stable `data-fk` (focus key) so focus survives re-renders and language switches. Bind events once in `init()` with `ui.delegate(rootEl, 'click', selector, fn)`.
 5. **State**: shared state lives in `YES.state` (a module may add its own key named after itself, e.g. `YES.state.understand`); change it with `YES.set({ key: newValue })` (shallow; replace nested objects). Language switch re-renders everything from state, so anything that must survive it (filters, selected transaction, inquiry draft, assistant conversation, open step) must be in `YES.state` — not only in the DOM.
 6. **Views**: each view root renders exactly one `<h1 id="h-<view>" class="view-title" data-view-heading tabindex="-1">`. The router shows/hides `#view-*` sections and focuses the heading on navigation.
 7. **Dialogs**: use the native `<dialog>` elements in `index.html` with `ui.openDialog(dlg, { trigger, initialFocus, onClose })` and `ui.closeDialog(dlg, { returnFocus })`. Each dialog has a heading with the id named in its `aria-labelledby`, and a visible close button. Under 720px wide, dialogs are full-screen sheets automatically.
-8. **Accessibility**: semantic HTML, keyboard operable, visible focus, 44px targets on touch, `ui.announce()` for results counts and confirmations, never colour alone (use `ui.amountHtml`, `ui.statusHtml`, icons, words), every chart has a text/table equivalent, motion respects `ui.reducedMotion()` and the global reduced-motion CSS.
+8. **Accessibility**: semantic HTML, keyboard operable, visible focus, 44px targets on touch, `ui.announce()` for results counts and confirmations, never colour alone (use `ui.amountHtml`, `ui.statusHtml`, icons, words), every chart has a text/table equivalent, motion respects `ui.reducedMotion()` and the global reduced-motion CSS. A focus style that uses a box-shadow ring also sets `outline: 2px solid transparent` (forced colours drop box-shadows; 01-base.css adds a system-colour outline as a safety net). Masked identifiers render through `ui.maskedHtml` (aria-labels: `YES.fmt.maskedSpoken`), so assistive technology hears "ending in 4821", not "bullet bullet…". Text that is not in the UI language (e.g. a customer's own memo, written in `YES.data.statement.language`) carries a `lang` attribute.
 9. **Demo honesty**: illustrative content is labelled (`ui.illustrativeTag()`, `.notice--illustrative`); demo-only behaviour says so; nothing claims to be sent, verified or live.
 10. **No network**: no external URLs for scripts, styles, fonts, images or links that fetch. The only network request in the file is the UserWay loader in `06-userway.js`.
 
@@ -72,7 +72,7 @@ Rules:
 | `render(el, html)` | Replace content and restore focus by `data-fk` |
 | `focusKey(key)`, `focusView(view)` | Focus helpers |
 | `announce(msg, assertive)` | Screen-reader announcement. While a modal dialog is open the page behind it is inert, so the message goes to a live region inside the topmost modal dialog. |
-| `toast(msg)` | Short visual + announced confirmation |
+| `toast(msg)` | Short visual + announced confirmation. A manual popover, re-shown each time, so it paints above any open modal dialog or sheet |
 | `reducedMotion()`, `isNarrow()` | Media checks |
 | `copy(text)`, `download(name, content, mime)` | Clipboard and local file save |
 | `openDialog(dlg, opts)`, `closeDialog(dlg, opts)`, `anyModalOpen()` | Native dialog management (a late `close` event after a quick reopen is ignored) |
@@ -81,11 +81,15 @@ Rules:
 | `icon(name, { size, label, cls })` | Inline SVG icons (see `ICONS` in 04-core.js) |
 | `amountHtml(minor, { sign, unit, cls })` | Signed amount with spoken text for screen readers |
 | `statusHtml(status)` | Status chip with icon + label |
-| `typeLabel(type)`, `typeIcon(type)` | Customer-friendly type label and icon |
+| `typeLabel(tx)` / `typeLabel(type[, status])`, `typeIcon(type)` | Customer-friendly type label and icon. Pass the transaction: a transaction that is not posted never gets a completed-sounding label ("Redemption requested", not "Redeemed"). A bare type (filter facets) gets the canonical label |
+| `maskedHtml(text)` | Text with masked identifiers ("•••• 4821"): bullets hidden from assistive technology, "ending in 4821" spoken instead |
+| `langSwitchHtml({ fk, compact })` | The language switch (masthead markup). Buttons are named "English"/"Español" at every width; `compact` shows EN/ES. Place one inside a modal dialog (the masthead behind it is inert) with a distinct `fk` prefix; clicks on any `[data-lang]` button are handled globally |
 | `illustrativeTag(key)` | “Illustrative” tag |
 | `explainButton({ topic, id }, topicLabel, { compact, fk })` | “Explain with AI” entry point (handled globally) |
 
-Global delegated attributes: `[data-explain="topic"][data-explain-id="id"]` opens the assistant; `[data-nav="view"][data-nav-param="x"]` navigates.
+Global delegated attributes: `[data-explain="topic"][data-explain-id="id"]` opens the assistant; `[data-nav="view"][data-nav-param="x"]` navigates; `button[data-lang="es"]` switches language.
+
+Module lifecycle: boot calls `YES.initModules(allow)`. A module left out (every feature module while a statement is withheld) is never initialised, rendered or told about state changes, so a language switch cannot render withheld figures.
 
 ## Cross-module APIs
 
@@ -108,11 +112,13 @@ Global delegated attributes: `[data-explain="topic"][data-explain-id="id"]` open
 | `YES.understand.openTopic(topicId)` | understand | Navigate to Understand and expand a topic: `token_units`, `usd_equivalent`, `onchain_vs_internal`, `tx_status`, `fees`, `redemption`, `statement_vs_live`, `transparency`. |
 | `YES.help.open(sectionId)` | help | Navigate to Help and focus a section: `contact`, `feedback`, `record`, `integrity`, `accessibility`, `about`. |
 
-Routes: `#/overview[/<stepId>]`, `#/transactions[/<txId>]`, `#/understand[/<topicId>|basics|live|onchain|transparency]`, `#/help[/<sectionId>]`. The showcase-only integrity preview is `#/overview?simulate=mismatch`.
+Routes: `#/overview[/<stepId>]`, `#/transactions[/<txId>]`, `#/understand[/<topicId>|basics|live|onchain|transparency]`, `#/help[/<sectionId>]`. The showcase-only integrity preview is `#/overview?simulate=mismatch`. Only fragments starting with `#/` are routes: any other fragment (e.g. `#main`) is an in-page anchor and keeps the current view. A piece of the address that cannot be percent-decoded is kept as typed (an unknown param), so a truncated link never stops the statement from booting. When the browser changes the route (Back, Forward, an edited address) and the view changes, the new view's heading is focused and announced, exactly as for a click in the navigation. `YES.nav.setParam(param)` replaces the current entry's sub-route, but never while a newer address is waiting for its `hashchange`: that navigation wins.
 
 Module-owned state keys: `YES.state.overview` (disclosure states), `YES.state.understand` (expanded topics), `YES.state.assistant` (open flag, conversation intents, feedback), `YES.state.inquiry` (draft), `YES.state.feedback` (help feedback).
 
-Assistant presentation: docked and non-modal at ≥1100px (`html.assistant-docked` reflows the page so the drawer never covers the balance), a modal side drawer from 720px to 1099px, and a full-screen sheet under 720px. When it is opened while another modal dialog is open, it stacks as a modal on top of that dialog. The transaction detail closes itself before handing over to the assistant, and closing the drawer returns focus to the transaction's row.
+Assistant presentation: docked and non-modal at ≥1100px (`html.assistant-docked` reflows the page so the drawer never covers the balance), a modal side drawer from 720px to 1099px, and a full-screen sheet under 720px.
+
+Masthead: a size container (`container: mast`), so it lays out for the width it actually has, including while the assistant is docked. One row at ≥1000px. Below that, the demo badge becomes a strip above the brand row that scrolls away, and only the brand row and navigation stay pinned. Below 720px it shows a compact language switch (EN/ES, names kept), a short "Ask" label and a short period, and the four sections share the width down to 320px. On viewports under 500px tall nothing is pinned. `--masthead-h` always equals the pinned height (it drives `scroll-padding-top`). Dialogs on viewports under 520px tall scroll as a whole sheet. When it is opened while another modal dialog is open, it stacks as a modal on top of that dialog. The transaction detail closes itself before handing over to the assistant, and closing the drawer returns focus to the transaction's row.
 
 Content entities (understand module): `YES.content.education[]` and `YES.content.evidence[]` follow the PRD §6 education/evidence contract (copy ID, locale variants, source, date, responsible entity, validity window, visibility rule, illustrative flag).
 
@@ -134,4 +140,6 @@ node build.mjs --modules explorer --out test-results/explorer.html
 node tests/run.mjs --file test-results/explorer.html --only explorer
 ```
 
-The runner blocks all network requests (only the UserWay attempt is expected), fails on console errors, and provides `t.axe()` (axe-core WCAG 2.x A/AA) and `t.shot()` screenshots in `test-results/screens/`.
+The runner blocks all network requests (only the UserWay attempt is expected), fails on console errors, and provides `t.axe()` (axe-core WCAG 2.x A/AA; the sticky masthead is unpinned during the scan, so results don't depend on the scroll position) and `t.shot()` screenshots in `test-results/screens/`.
+
+The build strips comments and indentation from the inlined CSS and JS. It never touches strings, template literals or regular expressions, and it keeps line breaks. It checks that the result parses, has the same JavaScript token stream as the sources, and yields the same data, config, strings and release-gate result. `node build.mjs --no-minify` inlines the sources verbatim for debugging.

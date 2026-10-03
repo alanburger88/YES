@@ -26,7 +26,8 @@
 
   /* Lines */
   --line: #dde2e8;
-  --line-strong: #b9c2cd;
+  --line-strong: #b9c2cd; /* decorative dividers and control outlines */
+  --field-line: #7c8693; /* form-field boundary: ≥3:1 on --surface, --bg, --surface-2 and --surface-3 (WCAG 1.4.11) */
 
   /* Interaction */
   --primary: var(--yes-primary);
@@ -126,6 +127,7 @@
 
     --line: #2b323d;
     --line-strong: #46505e;
+    --field-line: #6b7685;
 
     --primary-hover: color-mix(in srgb, var(--yes-primary) 85%, #fff);
     --primary-wash: color-mix(in srgb, var(--yes-primary) 14%, var(--surface));
