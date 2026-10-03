@@ -143,7 +143,13 @@
       return [];
     }
   };
-  YES.inquiry = { start: stub('inquiry', 'start'), resume: stub('inquiry', 'resume') };
+  YES.inquiry = {
+    start: stub('inquiry', 'start'),
+    resume: stub('inquiry', 'resume'),
+    draftFor: function () {
+      return null;
+    }
+  };
   YES.assistant = { open: stub('assistant', 'open'), close: stub('assistant', 'close'), ask: stub('assistant', 'ask') };
   YES.understand = { openTopic: stub('understand', 'openTopic') };
   YES.help = { open: stub('help', 'open') };
