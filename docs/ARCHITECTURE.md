@@ -53,7 +53,7 @@ Files are concatenated in filename order, so module files run after the foundati
 Rules:
 
 1. **Strings**: every user-visible string comes from `YES.t(key)` with keys prefixed by the module name (`explorer.*`). Provide **both** `en` and `es`; `YES.i18n.audit()` must return `{}`. Localised data fields use `YES.L(obj)`.
-2. **Numbers and dates**: only via `YES.fmt.amount`, `YES.fmt.amountSpoken`, `YES.fmt.date(iso, style)`, `YES.fmt.isoDate`, `YES.fmt.range`, `YES.fmt.tz`, `YES.fmt.fiat`, `YES.fmt.count`, `YES.txCount(n)`. Amounts are **integer minor units**; never do float arithmetic on them.
+2. **Numbers and dates**: only via `YES.fmt.plain` (machine-readable, CSV), `YES.fmt.isoTime`, `YES.fmt.amount` (value and unit joined by a no-break space, U+00A0; four-digit amounts are always grouped), `YES.fmt.amountSpoken`, `YES.fmt.date(iso, style)`, `YES.fmt.isoDate`, `YES.fmt.range`, `YES.fmt.tz`, `YES.fmt.fiat`, `YES.fmt.count`, `YES.txCount(n)`. Amounts are **integer minor units**; never do float arithmetic on them.
 3. **Figures** come from `YES.calc.*` (categories, journey, running, posted, notInBalance, tx, feesFor, largest, fiat, reconcile). Never hard-code a total.
 4. **Rendering**: build HTML strings with `esc()` on every interpolated value and write them with `ui.render(el, html)`. Give every interactive control a stable `data-fk` (focus key) so focus survives re-renders and language switches. Bind events once in `init()` with `ui.delegate(rootEl, 'click', selector, fn)`.
 5. **State**: shared state lives in `YES.state` (a module may add its own key named after itself, e.g. `YES.state.understand`); change it with `YES.set({ key: newValue })` (shallow; replace nested objects). Language switch re-renders everything from state, so anything that must survive it (filters, selected transaction, inquiry draft, assistant conversation, open step) must be in `YES.state` — not only in the DOM.
@@ -71,11 +71,13 @@ Rules:
 | `$`, `$$`, `delegate(root, evt, sel, fn)` | DOM helpers |
 | `render(el, html)` | Replace content and restore focus by `data-fk` |
 | `focusKey(key)`, `focusView(view)` | Focus helpers |
-| `announce(msg, assertive)` | Screen-reader announcement |
+| `announce(msg, assertive)` | Screen-reader announcement. While a modal dialog is open the page behind it is inert, so the message goes to a live region inside the topmost modal dialog. |
 | `toast(msg)` | Short visual + announced confirmation |
 | `reducedMotion()`, `isNarrow()` | Media checks |
 | `copy(text)`, `download(name, content, mime)` | Clipboard and local file save |
-| `openDialog(dlg, opts)`, `closeDialog(dlg, opts)`, `anyModalOpen()` | Native dialog management |
+| `openDialog(dlg, opts)`, `closeDialog(dlg, opts)`, `anyModalOpen()` | Native dialog management (a late `close` event after a quick reopen is ignored) |
+| `dialogTrigger(dlg)`, `setDialogReturn(dlg, el)` | Read / change where focus returns when an open dialog closes |
+| `registerIcons({ name: '<path …/>' })` | Add icons in the shared 24×24 stroke style |
 | `icon(name, { size, label, cls })` | Inline SVG icons (see `ICONS` in 04-core.js) |
 | `amountHtml(minor, { sign, unit, cls })` | Signed amount with spoken text for screen readers |
 | `statusHtml(status)` | Status chip with icon + label |
@@ -105,6 +107,14 @@ Global delegated attributes: `[data-explain="topic"][data-explain-id="id"]` open
 | `YES.assistant.close()` | assistant | Close the drawer. |
 | `YES.understand.openTopic(topicId)` | understand | Navigate to Understand and expand a topic: `token_units`, `usd_equivalent`, `onchain_vs_internal`, `tx_status`, `fees`, `redemption`, `statement_vs_live`, `transparency`. |
 | `YES.help.open(sectionId)` | help | Navigate to Help and focus a section: `contact`, `feedback`, `record`, `integrity`, `accessibility`, `about`. |
+
+Routes: `#/overview[/<stepId>]`, `#/transactions[/<txId>]`, `#/understand[/<topicId>|basics|live|onchain|transparency]`, `#/help[/<sectionId>]`. The showcase-only integrity preview is `#/overview?simulate=mismatch`.
+
+Module-owned state keys: `YES.state.overview` (disclosure states), `YES.state.understand` (expanded topics), `YES.state.assistant` (open flag, conversation intents, feedback), `YES.state.inquiry` (draft), `YES.state.feedback` (help feedback).
+
+Assistant presentation: docked and non-modal at ≥1100px (`html.assistant-docked` reflows the page so the drawer never covers the balance), a modal side drawer from 720px to 1099px, and a full-screen sheet under 720px. When it is opened while another modal dialog is open, it stacks as a modal on top of that dialog. The transaction detail closes itself before handing over to the assistant, and closing the drawer returns focus to the transaction's row.
+
+Content entities (understand module): `YES.content.education[]` and `YES.content.evidence[]` follow the PRD §6 education/evidence contract (copy ID, locale variants, source, date, responsible entity, validity window, visibility rule, illustrative flag).
 
 Events (`YES.on(evt, fn)`): `state` (changed keys), `route` ({ view, param, params }), `view` (view id), `lang` (lang), `rendered`, `ready`, `userway` (status).
 

@@ -88,7 +88,9 @@
       ui.icon('globe', { size: 18, cls: 'seg__icon' }) +
       langButtons +
       '</div>' +
-      '<button type="button" class="btn btn--ai btn--ask" data-ask data-fk="ask-yes" aria-label="' +
+      '<button type="button" class="btn btn--ai btn--ask" data-ask data-fk="ask-yes" aria-haspopup="dialog" aria-expanded="' +
+      !!(YES.state.assistant && YES.state.assistant.open) +
+      '" aria-label="' +
       esc(t('ask.buttonLong')) +
       '">' +
       ui.icon('chat', { size: 18 }) +
@@ -124,6 +126,25 @@
       '</p>' +
       '</div>';
     ui.render(doc.getElementById('site-footer'), html);
+  }
+
+  /* Keep --masthead-h equal to the real sticky masthead so scroll-padding keeps
+     focused content clear of it at every width and zoom level (WCAG 2.4.11). */
+  function trackMastheadHeight() {
+    var mast = doc.getElementById('masthead');
+    if (!mast) return;
+    var apply = function () {
+      var h = Math.ceil(mast.getBoundingClientRect().height);
+      if (h) doc.documentElement.style.setProperty('--masthead-h', h + 'px');
+    };
+    apply();
+    if (root.ResizeObserver) new ResizeObserver(apply).observe(mast);
+    else root.addEventListener('resize', apply);
+  }
+
+  function syncAskExpanded() {
+    var b = doc.querySelector('[data-ask]');
+    if (b) b.setAttribute('aria-expanded', String(!!(YES.state.assistant && YES.state.assistant.open)));
   }
 
   function updateTitle() {
@@ -201,7 +222,11 @@
         root.location.reload();
       });
       YES.on('view', syncNav);
+      YES.on('state', function (keys) {
+        if (keys.indexOf('assistant') !== -1) syncAskExpanded();
+      });
       this.render();
+      trackMastheadHeight();
     },
     render: function () {
       renderMasthead();

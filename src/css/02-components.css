@@ -60,6 +60,14 @@
 .btn--block {
   width: 100%;
 }
+/* Narrow screens: long (e.g. Spanish) labels wrap instead of overflowing. */
+@media (max-width: 419px) {
+  .btn:not(.btn--icon) {
+    white-space: normal;
+    text-align: center;
+    padding-block: 6px;
+  }
+}
 .btn--icon {
   width: 44px;
   padding: 0;

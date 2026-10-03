@@ -190,15 +190,16 @@
   function q(sel) {
     return els.shell ? els.shell.querySelector(sel) : null;
   }
-  /** Announce inside the open dialog (content outside a modal dialog is inert) and via the shared regions. */
+  /** Announce inside the open dialog (content outside a modal dialog is inert); otherwise via the shared regions. */
   function say(msg, assertive) {
     var region = assertive ? els.liveA : els.live;
-    if (region) {
+    if (region && els.dlg && els.dlg.open) {
       region.textContent = '';
       clearTimeout(timers[assertive ? 'sayA' : 'say']);
       timers[assertive ? 'sayA' : 'say'] = setTimeout(function () {
         region.textContent = msg;
       }, 80);
+      return;
     }
     ui.announce(msg, assertive);
   }
@@ -818,7 +819,7 @@
     var sum = q('[data-fk="inq-errors"]');
     if (sum) sum.focus({ preventScroll: true });
     var n = Object.keys(errors).length;
-    ui.announce(n === 1 ? t('inquiry.err.announce1') : t('inquiry.err.announceN', { n: YES.fmt.count(n) }), true);
+    say(n === 1 ? t('inquiry.err.announce1') : t('inquiry.err.announceN', { n: YES.fmt.count(n) }), true);
   }
 
   function next() {

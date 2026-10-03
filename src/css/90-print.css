@@ -55,7 +55,7 @@
   }
   .print-watermark span {
     transform: rotate(-30deg);
-    font-size: 54pt;
+    font-size: 30pt;
     font-weight: 800;
     color: rgba(0, 0, 0, 0.07);
     white-space: nowrap;

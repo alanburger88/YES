@@ -369,8 +369,29 @@
 
   /** Screen-reader announcement via the shared live regions. */
   var announceTimer = null;
+  /** Live region inside the topmost open modal dialog (the rest of the page is inert). */
+  function modalLiveRegion(assertive) {
+    var open;
+    try {
+      open = doc.querySelectorAll('dialog[open]:modal');
+    } catch (e) {
+      open = [];
+    }
+    var top = open.length ? open[open.length - 1] : null;
+    if (!top) return null;
+    var cls = assertive ? 'dlg-live--assertive' : 'dlg-live--polite';
+    var region = top.querySelector(':scope > .' + cls);
+    if (!region) {
+      region = doc.createElement('div');
+      region.className = 'sr-only ' + cls;
+      region.setAttribute('aria-live', assertive ? 'assertive' : 'polite');
+      region.setAttribute('aria-atomic', 'true');
+      top.appendChild(region);
+    }
+    return region;
+  }
   ui.announce = function (msg, assertive) {
-    var region = doc.getElementById(assertive ? 'live-assertive' : 'live-polite');
+    var region = modalLiveRegion(assertive) || doc.getElementById(assertive ? 'live-assertive' : 'live-polite');
     if (!region) return;
     region.textContent = '';
     clearTimeout(announceTimer);
@@ -466,21 +487,27 @@
     opts = opts || {};
     dlg._trigger = opts.trigger || doc.activeElement;
     dlg._onClose = opts.onClose || null;
+    dlg._noReturnFocus = false;
     if (!dlg._yesBound) {
       dlg._yesBound = true;
       dlg.addEventListener('close', function () {
         doc.documentElement.classList.toggle('has-modal', ui.anyModalOpen());
+        // 'close' fires asynchronously: if the dialog was reopened in the meantime,
+        // this event belongs to the previous opening and must not clear the new one.
+        if (dlg.open) return;
         var t = dlg._trigger;
         var cb = dlg._onClose;
+        var skipFocus = dlg._noReturnFocus;
         dlg._trigger = null;
         dlg._onClose = null;
+        dlg._noReturnFocus = false;
         if (cb) cb(dlg.returnValue);
-        if (t && t.isConnected && !dlg._noReturnFocus) {
+        if (skipFocus) return;
+        if (t && t.isConnected) {
           t.focus({ preventScroll: true });
-        } else if (t && !t.isConnected && t.getAttribute && t.getAttribute('data-fk')) {
+        } else if (t && t.getAttribute && t.getAttribute('data-fk')) {
           ui.focusKey(t.getAttribute('data-fk'));
         }
-        dlg._noReturnFocus = false;
       });
       // Click on the backdrop (outside the dialog box) closes it.
       dlg.addEventListener('click', function (e) {
@@ -501,6 +528,15 @@
       if (!first.hasAttribute('tabindex') && !/^(A|BUTTON|INPUT|SELECT|TEXTAREA)$/.test(first.tagName)) first.setAttribute('tabindex', '-1');
       first.focus({ preventScroll: true });
     }
+  };
+
+  /** The element focus returns to when `dlg` closes (null if none). */
+  ui.dialogTrigger = function (dlg) {
+    return (dlg && dlg._trigger) || null;
+  };
+  /** Change where focus returns when an open dialog closes (e.g. after previous/next). */
+  ui.setDialogReturn = function (dlg, el) {
+    if (dlg) dlg._trigger = el || null;
   };
 
   /** Close a dialog. opts.returnFocus=false skips focus restoration (when handing off to another dialog). */
@@ -581,6 +617,12 @@
     );
   };
   ui.ICONS = ICONS;
+  /** Add icons in the shared 24×24 stroke style: ui.registerIcons({ name: '<path d="…"/>' }). */
+  ui.registerIcons = function (map) {
+    Object.keys(map || {}).forEach(function (k) {
+      ICONS[k] = map[k];
+    });
+  };
 
   /* -------------------- Shared statement renderers ------------------- */
   /** Icon name for a transaction type. */

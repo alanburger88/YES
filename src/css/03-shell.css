@@ -143,6 +143,22 @@
   .brand__text {
     display: none;
   }
+  .nav__link {
+    padding: 0 6px;
+    font-size: var(--fs-xs);
+  }
+}
+/* Docked assistant narrows the content column: keep the masthead on one row. */
+@media (min-width: 1100px) and (max-width: 1399px) {
+  html.assistant-docked .seg__long {
+    display: none;
+  }
+  html.assistant-docked .seg__short {
+    display: inline;
+  }
+  html.assistant-docked .seg__icon {
+    display: none;
+  }
 }
 
 /* Views */

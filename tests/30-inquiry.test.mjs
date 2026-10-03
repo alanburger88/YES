@@ -179,8 +179,8 @@ export default async function (t) {
   t.assert(/Error:\s*Choose what your inquiry is about\./.test(inv.reasonMsg || ''), 'inline reason error with prefix');
   t.assert(/Choose how YES should reply\./.test(inv.channelMsg || ''), 'inline channel error');
   t.eq(inv.descInvalid, null, 'optional description is not invalid');
-  await page.waitForFunction(() => document.getElementById('live-assertive').textContent.includes('2 answers need your attention'), null, { timeout: 2000 }).catch(() => {});
-  t.assert((await text('#live-assertive')).includes('2 answers need your attention'), 'error count announced assertively');
+  await page.waitForFunction(() => document.querySelector('#inquiry-dialog [data-inq-live-a]').textContent.includes('2 answers need your attention'), null, { timeout: 2000 }).catch(() => {});
+  t.assert((await text('#inquiry-dialog [data-inq-live-a]')).includes('2 answers need your attention'), 'error count announced assertively inside the dialog');
   await seriousAxe('error state');
   await shot('errors');
   const hashBefore = await page.evaluate(() => location.hash);
@@ -307,7 +307,6 @@ export default async function (t) {
   t.assert(done.includes('The amount looks wrong') && done.includes('Email on file'), 'what was entered is summarised');
   await page.waitForFunction(() => document.querySelector('#inquiry-dialog [data-inq-live-a]').textContent.includes('Demo only — no inquiry was sent'), null, { timeout: 2000 }).catch(() => {});
   t.assert((await page.evaluate(() => document.querySelector('#inquiry-dialog [data-inq-live-a]').textContent)).includes(ref), 'confirmation announced assertively inside the dialog');
-  t.assert((await text('#live-assertive')).includes('Demo only — no inquiry was sent'), 'and through the shared assertive region');
   t.eq(t.external.filter((u) => !/cdn\.userway\.org/.test(u)), [], 'no network requests');
   t.eq(
     await page.evaluate(() => {

@@ -88,7 +88,10 @@
   var cache = {};
   function nf(digits) {
     var k = 'n' + i18n.lang + digits;
-    return (cache[k] = cache[k] || new Intl.NumberFormat(i18n.locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits }));
+    // useGrouping 'always' groups four-digit amounts too (es-ES: 1.147,50 rather
+    // than 1147,50), matching how statements print amounts. Older engines treat
+    // the string as `true` and fall back to the locale default.
+    return (cache[k] = cache[k] || new Intl.NumberFormat(i18n.locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: 'always' }));
   }
   function dtf(opts, key) {
     var k = 'd' + i18n.lang + key;
@@ -188,13 +191,38 @@
       return f.format(new Date(fromIso)) + ' – ' + f.format(new Date(toIso));
     },
 
-    /** Short timezone label, e.g. "EDT", plus the IANA name. */
+    /**
+     * Timezone label, e.g. "EDT (America/New_York)". The abbreviation comes from
+     * en-US in every language: some locales only offer "GMT-4", which hides the
+     * zone's name.
+     */
     tz: function (iso) {
-      var parts = dtf({ timeZoneName: 'short' }, 'tzname').formatToParts(new Date(iso || YES.data.statement.asOf));
+      var k = 'tzname';
+      cache[k] = cache[k] || new Intl.DateTimeFormat('en-US', { timeZone: YES.data.statement.timezone, timeZoneName: 'short' });
+      var parts = cache[k].formatToParts(new Date(iso || YES.data.statement.asOf));
       var name = parts.filter(function (p) {
         return p.type === 'timeZoneName';
       })[0];
       return (name ? name.value : '') + ' (' + YES.data.statement.timezone + ')';
+    },
+
+    /** 24-hour HH:MM in the statement timezone — machine-readable (CSV). */
+    isoTime: function (iso) {
+      if (!iso) return '';
+      var k = 'isotime';
+      cache[k] = cache[k] || new Intl.DateTimeFormat('en-GB', { timeZone: YES.data.statement.timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+      return cache[k].format(new Date(iso));
+    },
+
+    /** Machine-readable decimal ("-120.00") at the asset precision — exact, from integers. */
+    plain: function (minor, precision) {
+      var p = precision == null ? YES.calc.asset().precision : precision;
+      var abs = Math.abs(minor);
+      var unit = Math.pow(10, p);
+      var whole = Math.floor(abs / unit);
+      var frac = String(abs % unit);
+      while (frac.length < p) frac = '0' + frac;
+      return (minor < 0 ? '-' : '') + whole + (p ? '.' + frac : '');
     },
 
     /** Locale-aware integer/count. */

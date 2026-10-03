@@ -19,6 +19,21 @@ const settle = (page) => page.evaluate(() => Promise.all(document.getAnimations(
 
 export default async function (t) {
   const { page } = t;
+  // Announcements go to the topmost modal dialog's live region while one is open
+  // (the rest of the page is inert), otherwise to the shared #live-polite region.
+  const politeHelper = () => {
+    window.__politeText = () => {
+      let open = [];
+      try {
+        open = document.querySelectorAll('dialog[open]:modal');
+      } catch (e) {}
+      const top = open.length ? open[open.length - 1] : null;
+      const r = top && top.querySelector(':scope > .dlg-live--polite');
+      return r ? r.textContent : document.getElementById('live-polite').textContent;
+    };
+  };
+  await page.addInitScript(politeHelper);
+  await page.evaluate(politeHelper);
   const vp = t.viewport;
   const wide = vp === 'desktop';
 
@@ -505,8 +520,8 @@ export default async function (t) {
   t.eq(await page.getAttribute(LATEST + ' [data-asst-fb="yes"]', 'aria-pressed'), 'true', 'choice exposed with aria-pressed');
   t.eq(await page.getAttribute(LATEST + ' [data-asst-fb="no"]', 'aria-pressed'), 'false', 'other choice not pressed');
   t.assert((await latestText()).includes('kept only in this browser session'), 'says feedback stays local');
-  await page.waitForFunction(() => document.getElementById('live-polite').textContent.includes('Nothing was sent'), null, { timeout: 2000 }).catch(() => {});
-  t.assert((await page.locator('#live-polite').textContent()).includes('Nothing was sent'), 'feedback confirmation announced');
+  await page.waitForFunction(() => window.__politeText().includes('Nothing was sent'), null, { timeout: 2000 }).catch(() => {});
+  t.assert((await page.evaluate(() => window.__politeText())).includes('Nothing was sent'), 'feedback confirmation announced');
   t.eq(await activeFk(), `asst-${fid}-fb-yes`, 'focus stays on the feedback button');
 
   t.step('talk to a person');
@@ -675,8 +690,8 @@ export default async function (t) {
   t.eq(await threadLen(), 1, 'only the welcome remains');
   t.assert((await latestTitle()).startsWith('Hello, Sam.'), 'welcome shown again');
   t.assert(await activeInDrawer(), 'focus stays in the drawer');
-  await page.waitForFunction(() => document.getElementById('live-polite').textContent === 'Conversation cleared', null, { timeout: 2000 }).catch(() => {});
-  t.eq(await page.locator('#live-polite').textContent(), 'Conversation cleared', 'clearing is announced');
+  await page.waitForFunction(() => window.__politeText() === 'Conversation cleared', null, { timeout: 2000 }).catch(() => {});
+  t.eq(await page.evaluate(() => window.__politeText()), 'Conversation cleared', 'clearing is announced');
 
   /* ------------------------------------------------------------------ */
   t.step('dark colour scheme');
