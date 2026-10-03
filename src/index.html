@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="YES interactive stablecoin statement — showcase with illustrative demo data. Fictional customer, amounts and references." />
+    <meta name="generator" content="YES statement showcase {{VERSION}}" />
+    <title>Overview · YES statement, September 2026 · Illustrative demo</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e5a8a'/%3E%3Ctext x='32' y='41' font-family='Arial,sans-serif' font-size='24' font-weight='800' text-anchor='middle' fill='white'%3EYES%3C/text%3E%3C/svg%3E" />
+    <style>
+/*{{CSS}}*/
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to statement</a>
+    <div id="app">
+      <header class="masthead" id="masthead"></header>
+      <div id="integrity-root"></div>
+      <main id="main" tabindex="-1">
+        <section class="view" id="view-overview" data-view="overview" aria-labelledby="h-overview">
+          <div id="overview-root" class="container"></div>
+        </section>
+        <section class="view" id="view-transactions" data-view="transactions" aria-labelledby="h-transactions" hidden>
+          <div id="transactions-root" class="container"></div>
+        </section>
+        <section class="view" id="view-understand" data-view="understand" aria-labelledby="h-understand" hidden>
+          <div id="understand-root" class="container"></div>
+        </section>
+        <section class="view" id="view-help" data-view="help" aria-labelledby="h-help" hidden>
+          <div id="help-root" class="container"></div>
+        </section>
+      </main>
+      <footer class="site-footer" id="site-footer"></footer>
+    </div>
+
+    <!-- Assistant drawer (owned by the assistant module) -->
+    <div id="assistant-root"></div>
+
+    <!-- Dialogs (each owned by one module) -->
+    <dialog id="tx-dialog" class="dlg dlg--tx" aria-labelledby="tx-dialog-title"></dialog>
+    <dialog id="inquiry-dialog" class="dlg dlg--inquiry" aria-labelledby="inquiry-dialog-title"></dialog>
+    <dialog id="video-dialog" class="dlg dlg--video" aria-labelledby="video-dialog-title"></dialog>
+
+    <!-- Statement-of-record print view (owned by the help/record module) -->
+    <div id="print-root"></div>
+
+    <!-- Shared live regions and toast -->
+    <div id="live-polite" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+    <div id="live-assertive" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+    <div id="toast" class="toast" aria-hidden="true"></div>
+
+    <noscript>{{NOSCRIPT}}</noscript>
+    <script>
+/*{{JS}}*/
+    </script>
+  </body>
+</html>

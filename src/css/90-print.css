@@ -1,0 +1,82 @@
+/*
+ * Print: the screen UI is replaced by the statement-of-record view rendered into
+ * #print-root (owned by the Help/record module). A demo watermark repeats on
+ * every page in the showcase.
+ */
+#print-root {
+  display: none;
+}
+@media print {
+  :root {
+    color-scheme: light;
+    --bg: #fff;
+    --surface: #fff;
+    --surface-2: #f2f2f2;
+    --ink: #000;
+    --ink-2: #222;
+    --muted: #444;
+    --line: #bbb;
+    --line-strong: #888;
+  }
+  @page {
+    margin: 16mm 14mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 10.5pt;
+  }
+  #app,
+  .skip-link,
+  dialog,
+  .toast,
+  #assistant-root,
+  [data-print-hide] {
+    display: none !important;
+  }
+  #print-root {
+    display: block !important;
+  }
+  html.is-withheld #print-root {
+    display: none !important;
+  }
+  html.is-withheld #app {
+    display: block !important;
+  }
+  .print-watermark {
+    position: fixed;
+    inset: 0;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .print-watermark span {
+    transform: rotate(-30deg);
+    font-size: 54pt;
+    font-weight: 800;
+    color: rgba(0, 0, 0, 0.07);
+    white-space: nowrap;
+    letter-spacing: 0.06em;
+  }
+  a {
+    color: #000;
+    text-decoration: none;
+  }
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+  }
+  thead {
+    display: table-header-group;
+  }
+  h1,
+  h2,
+  h3 {
+    page-break-after: avoid;
+  }
+}

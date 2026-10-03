@@ -1,0 +1,3934 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="YES interactive stablecoin statement — showcase with illustrative demo data. Fictional customer, amounts and references." />
+    <meta name="generator" content="YES statement showcase 1.0.0" />
+    <title>Overview · YES statement, September 2026 · Illustrative demo</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e5a8a'/%3E%3Ctext x='32' y='41' font-family='Arial,sans-serif' font-size='24' font-weight='800' text-anchor='middle' fill='white'%3EYES%3C/text%3E%3C/svg%3E" />
+    <style>
+/* ---- css/00-tokens.css ---- */
+/*
+ * Design tokens. Brand slots ([YES_PRIMARY], [YES_ACCENT], [YES_FONT]) are set
+ * at boot from YES.config.slots; every component reads roles, never raw hex.
+ * Light and dark schemes are selected separately (not an automatic flip).
+ */
+:root {
+  color-scheme: light;
+
+  /* Brand slots (placeholders until YES assets are approved) */
+  --yes-primary: var(--yes-primary-slot, #0e5a8a);
+  --yes-accent: var(--yes-accent-slot, #e8a33d);
+  --yes-font: var(--yes-font-slot, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+
+  /* Surfaces */
+  --bg: #f5f6f8; /* page plane */
+  --surface: #ffffff; /* cards, dialogs, chart surface */
+  --surface-2: #f0f2f5; /* insets, table header, hover wash */
+  --surface-3: #e6e9ee;
+  --overlay: rgba(14, 22, 33, 0.48);
+
+  /* Ink (all text tokens ≥ 4.5:1 on --surface and --surface-2) */
+  --ink: #111820;
+  --ink-2: #3f4a57;
+  --muted: #5d6874;
+  --on-primary: #ffffff;
+
+  /* Lines */
+  --line: #dde2e8;
+  --line-strong: #b9c2cd;
+
+  /* Interaction */
+  --primary: var(--yes-primary);
+  --primary-hover: color-mix(in srgb, var(--yes-primary) 86%, #000);
+  --primary-wash: color-mix(in srgb, var(--yes-primary) 9%, var(--surface));
+  --primary-ink: color-mix(in srgb, var(--yes-primary) 88%, #000); /* primary used as text */
+  --accent: var(--yes-accent);
+  --focus: #1a5fd0;
+  --focus-ring: 0 0 0 3px var(--surface), 0 0 0 5px var(--focus);
+
+  /* Data: direction (validated pair, ≥3:1 on surface). Marks only — text uses ink. */
+  --in: #1d6fd6;
+  --in-wash: #e3eefb;
+  --out: #c2552b;
+  --out-wash: #fbe9e1;
+  --total: #3f4a57; /* opening / closing bars */
+  --grid: #e6e9ee;
+  --axis: #b9c2cd;
+
+  /* Status (always paired with icon + label) */
+  --ok: #0a7a35;
+  --ok-wash: #e4f4ea;
+  --warn: #8a5a00;
+  --warn-wash: #fff3d6;
+  --warn-line: #e0a100;
+  --danger: #b42318;
+  --danger-wash: #fdecea;
+  --info: #1a5fd0;
+  --info-wash: #e7effc;
+
+  /* Demo / illustrative marking */
+  --demo-ink: #4f3800;
+  --demo-bg: #fff4d1;
+  --demo-line: #d9a200;
+  --ai: #5b3fbf; /* "Explain with AI" accent (border/icon) */
+  --ai-wash: #f1edfc;
+
+  /* Type scale */
+  --fs-hero: clamp(2.6rem, 6vw + 1rem, 3.75rem);
+  --fs-xl: clamp(1.5rem, 1.6vw + 1rem, 2rem);
+  --fs-lg: 1.25rem;
+  --fs-md: 1.0625rem;
+  --fs-base: 1rem;
+  --fs-sm: 0.875rem;
+  --fs-xs: 0.8125rem;
+  --lh: 1.5;
+
+  /* Space (4px grid) */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  --s10: 40px;
+  --s12: 48px;
+  --s16: 64px;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --shadow-1: 0 1px 2px rgba(17, 24, 32, 0.06), 0 1px 1px rgba(17, 24, 32, 0.04);
+  --shadow-2: 0 6px 20px rgba(17, 24, 32, 0.1), 0 2px 6px rgba(17, 24, 32, 0.06);
+  --shadow-3: 0 20px 48px rgba(17, 24, 32, 0.18);
+
+  --container: 1120px;
+  --gutter: 16px;
+  --masthead-h: 112px;
+  --drawer-w: 400px;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur: 220ms;
+}
+
+@media (min-width: 720px) {
+  :root {
+    --gutter: 24px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --yes-primary: var(--yes-primary-dark-slot, #6cb4ee);
+
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1d222b;
+    --surface-3: #262c36;
+    --overlay: rgba(0, 0, 0, 0.62);
+
+    --ink: #f1f4f8;
+    --ink-2: #c5ccd6;
+    --muted: #a3acb8;
+    --on-primary: #0b1220;
+
+    --line: #2b323d;
+    --line-strong: #46505e;
+
+    --primary-hover: color-mix(in srgb, var(--yes-primary) 85%, #fff);
+    --primary-wash: color-mix(in srgb, var(--yes-primary) 14%, var(--surface));
+    --primary-ink: var(--yes-primary);
+    --focus: #8ab4ff;
+
+    --in: #4b94ea;
+    --in-wash: #182a40;
+    --out: #e0703f;
+    --out-wash: #3a2219;
+    --total: #aeb7c3;
+    --grid: #262c36;
+    --axis: #46505e;
+
+    --ok: #4cc27a;
+    --ok-wash: #15291e;
+    --warn: #f0b84a;
+    --warn-wash: #2f2512;
+    --warn-line: #b58300;
+    --danger: #ff8a7f;
+    --danger-wash: #3a1d1b;
+    --info: #8ab4ff;
+    --info-wash: #17233a;
+
+    --demo-ink: #ffd772;
+    --demo-bg: #2e2510;
+    --demo-line: #8f6c10;
+    --ai: #b3a2f5;
+    --ai-wash: #231d3b;
+
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.45);
+    --shadow-3: 0 20px 48px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* ---- css/01-base.css ---- */
+/* Base: reset, typography, focus, motion, utilities. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--masthead-h) + var(--s4));
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--yes-font);
+  font-size: var(--fs-base);
+  line-height: var(--lh);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+html.has-modal body {
+  overflow: hidden;
+}
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.25;
+  margin: 0 0 var(--s3);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+h1 {
+  font-size: var(--fs-xl);
+}
+h2 {
+  font-size: var(--fs-lg);
+}
+h3 {
+  font-size: var(--fs-md);
+}
+h4 {
+  font-size: var(--fs-base);
+}
+p {
+  margin: 0 0 var(--s3);
+}
+a {
+  color: var(--primary-ink);
+  text-underline-offset: 2px;
+}
+a:hover {
+  text-decoration-thickness: 2px;
+}
+img,
+svg {
+  max-width: 100%;
+}
+svg {
+  flex-shrink: 0;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+[hidden] {
+  display: none !important;
+}
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+[tabindex='-1']:focus {
+  outline: none;
+}
+[tabindex='-1']:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+}
+::selection {
+  background: color-mix(in srgb, var(--focus) 30%, transparent);
+}
+.tabular,
+td.num,
+th.num {
+  font-variant-numeric: tabular-nums;
+}
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+.skip-link {
+  position: absolute;
+  left: var(--s4);
+  top: -100px;
+  z-index: 1000;
+  background: var(--surface);
+  color: var(--ink);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+  font-weight: 600;
+}
+.skip-link:focus {
+  top: var(--s3);
+}
+.container {
+  width: 100%;
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: var(--fs-sm);
+}
+.nowrap {
+  white-space: nowrap;
+}
+.stack > * + * {
+  margin-top: var(--s4);
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  align-items: center;
+}
+.spacer {
+  flex: 1;
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+}
+
+/* Motion: short, optional, never required. Disabled under reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+@keyframes yes-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes yes-slide-in-right {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes yes-highlight {
+  from {
+    background-color: var(--primary-wash);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.anim-in {
+  animation: yes-fade-up var(--dur) var(--ease) both;
+}
+
+/* ---- css/02-components.css ---- */
+/*
+ * Shared component library. Feature modules compose these classes and add only
+ * module-specific layout in their own stylesheet.
+ */
+
+/* ---------------------------------------------------------------- Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: 0 var(--s4);
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.btn:hover {
+  background: var(--surface-2);
+  border-color: var(--ink-2);
+}
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.btn[disabled],
+.btn[aria-disabled='true'] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.btn--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+.btn--primary:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+.btn--ghost {
+  border-color: transparent;
+  background: transparent;
+}
+.btn--ghost:hover {
+  background: var(--surface-2);
+  border-color: transparent;
+}
+.btn--sm {
+  min-height: 36px;
+  padding: 0 var(--s3);
+  font-size: var(--fs-xs);
+}
+.btn--block {
+  width: 100%;
+}
+.btn--icon {
+  width: 44px;
+  padding: 0;
+  border-radius: 50%;
+}
+.btn--icon.btn--sm {
+  width: 36px;
+}
+.btn--ai {
+  border-color: color-mix(in srgb, var(--ai) 55%, var(--line));
+  color: var(--ink);
+  background: var(--ai-wash);
+}
+.btn--ai .icon {
+  color: var(--ai);
+}
+.btn--ai:hover {
+  border-color: var(--ai);
+  background: color-mix(in srgb, var(--ai) 14%, var(--surface));
+}
+.btn--link {
+  border: 0;
+  background: none;
+  padding: 0;
+  min-height: 0;
+  color: var(--primary-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+.btn--link:hover {
+  background: none;
+  text-decoration-thickness: 2px;
+}
+.btn--danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+}
+
+/* ------------------------------------------------------------------ Cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  padding: var(--s5);
+}
+@media (min-width: 720px) {
+  .card {
+    padding: var(--s6);
+  }
+}
+.card--flat {
+  box-shadow: none;
+}
+.card--inset {
+  background: var(--surface-2);
+  border-color: transparent;
+  box-shadow: none;
+}
+.card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+}
+.card__eyebrow {
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 var(--s2);
+}
+.section {
+  margin-block: var(--s8);
+}
+.section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2) var(--s4);
+  margin-bottom: var(--s4);
+}
+.view-title {
+  font-size: var(--fs-xl);
+  margin: var(--s6) 0 var(--s2);
+}
+.view-lede {
+  color: var(--ink-2);
+  max-width: 65ch;
+  margin-bottom: var(--s6);
+}
+
+/* ------------------------------------------------------- Badges and tags */
+.demo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: 2px 10px 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--demo-line);
+  background: var(--demo-bg);
+  color: var(--demo-ink);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.tag--illustrative {
+  background: var(--demo-bg);
+  border-color: var(--demo-line);
+  color: var(--demo-ink);
+}
+.tag--ai {
+  background: var(--ai-wash);
+  border-color: color-mix(in srgb, var(--ai) 45%, var(--line));
+  color: var(--ink);
+}
+.tag--ai .icon {
+  color: var(--ai);
+}
+
+/* Status chip: icon + label, never colour alone. */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  padding: 1px 8px 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+  line-height: 1.6;
+}
+.status--posted {
+  color: var(--ok);
+  background: var(--ok-wash);
+}
+.status--pending {
+  color: var(--warn);
+  background: var(--warn-wash);
+  box-shadow: inset 0 0 0 1px var(--warn-line);
+}
+.status--failed {
+  color: var(--danger);
+  background: var(--danger-wash);
+}
+.status--unknown {
+  color: var(--ink-2);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+/* Amounts: sign + icon/label carry direction; colour is supplementary. */
+.amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.amount--in {
+  color: var(--ink);
+}
+.amount--out {
+  color: var(--ink);
+}
+.dir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dir--in {
+  background: var(--in-wash);
+  color: var(--in);
+}
+.dir--out {
+  background: var(--out-wash);
+  color: var(--out);
+}
+.dir--neutral {
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+/* ---------------------------------------------------------------- Notices */
+.notice {
+  display: flex;
+  gap: var(--s3);
+  align-items: flex-start;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+}
+.notice > .icon {
+  margin-top: 2px;
+}
+.notice p:last-child {
+  margin-bottom: 0;
+}
+.notice--info {
+  background: var(--info-wash);
+  border-color: color-mix(in srgb, var(--info) 35%, var(--line));
+}
+.notice--info > .icon {
+  color: var(--info);
+}
+.notice--warn {
+  background: var(--warn-wash);
+  border-color: var(--warn-line);
+}
+.notice--warn > .icon {
+  color: var(--warn);
+}
+.notice--critical {
+  background: var(--danger-wash);
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--line));
+}
+.notice--critical > .icon {
+  color: var(--danger);
+}
+.notice--illustrative {
+  background: var(--demo-bg);
+  border: 1px dashed var(--demo-line);
+  color: var(--ink);
+}
+.notice--illustrative > .icon {
+  color: var(--demo-ink);
+}
+.notice--ok {
+  background: var(--ok-wash);
+  border-color: color-mix(in srgb, var(--ok) 40%, var(--line));
+}
+.notice--ok > .icon {
+  color: var(--ok);
+}
+
+/* ---------------------------------------------------- Key/value details */
+.kv {
+  display: grid;
+  grid-template-columns: minmax(8rem, 40%) 1fr;
+  gap: var(--s2) var(--s4);
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+.kv dt {
+  color: var(--muted);
+}
+.kv dd {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 419px) {
+  .kv {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .kv dd {
+    margin-bottom: var(--s2);
+  }
+}
+
+/* ---------------------------------------------------- Disclosure (details) */
+.disclosure {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.disclosure + .disclosure {
+  margin-top: var(--s2);
+}
+.disclosure > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 48px;
+  padding: var(--s3) var(--s4);
+  cursor: pointer;
+  font-weight: 600;
+  border-radius: var(--radius);
+}
+.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.disclosure > summary::after {
+  content: '';
+  margin-left: auto;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid var(--ink-2);
+  border-bottom: 2px solid var(--ink-2);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform var(--dur) var(--ease);
+  flex-shrink: 0;
+}
+.disclosure[open] > summary::after {
+  transform: rotate(225deg) translate(-2px, -2px);
+}
+.disclosure > summary:hover {
+  background: var(--surface-2);
+}
+.disclosure > summary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.disclosure__body {
+  padding: 0 var(--s4) var(--s4);
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+}
+
+/* ------------------------------------------------------------------ Forms */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.field__label {
+  font-size: var(--fs-sm);
+  font-weight: 650;
+  color: var(--ink);
+}
+.field__hint {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.field__error {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: var(--fs-sm);
+  color: var(--danger);
+  font-weight: 600;
+}
+.input,
+.select,
+.textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-base);
+}
+.textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 36px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-2) 50%), linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 55%, calc(100% - 13px) 55%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+.input:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 35%, transparent);
+}
+.input[aria-invalid='true'],
+.select[aria-invalid='true'],
+.textarea[aria-invalid='true'] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger);
+}
+.input-icon {
+  position: relative;
+}
+.input-icon > .icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+.input-icon > .input {
+  padding-left: 40px;
+}
+fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+legend {
+  padding: 0;
+  font-size: var(--fs-sm);
+  font-weight: 650;
+  margin-bottom: 6px;
+}
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+}
+.choice:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+.choice input {
+  margin: 3px 0 0;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+.choice:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-wash);
+}
+.choice:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+.choices {
+  display: grid;
+  gap: var(--s2);
+}
+
+/* Chips: removable active-filter tokens and toggle pills. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 6px 0 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--line));
+  background: var(--primary-wash);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-2);
+}
+.chip button:hover {
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+.pill[aria-pressed='true'] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+/* Segmented control (language switcher and similar). */
+.seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.seg__icon {
+  margin: 0 4px 0 6px;
+  color: var(--muted);
+}
+.seg__btn {
+  min-height: 36px;
+  min-width: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.seg__btn[aria-pressed='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-1), inset 0 0 0 1px var(--line-strong);
+}
+.seg__btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.seg__short {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ Table */
+.table-wrap {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+.table {
+  font-size: var(--fs-sm);
+}
+.table caption {
+  text-align: left;
+  padding: var(--s3) var(--s4);
+  font-weight: 650;
+  color: var(--ink);
+}
+.table th,
+.table td {
+  padding: 10px var(--s4);
+  text-align: left;
+  vertical-align: middle;
+  border-top: 1px solid var(--line);
+}
+.table thead th {
+  background: var(--surface-2);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  color: var(--ink-2);
+  letter-spacing: 0.02em;
+  border-top: 0;
+  white-space: nowrap;
+}
+.table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+.table tbody tr:hover {
+  background: var(--surface-2);
+}
+.table tfoot td,
+.table tfoot th {
+  font-weight: 700;
+  border-top: 2px solid var(--line-strong);
+}
+
+/* ------------------------------------------------------- Dialog and sheet */
+dialog.dlg {
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-3);
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(88vh, 900px);
+  overflow: hidden;
+}
+dialog.dlg[open] {
+  display: flex;
+  flex-direction: column;
+  animation: yes-fade-up var(--dur) var(--ease);
+}
+dialog.dlg::backdrop {
+  background: var(--overlay);
+}
+.dlg__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s4) var(--s4) var(--s3) var(--s5);
+  border-bottom: 1px solid var(--line);
+}
+.dlg__title {
+  font-size: var(--fs-lg);
+  margin: 6px 0 0;
+  flex: 1;
+  min-width: 0;
+}
+.dlg__body {
+  padding: var(--s5);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  flex: 1;
+}
+.dlg__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  justify-content: flex-end;
+  padding: var(--s3) var(--s5);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+/* Small screens: dialogs become full-screen sheets. */
+@media (max-width: 719px) {
+  dialog.dlg {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100%;
+    max-height: 100%;
+    margin: 0;
+    border-radius: 0;
+  }
+  .dlg__foot {
+    justify-content: stretch;
+  }
+  .dlg__foot .btn {
+    flex: 1;
+  }
+}
+
+/* --------------------------------------------------------------- Steps */
+.steps {
+  display: flex;
+  gap: var(--s2);
+  list-style: none;
+  margin: 0 0 var(--s5);
+  padding: 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.steps li {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.steps li::before {
+  content: '';
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.steps li[aria-current='step'] {
+  color: var(--ink);
+  font-weight: 650;
+}
+.steps li[aria-current='step']::before,
+.steps li.is-done::before {
+  background: var(--primary);
+}
+
+/* -------------------------------------------------------- Empty states */
+.empty {
+  text-align: center;
+  padding: var(--s10) var(--s4);
+  color: var(--ink-2);
+}
+.empty .icon {
+  color: var(--muted);
+  margin-bottom: var(--s2);
+}
+.empty h3 {
+  margin-bottom: var(--s2);
+}
+
+/* ---------------------------------------------------------------- Toast */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--s6);
+  transform: translate(-50%, 16px);
+  background: var(--ink);
+  color: var(--surface);
+  padding: var(--s3) var(--s5);
+  border-radius: 999px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  box-shadow: var(--shadow-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+  z-index: 2000;
+  max-width: calc(100vw - 32px);
+  text-align: center;
+}
+.toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ------------------------------------------------------- Check lists */
+.checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s2);
+}
+.check {
+  display: flex;
+  gap: var(--s2);
+  align-items: flex-start;
+  font-size: var(--fs-sm);
+}
+.check--ok .icon {
+  color: var(--ok);
+}
+.check--fail .icon {
+  color: var(--danger);
+}
+.check__state {
+  margin-left: auto;
+  font-weight: 650;
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+/* Highlight for search matches and linked rows. */
+mark,
+.hl {
+  background: color-mix(in srgb, var(--accent) 38%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+.is-flash {
+  animation: yes-highlight 1.6s var(--ease);
+}
+
+/* Forced colours: keep boundaries and states visible. */
+@media (forced-colors: active) {
+  .btn,
+  .chip,
+  .pill,
+  .status,
+  .tag,
+  .demo-badge,
+  .card,
+  .notice {
+    border: 1px solid CanvasText;
+  }
+  .pill[aria-pressed='true'],
+  .seg__btn[aria-pressed='true'] {
+    outline: 2px solid Highlight;
+  }
+}
+
+/* ---- css/03-shell.css ---- */
+/* Shell: masthead, navigation, views, footer, withheld state. */
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: saturate(1.4) blur(8px);
+  -webkit-backdrop-filter: saturate(1.4) blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+.masthead__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 60px;
+  flex-wrap: wrap;
+  padding-block: var(--s2);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  color: var(--ink);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  min-height: 44px;
+}
+.brand__logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  min-width: 52px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  font-size: 1.05rem;
+}
+.brand__logo--placeholder {
+  outline: 1px dashed color-mix(in srgb, var(--primary) 60%, transparent);
+  outline-offset: 2px;
+}
+.brand__text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.brand__title {
+  font-weight: 700;
+  font-size: var(--fs-sm);
+}
+.brand__period {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.masthead__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-left: auto;
+}
+.btn--ask {
+  min-height: 42px;
+}
+.nav {
+  border-top: 1px solid var(--line);
+}
+.nav__list {
+  display: flex;
+  gap: var(--s1);
+  list-style: none;
+  margin-block: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nav__list::-webkit-scrollbar {
+  display: none;
+}
+.nav__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 46px;
+  padding: 0 var(--s3);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+  border-radius: 0;
+}
+.nav__link:hover {
+  color: var(--ink);
+  border-bottom-color: var(--line-strong);
+}
+.nav__link[aria-current='page'] {
+  color: var(--ink);
+  border-bottom-color: var(--primary);
+}
+.nav__link:focus-visible {
+  outline-offset: -4px;
+}
+
+@media (max-width: 719px) {
+  .masthead__bar {
+    gap: var(--s2);
+  }
+  .demo-badge {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: center;
+    margin-top: -2px;
+  }
+  .seg__long {
+    display: none;
+  }
+  .seg__short {
+    display: inline;
+  }
+  .seg__icon {
+    display: none;
+  }
+  .btn--ask .btn__label {
+    display: none;
+  }
+  .btn--ask {
+    width: 44px;
+    padding: 0;
+    border-radius: 50%;
+  }
+  .nav__list {
+    justify-content: space-between;
+    gap: 0;
+  }
+  .nav__link {
+    padding: 0 var(--s2);
+  }
+}
+@media (max-width: 359px) {
+  .brand__text {
+    display: none;
+  }
+}
+
+/* Views */
+main {
+  display: block;
+  padding-bottom: var(--s16);
+  min-height: 60vh;
+}
+main:focus {
+  outline: none;
+}
+.view {
+  animation: yes-fade-up var(--dur) var(--ease);
+}
+
+/* Assistant open on wide screens: content reflows so the drawer never covers it. */
+@media (min-width: 1100px) {
+  html.assistant-docked #app {
+    padding-right: var(--drawer-w);
+  }
+}
+
+/* Withheld (reconciliation failure) */
+#integrity-root:empty {
+  display: none;
+}
+html.is-withheld main,
+html.is-withheld .masthead .nav,
+html.is-withheld .btn--ask {
+  display: none;
+}
+.withheld {
+  padding-block: var(--s8);
+  max-width: 760px;
+}
+.withheld__title {
+  font-size: var(--fs-lg);
+}
+.withheld__checks-title {
+  margin-top: var(--s6);
+}
+
+/* Footer */
+.site-footer {
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  padding-block: var(--s6) var(--s8);
+}
+.footer__inner p {
+  max-width: 90ch;
+}
+.footer__demo {
+  display: flex;
+  gap: var(--s2);
+  align-items: flex-start;
+}
+.footer__powered {
+  color: var(--muted);
+}
+
+/* No-JS fallback summary */
+.noscript-summary {
+  max-width: 760px;
+  margin: var(--s8) auto;
+  padding: 0 var(--gutter);
+}
+
+/* ---- css/90-print.css ---- */
+/*
+ * Print: the screen UI is replaced by the statement-of-record view rendered into
+ * #print-root (owned by the Help/record module). A demo watermark repeats on
+ * every page in the showcase.
+ */
+#print-root {
+  display: none;
+}
+@media print {
+  :root {
+    color-scheme: light;
+    --bg: #fff;
+    --surface: #fff;
+    --surface-2: #f2f2f2;
+    --ink: #000;
+    --ink-2: #222;
+    --muted: #444;
+    --line: #bbb;
+    --line-strong: #888;
+  }
+  @page {
+    margin: 16mm 14mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 10.5pt;
+  }
+  #app,
+  .skip-link,
+  dialog,
+  .toast,
+  #assistant-root,
+  [data-print-hide] {
+    display: none !important;
+  }
+  #print-root {
+    display: block !important;
+  }
+  html.is-withheld #print-root {
+    display: none !important;
+  }
+  html.is-withheld #app {
+    display: block !important;
+  }
+  .print-watermark {
+    position: fixed;
+    inset: 0;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .print-watermark span {
+    transform: rotate(-30deg);
+    font-size: 54pt;
+    font-weight: 800;
+    color: rgba(0, 0, 0, 0.07);
+    white-space: nowrap;
+    letter-spacing: 0.06em;
+  }
+  a {
+    color: #000;
+    text-decoration: none;
+  }
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+  }
+  thead {
+    display: table-header-group;
+  }
+  h1,
+  h2,
+  h3 {
+    page-break-after: avoid;
+  }
+}
+
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to statement</a>
+    <div id="app">
+      <header class="masthead" id="masthead"></header>
+      <div id="integrity-root"></div>
+      <main id="main" tabindex="-1">
+        <section class="view" id="view-overview" data-view="overview" aria-labelledby="h-overview">
+          <div id="overview-root" class="container"></div>
+        </section>
+        <section class="view" id="view-transactions" data-view="transactions" aria-labelledby="h-transactions" hidden>
+          <div id="transactions-root" class="container"></div>
+        </section>
+        <section class="view" id="view-understand" data-view="understand" aria-labelledby="h-understand" hidden>
+          <div id="understand-root" class="container"></div>
+        </section>
+        <section class="view" id="view-help" data-view="help" aria-labelledby="h-help" hidden>
+          <div id="help-root" class="container"></div>
+        </section>
+      </main>
+      <footer class="site-footer" id="site-footer"></footer>
+    </div>
+
+    <!-- Assistant drawer (owned by the assistant module) -->
+    <div id="assistant-root"></div>
+
+    <!-- Dialogs (each owned by one module) -->
+    <dialog id="tx-dialog" class="dlg dlg--tx" aria-labelledby="tx-dialog-title"></dialog>
+    <dialog id="inquiry-dialog" class="dlg dlg--inquiry" aria-labelledby="inquiry-dialog-title"></dialog>
+    <dialog id="video-dialog" class="dlg dlg--video" aria-labelledby="video-dialog-title"></dialog>
+
+    <!-- Statement-of-record print view (owned by the help/record module) -->
+    <div id="print-root"></div>
+
+    <!-- Shared live regions and toast -->
+    <div id="live-polite" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+    <div id="live-assertive" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+    <div id="toast" class="toast" aria-hidden="true"></div>
+
+    <noscript><div class="noscript-summary">
+<p><strong>ILLUSTRATIVE DEMO DATA.</strong> This interactive statement needs JavaScript. A static summary follows.</p>
+<h1>YES statement — Sep 1, 2026 to Sep 30, 2026</h1>
+<p>Statement YES-STM-202609-000184, version 1.0. Account •••• 7316. Dates use the posted date; times in America/New_York.</p>
+<p>Opening balance 1,000.00 EXUSD. Closing statement balance <strong>1,147.50 EXUSD</strong>.</p>
+<ul><li>Deposits: +500.00 EXUSD</li><li>Incoming transfers: +200.00 EXUSD</li><li>Outgoing transfers: −450.00 EXUSD</li><li>Redemptions: −100.00 EXUSD</li><li>Fees: −2.50 EXUSD</li></ul>
+<table><caption>Posted transactions</caption><thead><tr><th>Posted</th><th>Type</th><th>Description</th><th>Counterparty</th><th>Amount</th><th>Balance after</th></tr></thead><tbody><tr><td>Sep 1, 2026</td><td>Deposit</td><td>Deposit from linked bank account</td><td>Linked bank account •••• 4821</td><td style="text-align:right">+250.00 EXUSD</td><td style="text-align:right">1,250.00 EXUSD</td></tr><tr><td>Sep 3, 2026</td><td>Sent</td><td>Transfer to another YES customer</td><td>Daniel K.</td><td style="text-align:right">−120.00 EXUSD</td><td style="text-align:right">1,130.00 EXUSD</td></tr><tr><td>Sep 5, 2026</td><td>Received</td><td>Transfer from another YES customer</td><td>Marisol R.</td><td style="text-align:right">+45.00 EXUSD</td><td style="text-align:right">1,175.00 EXUSD</td></tr><tr><td>Sep 9, 2026</td><td>Sent</td><td>Sent to an external wallet on a blockchain network</td><td>External wallet 0x9C1D…44B7</td><td style="text-align:right">−200.00 EXUSD</td><td style="text-align:right">975.00 EXUSD</td></tr><tr><td>Sep 9, 2026</td><td>Fee</td><td>Fee for sending to an external wallet</td><td>YES service fee</td><td style="text-align:right">−1.00 EXUSD</td><td style="text-align:right">974.00 EXUSD</td></tr><tr><td>Sep 12, 2026</td><td>Deposit</td><td>Deposit by debit card</td><td>Debit card •••• 1190</td><td style="text-align:right">+100.00 EXUSD</td><td style="text-align:right">1,074.00 EXUSD</td></tr><tr><td>Sep 12, 2026</td><td>Fee</td><td>Fee for depositing by debit card</td><td>YES service fee</td><td style="text-align:right">−0.50 EXUSD</td><td style="text-align:right">1,073.50 EXUSD</td></tr><tr><td>Sep 15, 2026</td><td>Received</td><td>Received from an external wallet on a blockchain network</td><td>External wallet 0x3F7A…08D2</td><td style="text-align:right">+80.00 EXUSD</td><td style="text-align:right">1,153.50 EXUSD</td></tr><tr><td>Sep 18, 2026</td><td>Sent</td><td>Transfer to another YES customer</td><td>Sofia P.</td><td style="text-align:right">−60.00 EXUSD</td><td style="text-align:right">1,093.50 EXUSD</td></tr><tr><td>Sep 20, 2026</td><td>Redeemed</td><td>Redeemed tokens for US dollars paid to your bank</td><td>Linked bank account •••• 4821</td><td style="text-align:right">−100.00 EXUSD</td><td style="text-align:right">993.50 EXUSD</td></tr><tr><td>Sep 20, 2026</td><td>Fee</td><td>Fee for redeeming tokens</td><td>YES service fee</td><td style="text-align:right">−1.00 EXUSD</td><td style="text-align:right">992.50 EXUSD</td></tr><tr><td>Sep 22, 2026</td><td>Deposit</td><td>Deposit from linked bank account</td><td>Linked bank account •••• 4821</td><td style="text-align:right">+150.00 EXUSD</td><td style="text-align:right">1,142.50 EXUSD</td></tr><tr><td>Sep 24, 2026</td><td>Sent</td><td>Payment to a YES merchant</td><td>Northside Market</td><td style="text-align:right">−45.50 EXUSD</td><td style="text-align:right">1,097.00 EXUSD</td></tr><tr><td>Sep 26, 2026</td><td>Received</td><td>Transfer from another YES customer</td><td>Marisol R.</td><td style="text-align:right">+75.00 EXUSD</td><td style="text-align:right">1,172.00 EXUSD</td></tr><tr><td>Sep 29, 2026</td><td>Sent</td><td>Transfer to another YES customer</td><td>Daniel K.</td><td style="text-align:right">−24.50 EXUSD</td><td style="text-align:right">1,147.50 EXUSD</td></tr></tbody></table>
+<h2>Not included in the statement balance</h2><ul><li>Sep 30, 2026 — Redemption request awaiting bank settlement: −30.00 EXUSD (pending, not included in the statement balance)</li></ul>
+</div></noscript>
+    <script>
+/* ---- js/00-config.js ---- */
+/*
+ * YES Interactive Stablecoin Statement — configuration.
+ *
+ * Every brand, legal, support and integration value that YES must approve lives
+ * here as a named replacement slot. The showcase ships with neutral placeholder
+ * values; Phase B replaces them without touching feature code.
+ */
+(function (root) {
+  'use strict';
+  var YES = (root.YES = root.YES || {});
+
+  YES.version = '1.0.0-showcase';
+
+  YES.config = {
+    /* Showcase mode: shows the "Illustrative demo data" badge, print watermark,
+       local-only inquiry/AI/feedback behaviour and demo labels everywhere. */
+    demo: true,
+
+    /* Brand replacement slots (PRD 5.1). Values are placeholders, not YES assets. */
+    slots: {
+      YES_LOGO: { text: 'YES', placeholder: true }, // replace with approved SVG markup or asset reference
+      YES_PRIMARY: '#0e5a8a',
+      YES_PRIMARY_DARK: '#6cb4ee', // primary tuned for dark colour scheme
+      YES_ACCENT: '#e8a33d',
+      YES_FONT: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+      PRODUCT_NAME: { en: 'Example USD Stablecoin', es: 'Example USD Stablecoin' },
+      ISSUER_OR_PARTNER: { en: '[Issuer or partner — pending YES approval]', es: '[Emisor o socio — pendiente de aprobación de YES]' },
+      VIDEO_POSTER: null, // approved poster image (data URI or packaged asset) — placeholder SVG is drawn when null
+      DISCLOSURES: {
+        en: '[Approved YES disclosures appear here. Final wording for holdings, custody, issuance, reserves, redemption and protections requires YES legal approval.]',
+        es: '[Aquí aparecerán las divulgaciones aprobadas por YES. La redacción final sobre tenencias, custodia, emisión, reservas, canje y protecciones requiere la aprobación legal de YES.]'
+      }
+    },
+
+    /* Support destinations (PRD 5.9). 555-01xx numbers and example.com are reserved for fiction. */
+    support: {
+      phone: '+1 (555) 010-0142',
+      email: 'help@example.com',
+      hours: { en: 'Mon–Fri, 8 am–8 pm ET (placeholder)', es: 'Lun–vie, 8:00–20:00 ET (marcador de posición)' },
+      chatAvailable: false,
+      connected: false // production: true once secure destinations are approved
+    },
+
+    /* Locale tags used for number and date formatting. Change `es` to 'es-US'
+       or 'es-MX' if the Spanish audience is in the Americas. */
+    locales: { en: 'en-US', es: 'es-ES' },
+    languages: ['en', 'es'],
+    defaultLanguage: 'en',
+
+    /* Feature flags: connected enhancements are explicit, never silent (PRD 2). */
+    features: {
+      liveAI: false, // production: governed AI service
+      liveInquiry: false, // production: authenticated case-management service
+      liveVideo: false, // production: approved video asset / rendering service
+      analytics: false, // production: approved, minimised engagement measurement
+      verifiedEvidence: false, // production: verified reserve / blockchain evidence
+      liveBalance: false, // production: separate, timestamped live-balance area
+      revealAccountId: false // deliberate reveal of identifiers requires approval
+    },
+
+    /*
+     * Accessibility widget integration point (PRD 2, 5.8).
+     * The official UserWay widget loads once, online only, with the supplied
+     * account ID. If the InfoSlips viewer already injects UserWay centrally, set
+     * `enabled: false` (or the loader detects the existing instance and skips),
+     * so there is never a duplicate launcher. Loading instructions must be
+     * confirmed with YES/InfoSlips before production.
+     */
+    userway: {
+      enabled: true,
+      accountId: 'B3W9A2mgGs',
+      src: 'https://cdn.userway.org/widget.js',
+      timeoutMs: 8000
+    },
+
+    /* Reconciliation tolerance is zero: amounts are integer minor units. */
+    reconciliation: { blockOnMismatch: true }
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---- js/01-data.js ---- */
+/*
+ * Canonical statement data object — ILLUSTRATIVE DEMO DATA.
+ *
+ * Every name, account, address, amount, reference and blockchain detail below is
+ * invented. No real customer information is embedded (PRD 6, rule 6).
+ *
+ * Amounts are signed integers in the asset's minor units (precision 2 → cents),
+ * so reconciliation is exact: no floating-point rounding can "fix" a mismatch.
+ *
+ * Date semantics (PRD 3, 6.3):
+ *   initiatedAt — when the customer or counterparty started the transaction
+ *   postedAt    — when it was posted to the account (the statement's period basis)
+ * A transaction belongs to this statement when postedAt falls inside the period.
+ * Same-timestamp ties are ordered by `seq` (a parent movement before its fee).
+ * Pending transactions have no postedAt and are never included in the balance.
+ */
+(function (root) {
+  'use strict';
+  var YES = (root.YES = root.YES || {});
+
+  YES.data = {
+    illustrative: true,
+
+    statement: {
+      id: 'YES-STM-202609-000184',
+      version: '1.0',
+      issueStatus: 'original', // original | corrected
+      periodStart: '2026-09-01T00:00:00-04:00',
+      periodEnd: '2026-09-30T23:59:59-04:00',
+      asOf: '2026-09-30T23:59:59-04:00',
+      generatedAt: '2026-10-01T06:15:00-04:00',
+      timezone: 'America/New_York',
+      dateBasis: 'posted',
+      language: 'en',
+      customer: {
+        firstName: 'Sam',
+        displayName: 'Sam Ortega',
+        address: ['100 Sample Avenue, Apt 4', 'Anytown, ST 00000']
+      },
+      account: {
+        label: { en: 'YES stablecoin account', es: 'Cuenta de stablecoin de YES' },
+        maskedId: '•••• 7316',
+        walletMasked: '0x5A…E19C'
+      },
+      assetId: 'EXUSD',
+      opening: 100000, // 1,000.00
+      closing: 114750 // 1,147.50
+    },
+
+    assets: {
+      EXUSD: {
+        id: 'EXUSD',
+        name: { en: 'Example USD Stablecoin', es: 'Example USD Stablecoin' },
+        symbol: 'EXUSD',
+        precision: 2,
+        unitLabel: { en: 'token units', es: 'unidades de token' },
+        /* Optional fiat equivalent: shown only because rate, source and timestamp
+           are all present. Marked illustrative — not a market quote or a peg guarantee. */
+        fiat: {
+          currency: 'USD',
+          rate: '1.0000',
+          rateMicros: 1000000, // rate × 1,000,000, so conversion stays in integers
+          source: { en: 'Illustrative demo rate — not a market quote', es: 'Tasa ilustrativa de demostración — no es una cotización de mercado' },
+          at: '2026-09-30T23:59:59-04:00',
+          illustrative: true
+        }
+      }
+    },
+
+    /* Balance-journey categories. Each step's total is derived from the
+       transactions whose `type` is listed — never typed in by hand. */
+    categories: [
+      { id: 'deposits', group: 'incoming', types: ['deposit'] },
+      { id: 'transfers_in', group: 'incoming', types: ['transfer_in'] },
+      { id: 'transfers_out', group: 'outgoing', types: ['transfer_out'] },
+      { id: 'redemptions', group: 'outgoing', types: ['redemption'] },
+      { id: 'fees', group: 'outgoing', types: ['fee'] }
+    ],
+
+    transactions: [
+      {
+        id: 'TX-260901-0418',
+        seq: 1,
+        type: 'deposit',
+        rail: 'other',
+        method: 'bank_transfer',
+        status: 'posted',
+        initiatedAt: '2026-08-31T21:14:00-04:00',
+        postedAt: '2026-09-01T09:02:00-04:00',
+        amount: 25000,
+        asset: 'EXUSD',
+        balanceAfter: 125000,
+        counterparty: { en: 'Linked bank account •••• 4821', es: 'Cuenta bancaria vinculada •••• 4821' },
+        description: { en: 'Deposit from linked bank account', es: 'Depósito desde cuenta bancaria vinculada' },
+        reference: 'REF-D7K2-9QW4',
+        fees: [],
+        notes: [
+          {
+            en: 'Started on 31 August (previous period) and posted on 1 September. Statements use the posted date, so it belongs to this statement.',
+            es: 'Se inició el 31 de agosto (período anterior) y se registró el 1 de septiembre. Los estados de cuenta usan la fecha de registro, por eso pertenece a este estado de cuenta.'
+          }
+        ],
+        priorPeriodInitiation: true
+      },
+      {
+        id: 'TX-260903-1127',
+        seq: 2,
+        type: 'transfer_out',
+        rail: 'internal',
+        method: 'yes_transfer',
+        status: 'posted',
+        initiatedAt: '2026-09-03T18:40:00-04:00',
+        postedAt: '2026-09-03T18:40:00-04:00',
+        amount: -12000,
+        asset: 'EXUSD',
+        balanceAfter: 113000,
+        counterparty: { en: 'Daniel K.', es: 'Daniel K.' },
+        description: { en: 'Transfer to another YES customer', es: 'Transferencia a otro cliente de YES' },
+        memo: 'Rent share',
+        reference: 'REF-T3M8-4LZ1',
+        fees: [],
+        notes: []
+      },
+      {
+        id: 'TX-260905-0733',
+        seq: 3,
+        type: 'transfer_in',
+        rail: 'internal',
+        method: 'yes_transfer',
+        status: 'posted',
+        initiatedAt: '2026-09-05T12:15:00-04:00',
+        postedAt: '2026-09-05T12:15:00-04:00',
+        amount: 4500,
+        asset: 'EXUSD',
+        balanceAfter: 117500,
+        counterparty: { en: 'Marisol R.', es: 'Marisol R.' },
+        description: { en: 'Transfer from another YES customer', es: 'Transferencia de otro cliente de YES' },
+        memo: 'Dinner',
+        reference: 'REF-R5P1-8HX6',
+        fees: [],
+        notes: []
+      },
+      {
+        id: 'TX-260909-2051',
+        seq: 4,
+        type: 'transfer_out',
+        rail: 'onchain',
+        method: 'network_send',
+        status: 'posted',
+        initiatedAt: '2026-09-09T10:21:00-04:00',
+        postedAt: '2026-09-09T10:34:00-04:00',
+        amount: -20000,
+        asset: 'EXUSD',
+        balanceAfter: 97500,
+        counterparty: { en: 'External wallet 0x9C1D…44B7', es: 'Monedero externo 0x9C1D…44B7' },
+        description: { en: 'Sent to an external wallet on a blockchain network', es: 'Envío a un monedero externo en una red blockchain' },
+        reference: 'REF-N8C4-2VB9',
+        fees: [{ asset: 'EXUSD', amount: 100, kind: 'network_transfer', feeTxId: 'TX-260909-2052' }],
+        notes: [
+          {
+            en: 'The transfer fee is shown as its own line so each amount can be traced.',
+            es: 'La comisión de transferencia aparece como una línea propia para que cada importe pueda rastrearse.'
+          }
+        ],
+        /* The single sample on-chain reference (PRD 5.6). Not verified, not linked
+           to any real explorer. */
+        onchain: {
+          network: { en: 'Example Network (illustrative)', es: 'Example Network (ilustrativa)' },
+          hash: '0xDE40000000000000000000000000000000000000000000000000000000E19C',
+          hashDisplay: '0xDE40…E19C',
+          confirmations: 64,
+          verified: false,
+          illustrative: true
+        }
+      },
+      {
+        id: 'TX-260909-2052',
+        seq: 5,
+        type: 'fee',
+        rail: 'internal',
+        method: 'fee',
+        status: 'posted',
+        initiatedAt: '2026-09-09T10:34:00-04:00',
+        postedAt: '2026-09-09T10:34:00-04:00',
+        amount: -100,
+        asset: 'EXUSD',
+        balanceAfter: 97400,
+        parentId: 'TX-260909-2051',
+        feeKind: 'network_transfer',
+        counterparty: { en: 'YES service fee', es: 'Comisión de servicio de YES' },
+        description: { en: 'Fee for sending to an external wallet', es: 'Comisión por envío a un monedero externo' },
+        reference: 'REF-F2N9-6QD3',
+        fees: [],
+        notes: []
+      },
+      {
+        id: 'TX-260912-0805',
+        seq: 6,
+        type: 'deposit',
+        rail: 'other',
+        method: 'debit_card',
+        status: 'posted',
+        initiatedAt: '2026-09-12T08:05:00-04:00',
+        postedAt: '2026-09-12T08:05:00-04:00',
+        amount: 10000,
+        asset: 'EXUSD',
+        balanceAfter: 107400,
+        counterparty: { en: 'Debit card •••• 1190', es: 'Tarjeta de débito •••• 1190' },
+        description: { en: 'Deposit by debit card', es: 'Depósito con tarjeta de débito' },
+        reference: 'REF-C6V3-1KE7',
+        fees: [{ asset: 'EXUSD', amount: 50, kind: 'card_deposit', feeTxId: 'TX-260912-0806' }],
+        notes: []
+      },
+      {
+        id: 'TX-260912-0806',
+        seq: 7,
+        type: 'fee',
+        rail: 'internal',
+        method: 'fee',
+        status: 'posted',
+        initiatedAt: '2026-09-12T08:05:00-04:00',
+        postedAt: '2026-09-12T08:05:00-04:00',
+        amount: -50,
+        asset: 'EXUSD',
+        balanceAfter: 107350,
+        parentId: 'TX-260912-0805',
+        feeKind: 'card_deposit',
+        counterparty: { en: 'YES service fee', es: 'Comisión de servicio de YES' },
+        description: { en: 'Fee for depositing by debit card', es: 'Comisión por depósito con tarjeta de débito' },
+        reference: 'REF-F7C2-3JW8',
+        fees: [],
+        notes: []
+      },
+      {
+        id: 'TX-260915-1648',
+        seq: 8,
+        type: 'transfer_in',
+        rail: 'onchain',
+        method: 'network_receive',
+        status: 'posted',
+        initiatedAt: '2026-09-15T16:48:00-04:00',
+        postedAt: '2026-09-15T17:02:00-04:00',
+        amount: 8000,
+        asset: 'EXUSD',
+        balanceAfter: 115350,
+        counterparty: { en: 'External wallet 0x3F7A…08D2', es: 'Monedero externo 0x3F7A…08D2' },
+        description: { en: 'Received from an external wallet on a blockchain network', es: 'Recibido de un monedero externo en una red blockchain' },
+        reference: 'REF-N4H6-7TS2',
+        fees: [],
+        notes: [
+          {
+            en: 'Blockchain details are shown only when verified. Verified details for this transfer are not available in this demo.',
+            es: 'Los detalles de blockchain solo se muestran cuando están verificados. Los detalles verificados de esta transferencia no están disponibles en esta demostración.'
+          }
+        ]
+      },
+      {
+        id: 'TX-260918-2011',
+        seq: 9,
+        type: 'transfer_out',
+        rail: 'internal',
+        method: 'yes_transfer',
+        status: 'posted',
+        initiatedAt: '2026-09-18T20:11:00-04:00',
+        postedAt: '2026-09-18T20:11:00-04:00',
+        amount: -6000,
+        asset: 'EXUSD',
+        balanceAfter: 109350,
+        counterparty: { en: 'Sofia P.', es: 'Sofia P.' },
+        description: { en: 'Transfer to another YES customer', es: 'Transferencia a otro cliente de YES' },
+        memo: 'Concert tickets',
+        reference: 'REF-T9B5-0MA3',
+        fees: [],
+        notes: []
+      },
+      {
+        id: 'TX-260920-0900',
+        seq: 10,
+        type: 'redemption',
+        rail: 'other',
+        method: 'bank_payout',
+        status: 'posted',
+        initiatedAt: '2026-09-19T15:30:00-04:00',
+        postedAt: '2026-09-20T09:00:00-04:00',
+        amount: -10000,
+        asset: 'EXUSD',
+        balanceAfter: 99350,
+        counterparty: { en: 'Linked bank account •••• 4821', es: 'Cuenta bancaria vinculada •••• 4821' },
+        description: { en: 'Redeemed tokens for US dollars paid to your bank', es: 'Canje de tokens por dólares estadounidenses pagados a tu banco' },
+        reference: 'REF-X1R7-5GN2',
+        fees: [{ asset: 'EXUSD', amount: 100, kind: 'redemption', feeTxId: 'TX-260920-0901' }],
+        notes: [
+          {
+            en: 'Requested on 19 September and posted on 20 September.',
+            es: 'Solicitado el 19 de septiembre y registrado el 20 de septiembre.'
+          }
+        ]
+      },
+      {
+        id: 'TX-260920-0901',
+        seq: 11,
+        type: 'fee',
+        rail: 'internal',
+        method: 'fee',
+        status: 'posted',
+        initiatedAt: '2026-09-20T09:00:00-04:00',
+        postedAt: '2026-09-20T09:00:00-04:00',
+        amount: -100,
+        asset: 'EXUSD',
+        balanceAfter: 99250,
+        parentId: 'TX-260920-0900',
+        feeKind: 'redemption',
+        counterparty: { en: 'YES service fee', es: 'Comisión de servicio de YES' },
+        description: { en: 'Fee for redeeming tokens', es: 'Comisión por canje de tokens' },
+        reference: 'REF-F5X8-2PL6',
+        fees: [],
+        notes: []
+      },
+      {
+        id: 'TX-260922-0901',
+        seq: 12,
+        type: 'deposit',
+        rail: 'other',
+        method: 'bank_transfer',
+        status: 'posted',
+        initiatedAt: '2026-09-21T19:45:00-04:00',
+        postedAt: '2026-09-22T09:01:00-04:00',
+        amount: 15000,
+        asset: 'EXUSD',
+        balanceAfter: 114250,
+        counterparty: { en: 'Linked bank account •••• 4821', es: 'Cuenta bancaria vinculada •••• 4821' },
+        description: { en: 'Deposit from linked bank account', es: 'Depósito desde cuenta bancaria vinculada' },
+        reference: 'REF-D2W6-8YF1',
+        fees: [],
+        notes: []
+      },
+      {
+        id: 'TX-260924-1327',
+        seq: 13,
+        type: 'transfer_out',
+        rail: 'internal',
+        method: 'yes_payment',
+        status: 'posted',
+        initiatedAt: '2026-09-24T13:27:00-04:00',
+        postedAt: '2026-09-24T13:27:00-04:00',
+        amount: -4550,
+        asset: 'EXUSD',
+        balanceAfter: 109700,
+        counterparty: { en: 'Northside Market', es: 'Northside Market' },
+        description: { en: 'Payment to a YES merchant', es: 'Pago a un comercio de YES' },
+        memo: 'Groceries',
+        reference: 'REF-M8Q2-4DK9',
+        fees: [],
+        notes: []
+      },
+      {
+        id: 'TX-260926-1009',
+        seq: 14,
+        type: 'transfer_in',
+        rail: 'internal',
+        method: 'yes_transfer',
+        status: 'posted',
+        initiatedAt: '2026-09-26T10:09:00-04:00',
+        postedAt: '2026-09-26T10:09:00-04:00',
+        amount: 7500,
+        asset: 'EXUSD',
+        balanceAfter: 117200,
+        counterparty: { en: 'Marisol R.', es: 'Marisol R.' },
+        description: { en: 'Transfer from another YES customer', es: 'Transferencia de otro cliente de YES' },
+        memo: 'Trip refund',
+        reference: 'REF-R2L9-6WC4',
+        fees: [],
+        notes: []
+      },
+      {
+        id: 'TX-260929-1952',
+        seq: 15,
+        type: 'transfer_out',
+        rail: 'internal',
+        method: 'yes_transfer',
+        status: 'posted',
+        initiatedAt: '2026-09-29T19:52:00-04:00',
+        postedAt: '2026-09-29T19:52:00-04:00',
+        amount: -2450,
+        asset: 'EXUSD',
+        balanceAfter: 114750,
+        counterparty: { en: 'Daniel K.', es: 'Daniel K.' },
+        description: { en: 'Transfer to another YES customer', es: 'Transferencia a otro cliente de YES' },
+        memo: 'Utilities',
+        reference: 'REF-T6J4-1NB8',
+        fees: [],
+        notes: []
+      },
+      {
+        id: 'TX-260930-2247',
+        seq: 16,
+        type: 'redemption',
+        rail: 'other',
+        method: 'bank_payout',
+        status: 'pending',
+        initiatedAt: '2026-09-30T22:47:00-04:00',
+        postedAt: null,
+        amount: -3000,
+        asset: 'EXUSD',
+        balanceAfter: null,
+        counterparty: { en: 'Linked bank account •••• 4821', es: 'Cuenta bancaria vinculada •••• 4821' },
+        description: { en: 'Redemption request awaiting bank settlement', es: 'Solicitud de canje pendiente de liquidación bancaria' },
+        reference: 'REF-X6P3-9AT5',
+        fees: [],
+        notes: [
+          {
+            en: 'Pending at the statement cut-off, so it is not included in this statement balance. If it completes, it will appear on your next statement.',
+            es: 'Estaba pendiente al cierre del estado de cuenta, por eso no se incluye en este saldo. Si se completa, aparecerá en tu próximo estado de cuenta.'
+          }
+        ]
+      }
+    ]
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---- js/02-calc.js ---- */
+/*
+ * Statement arithmetic and reconciliation (PRD 5.2, 6).
+ *
+ * Pure functions over the canonical data object: no DOM access, so the same code
+ * runs in the browser and in the build's release gate (build.mjs).
+ * All totals, the balance journey, the running-balance chart and the
+ * explanations derive from these functions — nothing is typed in twice.
+ */
+(function (root) {
+  'use strict';
+  var YES = (root.YES = root.YES || {});
+
+  function d() {
+    return YES.data;
+  }
+  function time(iso) {
+    return iso ? Date.parse(iso) : NaN;
+  }
+  function chrono(a, b) {
+    return time(a.postedAt) - time(b.postedAt) || a.seq - b.seq;
+  }
+  function sum(list) {
+    var s = 0;
+    for (var i = 0; i < list.length; i++) s += list[i].amount;
+    return s;
+  }
+  function ids(list) {
+    return list.map(function (t) {
+      return t.id;
+    });
+  }
+
+  var calc = (YES.calc = {});
+
+  calc.asset = function (data) {
+    data = data || d();
+    return data.assets[data.statement.assetId];
+  };
+
+  /** Every transaction (posted and not posted), in canonical data order. */
+  calc.all = function (data) {
+    return (data || d()).transactions.slice();
+  };
+
+  /** Posted transactions in this statement, chronological (postedAt, then seq). */
+  calc.posted = function (data) {
+    return (data || d()).transactions
+      .filter(function (t) {
+        return t.status === 'posted';
+      })
+      .sort(chrono);
+  };
+
+  /** Transactions not included in the statement balance (pending, failed, unknown). */
+  calc.notInBalance = function (data) {
+    return (data || d()).transactions.filter(function (t) {
+      return t.status !== 'posted';
+    });
+  };
+
+  calc.tx = function (id, data) {
+    var list = (data || d()).transactions;
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  };
+
+  calc.inBalance = function (t) {
+    return t.status === 'posted';
+  };
+
+  calc.categoryOf = function (t, data) {
+    var cats = (data || d()).categories;
+    for (var i = 0; i < cats.length; i++) if (cats[i].types.indexOf(t.type) !== -1) return cats[i].id;
+    return null;
+  };
+
+  /** Balance-journey categories with totals derived from posted transactions. */
+  calc.categories = function (data) {
+    data = data || d();
+    var posted = calc.posted(data);
+    return data.categories.map(function (c) {
+      var rows = posted.filter(function (t) {
+        return c.types.indexOf(t.type) !== -1;
+      });
+      return { id: c.id, group: c.group, types: c.types.slice(), total: sum(rows), count: rows.length, txIds: ids(rows) };
+    });
+  };
+
+  calc.category = function (id, data) {
+    var cats = calc.categories(data);
+    for (var i = 0; i < cats.length; i++) if (cats[i].id === id) return cats[i];
+    return null;
+  };
+
+  /** Incoming / outgoing groups (PRD 4: opening → incoming → outgoing & fees → closing). */
+  calc.groups = function (data) {
+    var cats = calc.categories(data);
+    function group(g) {
+      var members = cats.filter(function (c) {
+        return c.group === g;
+      });
+      var txIds = [];
+      members.forEach(function (c) {
+        txIds = txIds.concat(c.txIds);
+      });
+      return {
+        id: g,
+        categories: members.map(function (c) {
+          return c.id;
+        }),
+        total: members.reduce(function (s, c) {
+          return s + c.total;
+        }, 0),
+        count: txIds.length,
+        txIds: txIds
+      };
+    }
+    return { incoming: group('incoming'), outgoing: group('outgoing') };
+  };
+
+  /**
+   * Bridge steps: opening, each category as a floating delta, closing.
+   * `start`/`end` are the running levels the step moves between.
+   */
+  calc.journey = function (data) {
+    data = data || d();
+    var s = data.statement;
+    var level = s.opening;
+    var steps = [{ id: 'opening', kind: 'total', value: s.opening, start: 0, end: s.opening, txIds: [], count: 0 }];
+    calc.categories(data).forEach(function (c) {
+      steps.push({ id: c.id, kind: 'delta', group: c.group, value: c.total, start: level, end: level + c.total, txIds: c.txIds, count: c.count });
+      level += c.total;
+    });
+    steps.push({ id: 'closing', kind: 'total', value: s.closing, start: 0, end: s.closing, txIds: [], count: 0 });
+    return steps;
+  };
+
+  /** Running balance after each posted transaction, starting from the opening balance. */
+  calc.running = function (data) {
+    data = data || d();
+    var level = data.statement.opening;
+    return calc.posted(data).map(function (t) {
+      level += t.amount;
+      return { txId: t.id, at: t.postedAt, delta: t.amount, balance: level, stated: t.balanceAfter };
+    });
+  };
+
+  calc.netChange = function (data) {
+    return sum(calc.posted(data));
+  };
+
+  calc.feesTotal = function (data) {
+    var c = calc.category('fees', data);
+    return c ? c.total : 0;
+  };
+
+  /** Fees whose asset differs from the statement asset (shown separately, never bridged). */
+  calc.foreignFees = function (data) {
+    data = data || d();
+    var out = [];
+    data.transactions.forEach(function (t) {
+      (t.fees || []).forEach(function (f) {
+        if (f.asset !== data.statement.assetId) out.push({ txId: t.id, fee: f });
+      });
+    });
+    return out;
+  };
+
+  /** Largest single posted movement by absolute size (fees excluded). */
+  calc.largest = function (data) {
+    var best = null;
+    calc.posted(data).forEach(function (t) {
+      if (t.type === 'fee') return;
+      if (!best || Math.abs(t.amount) > Math.abs(best.amount)) best = t;
+    });
+    return best;
+  };
+
+  /** Convert a statement-asset amount to fiat minor units using the declared rate. */
+  calc.fiat = function (minor, data) {
+    var f = calc.asset(data).fiat;
+    if (!f || !f.rateMicros || !f.source || !f.at) return null;
+    return Math.round((minor * f.rateMicros) / 1000000);
+  };
+
+  /** Child fee transactions linked to a parent transaction. */
+  calc.feesFor = function (txId, data) {
+    return (data || d()).transactions.filter(function (t) {
+      return t.parentId === txId;
+    });
+  };
+
+  /**
+   * Release gate (PRD 5.2, 6). Returns every check with its outcome so the UI can
+   * show what was verified, and `ok: false` if any check fails.
+   */
+  calc.reconcile = function (data) {
+    data = data || d();
+    var s = data.statement;
+    var asset = data.assets[s.assetId];
+    var checks = [];
+    function check(id, ok, detail) {
+      checks.push({ id: id, ok: !!ok, detail: detail || {} });
+    }
+
+    var all = data.transactions;
+    var posted = calc.posted(data);
+
+    // 1. Unique transaction IDs.
+    var seen = {};
+    var dupes = [];
+    all.forEach(function (t) {
+      if (seen[t.id]) dupes.push(t.id);
+      seen[t.id] = true;
+    });
+    check('unique_ids', dupes.length === 0, { duplicates: dupes });
+
+    // 2. Exact precision: integer minor units only.
+    var bad = all.filter(function (t) {
+      return !Number.isInteger(t.amount) || (t.balanceAfter !== null && t.balanceAfter !== undefined && !Number.isInteger(t.balanceAfter));
+    });
+    check('precision', bad.length === 0 && Number.isInteger(s.opening) && Number.isInteger(s.closing) && !!asset, {
+      precision: asset ? asset.precision : null,
+      offending: ids(bad)
+    });
+
+    // 3. One asset in the bridge; other-asset fees are excluded (rule 4).
+    var foreign = posted.filter(function (t) {
+      return t.asset !== s.assetId;
+    });
+    check('single_asset', foreign.length === 0, { asset: s.assetId, offending: ids(foreign) });
+
+    // 4. Period basis: every posted transaction's posted date lies in the period.
+    var start = time(s.periodStart);
+    var end = time(s.periodEnd);
+    var outside = posted.filter(function (t) {
+      var p = time(t.postedAt);
+      return !(p >= start && p <= end);
+    });
+    check('period_basis', outside.length === 0, { basis: s.dateBasis, offending: ids(outside) });
+
+    // 5. Opening + signed posted movements = closing.
+    var net = sum(posted);
+    check('equation', s.opening + net === s.closing, { opening: s.opening, net: net, computed: s.opening + net, closing: s.closing });
+
+    // 6. Running balances reconcile in chronological order; ties need a distinct seq.
+    var level = s.opening;
+    var mismatches = [];
+    var ties = [];
+    posted.forEach(function (t, i) {
+      level += t.amount;
+      if (t.balanceAfter !== level) mismatches.push({ id: t.id, stated: t.balanceAfter, computed: level });
+      var prev = posted[i - 1];
+      if (prev && time(prev.postedAt) === time(t.postedAt) && prev.seq === t.seq) ties.push(t.id);
+    });
+    check('running_balance', mismatches.length === 0 && ties.length === 0, { mismatches: mismatches, unresolvedTies: ties });
+
+    // 7. Every posted transaction belongs to exactly one journey category, and the
+    //    category totals add up to the net change.
+    var uncategorised = posted.filter(function (t) {
+      return (
+        data.categories.filter(function (c) {
+          return c.types.indexOf(t.type) !== -1;
+        }).length !== 1
+      );
+    });
+    var catSum = calc.categories(data).reduce(function (a, c) {
+      return a + c.total;
+    }, 0);
+    check('categories', uncategorised.length === 0 && catSum === net, { offending: ids(uncategorised), categorySum: catSum, net: net });
+
+    // 8. Fees link both ways with matching amounts.
+    var feeProblems = [];
+    all.forEach(function (t) {
+      if (t.type === 'fee') {
+        var parent = calc.tx(t.parentId, data);
+        var link =
+          parent &&
+          (parent.fees || []).filter(function (f) {
+            return f.feeTxId === t.id && f.amount === -t.amount && f.asset === t.asset;
+          }).length === 1;
+        if (!link) feeProblems.push(t.id);
+      }
+      (t.fees || []).forEach(function (f) {
+        if (f.asset === s.assetId && !calc.tx(f.feeTxId, data)) feeProblems.push(t.id);
+      });
+    });
+    check('fee_links', feeProblems.length === 0, { offending: feeProblems });
+
+    // 9. Pending / unposted transactions carry no posted date or balance.
+    var leaking = calc.notInBalance(data).filter(function (t) {
+      return t.postedAt || (t.balanceAfter !== null && t.balanceAfter !== undefined);
+    });
+    check('pending_excluded', leaking.length === 0, { offending: ids(leaking) });
+
+    return {
+      ok: checks.every(function (c) {
+        return c.ok;
+      }),
+      checks: checks,
+      summary: { opening: s.opening, net: net, closing: s.closing, postedCount: posted.length, pendingCount: all.length - posted.length }
+    };
+  };
+
+  /**
+   * Integrity preview (showcase only): a deep copy with one amount altered by a
+   * single minor unit, used to demonstrate that a non-reconciling statement is
+   * withheld instead of being "fixed" visually.
+   */
+  calc.simulateMismatch = function (data) {
+    var copy = JSON.parse(JSON.stringify(data || d()));
+    var target = copy.transactions.filter(function (t) {
+      return t.type === 'transfer_out' && t.status === 'posted';
+    })[0];
+    if (target) target.amount -= 1;
+    copy.simulated = { kind: 'mismatch', txId: target ? target.id : null };
+    return copy;
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---- js/03-i18n.js ---- */
+/*
+ * Localisation: string dictionaries, interpolation and locale-aware formatting
+ * (PRD 5.8). English and Spanish ship in the file; modules add their own strings
+ * with YES.i18n.add({ en: {...}, es: {...} }). Spanish copy is subject to
+ * native-language review and no legal text is machine-translated at runtime.
+ */
+(function (root) {
+  'use strict';
+  var YES = (root.YES = root.YES || {});
+
+  var dict = { en: {}, es: {} };
+  var warned = {};
+
+  var i18n = (YES.i18n = {
+    lang: 'en',
+    dict: dict,
+
+    /** Merge a { en: {...}, es: {...} } block into the dictionaries. */
+    add: function (block) {
+      Object.keys(block).forEach(function (lang) {
+        dict[lang] = dict[lang] || {};
+        Object.keys(block[lang]).forEach(function (k) {
+          dict[lang][k] = block[lang][k];
+        });
+      });
+    },
+
+    /** Keys present in one language but missing in another (used by tests). */
+    audit: function () {
+      var langs = Object.keys(dict);
+      var report = {};
+      langs.forEach(function (a) {
+        langs.forEach(function (b) {
+          if (a === b) return;
+          Object.keys(dict[a]).forEach(function (k) {
+            if (!(k in dict[b])) (report[b] = report[b] || []).push(k);
+          });
+        });
+      });
+      return report;
+    },
+
+    locale: function (lang) {
+      return YES.config.locales[lang || i18n.lang] || 'en-US';
+    }
+  });
+
+  /**
+   * Translate `key`, interpolating {name} placeholders from `vars`.
+   * A localised object ({ en, es }) can be passed instead of a key.
+   */
+  YES.t = function (key, vars) {
+    var s;
+    if (key && typeof key === 'object') {
+      s = key[i18n.lang] != null ? key[i18n.lang] : key.en;
+    } else {
+      var table = dict[i18n.lang] || {};
+      s = table[key];
+      if (s == null) {
+        if (!warned[i18n.lang + key] && root.console) {
+          warned[i18n.lang + key] = true;
+          console.warn('[i18n] missing "' + key + '" for ' + i18n.lang);
+        }
+        s = dict.en[key] != null ? dict.en[key] : key;
+      }
+    }
+    if (typeof s === 'function') return s(vars || {});
+    if (vars) {
+      s = String(s).replace(/\{(\w+)\}/g, function (m, name) {
+        return vars[name] != null ? vars[name] : m;
+      });
+    }
+    return s;
+  };
+
+  /** Localised value of a { en, es } object (or a plain string). */
+  YES.L = function (obj) {
+    if (obj == null) return '';
+    if (typeof obj === 'string') return obj;
+    return obj[i18n.lang] != null ? obj[i18n.lang] : obj.en;
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* Formatting                                                          */
+  /* ------------------------------------------------------------------ */
+
+  var MINUS = '−';
+  var cache = {};
+  function nf(digits) {
+    var k = 'n' + i18n.lang + digits;
+    return (cache[k] = cache[k] || new Intl.NumberFormat(i18n.locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits }));
+  }
+  function dtf(opts, key) {
+    var k = 'd' + i18n.lang + key;
+    if (!cache[k]) {
+      var o = { timeZone: YES.data.statement.timezone };
+      for (var p in opts) o[p] = opts[p];
+      cache[k] = new Intl.DateTimeFormat(i18n.locale(), o);
+    }
+    return cache[k];
+  }
+  var DATE_STYLES = {
+    short: { day: 'numeric', month: 'short' },
+    medium: { day: 'numeric', month: 'short', year: 'numeric' },
+    long: { day: 'numeric', month: 'long', year: 'numeric' },
+    weekday: { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' },
+    time: { hour: 'numeric', minute: '2-digit' },
+    datetime: { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' },
+    monthYear: { month: 'long', year: 'numeric' },
+    tz: { timeZoneName: 'short', hour: 'numeric' },
+    iso: { year: 'numeric', month: '2-digit', day: '2-digit' }
+  };
+
+  var fmt = (YES.fmt = {
+    MINUS: MINUS,
+
+    /** Plain number from minor units at the asset precision, unsigned. */
+    number: function (minor, precision) {
+      var p = precision == null ? YES.calc.asset().precision : precision;
+      return nf(p).format(Math.abs(minor) / Math.pow(10, p));
+    },
+
+    /**
+     * Amount in token units.
+     *   sign: 'auto' (− only when negative) | 'always' (+/−) | 'never'
+     *   unit: true to append the asset symbol (default true)
+     */
+    amount: function (minor, opts) {
+      opts = opts || {};
+      var asset = YES.data.assets[opts.asset || YES.data.statement.assetId];
+      var sign = opts.sign || 'auto';
+      var s = fmt.number(minor, asset.precision);
+      var prefix = '';
+      if (minor < 0 && sign !== 'never') prefix = MINUS;
+      else if (minor > 0 && sign === 'always') prefix = '+';
+      var out = prefix + s;
+      if (opts.unit !== false) out += ' ' + asset.symbol;
+      return out;
+    },
+
+    /** Words for screen readers, e.g. "minus 120.00 EXUSD" / "menos 120,00 EXUSD". */
+    amountSpoken: function (minor, opts) {
+      var unsigned = fmt.amount(Math.abs(minor), { sign: 'never', unit: !(opts && opts.unit === false) });
+      if (minor < 0) return YES.t('fmt.minus') + ' ' + unsigned;
+      if (minor > 0 && opts && opts.sign === 'always') return YES.t('fmt.plus') + ' ' + unsigned;
+      return unsigned;
+    },
+
+    /** Fiat equivalent (e.g. USD) from fiat minor units. */
+    fiat: function (fiatMinor, currency) {
+      var k = 'f' + i18n.lang + currency;
+      cache[k] = cache[k] || new Intl.NumberFormat(i18n.locale(), { style: 'currency', currency: currency, currencyDisplay: 'code' });
+      return cache[k].format(fiatMinor / 100);
+    },
+
+    /** Date/time in the statement timezone. style: short|medium|long|weekday|time|datetime|monthYear|iso */
+    date: function (iso, style) {
+      if (!iso) return '';
+      style = style || 'medium';
+      if (style === 'iso') {
+        var parts = dtf(DATE_STYLES.iso, 'iso').formatToParts(new Date(iso));
+        var get = function (t) {
+          return parts.filter(function (p) {
+            return p.type === t;
+          })[0].value;
+        };
+        // en-US gives MM/DD/YYYY parts; assemble ISO-like YYYY-MM-DD regardless of locale.
+        return get('year') + '-' + get('month') + '-' + get('day');
+      }
+      return dtf(DATE_STYLES[style] || DATE_STYLES.medium, style).format(new Date(iso));
+    },
+
+    /** Calendar date (YYYY-MM-DD) in the statement timezone — for filters and CSV. */
+    isoDate: function (iso) {
+      if (!iso) return '';
+      var parts = new Intl.DateTimeFormat('en-CA', { timeZone: YES.data.statement.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(iso));
+      var o = {};
+      parts.forEach(function (p) {
+        o[p.type] = p.value;
+      });
+      return o.year + '-' + o.month + '-' + o.day;
+    },
+
+    /** "1–30 September 2026" style range in the statement timezone. */
+    range: function (fromIso, toIso) {
+      var f = dtf(DATE_STYLES.long, 'long');
+      if (f.formatRange) return f.formatRange(new Date(fromIso), new Date(toIso));
+      return f.format(new Date(fromIso)) + ' – ' + f.format(new Date(toIso));
+    },
+
+    /** Short timezone label, e.g. "EDT", plus the IANA name. */
+    tz: function (iso) {
+      var parts = dtf({ timeZoneName: 'short' }, 'tzname').formatToParts(new Date(iso || YES.data.statement.asOf));
+      var name = parts.filter(function (p) {
+        return p.type === 'timeZoneName';
+      })[0];
+      return (name ? name.value : '') + ' (' + YES.data.statement.timezone + ')';
+    },
+
+    /** Locale-aware integer/count. */
+    count: function (n) {
+      return nf(0).format(n);
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* Shared strings: shell, navigation, common vocabulary                */
+  /* ------------------------------------------------------------------ */
+  i18n.add({
+    en: {
+      'fmt.minus': 'minus',
+      'fmt.plus': 'plus',
+
+      'app.title': 'YES statement',
+      'app.docTitle': '{view} · YES statement, {period} · Illustrative demo',
+      'app.skip': 'Skip to statement',
+      'app.noscript': 'This interactive statement needs JavaScript. A static summary follows.',
+
+      'brand.logoAlt': 'YES',
+      'brand.logoPlaceholder': 'Logo placeholder',
+      'brand.statement': 'Statement',
+
+      'demo.badge': 'Illustrative demo data',
+      'demo.badgeLong': 'Illustrative demo data — fictional customer, amounts and references',
+      'demo.watermark': 'ILLUSTRATIVE DEMO DATA',
+      'demo.only': 'Demo only',
+
+      'nav.label': 'Statement sections',
+      'nav.overview': 'Overview',
+      'nav.transactions': 'Transactions',
+      'nav.understand': 'Understand',
+      'nav.help': 'Help',
+
+      'lang.label': 'Language',
+      'lang.en': 'English',
+      'lang.es': 'Español',
+      'lang.switchTo': 'Cambiar a español',
+      'lang.changed': 'Language changed to English',
+
+      'ask.button': 'Ask YES',
+      'ask.buttonLong': 'Ask YES about this statement',
+      'explain.button': 'Explain with AI',
+      'explain.buttonFor': 'Explain with AI: {topic}',
+
+      'common.close': 'Close',
+      'common.back': 'Back',
+      'common.next': 'Next',
+      'common.cancel': 'Cancel',
+      'common.clear': 'Clear',
+      'common.clearAll': 'Clear all',
+      'common.apply': 'Apply',
+      'common.show': 'Show',
+      'common.hide': 'Hide',
+      'common.copy': 'Copy',
+      'common.copied': 'Copied to clipboard',
+      'common.copyFailed': 'Copy is not available here. Select the text to copy it.',
+      'common.more': 'More',
+      'common.details': 'Details',
+      'common.learnMore': 'Learn more',
+      'common.yes': 'Yes',
+      'common.no': 'No',
+      'common.optional': 'optional',
+      'common.required': 'required',
+      'common.none': 'None',
+      'common.notAvailable': 'Not available',
+      'common.unavailable': 'Unavailable',
+      'common.placeholder': 'placeholder',
+      'common.illustrative': 'Illustrative',
+      'common.txCount1': '1 transaction',
+      'common.txCountN': '{n} transactions',
+      'common.of': '{a} of {b}',
+      'common.print': 'Print statement',
+      'common.loading': 'Loading…',
+
+      'type.deposit': 'Deposit',
+      'type.transfer_in': 'Received',
+      'type.transfer_out': 'Sent',
+      'type.redemption': 'Redeemed',
+      'type.fee': 'Fee',
+      'type.unknown': 'Unknown type',
+
+      'cat.opening': 'Opening balance',
+      'cat.deposits': 'Deposits',
+      'cat.transfers_in': 'Incoming transfers',
+      'cat.transfers_out': 'Outgoing transfers',
+      'cat.redemptions': 'Redemptions',
+      'cat.fees': 'Fees',
+      'cat.closing': 'Closing balance',
+      'group.incoming': 'Incoming activity',
+      'group.outgoing': 'Outgoing activity and fees',
+
+      'status.posted': 'Posted',
+      'status.pending': 'Pending',
+      'status.failed': 'Failed',
+      'status.unknown': 'Status unknown',
+      'status.notInBalance': 'Not included in statement balance',
+
+      'rail.internal': 'Internal (YES)',
+      'rail.onchain': 'On-chain',
+      'rail.other': 'Bank or card',
+
+      'method.bank_transfer': 'Bank transfer',
+      'method.debit_card': 'Debit card',
+      'method.yes_transfer': 'YES transfer',
+      'method.yes_payment': 'YES payment',
+      'method.network_send': 'Blockchain network send',
+      'method.network_receive': 'Blockchain network receipt',
+      'method.bank_payout': 'Payout to bank',
+      'method.fee': 'Service fee',
+
+      'dir.in': 'Incoming',
+      'dir.out': 'Outgoing',
+
+      'term.statementBalance': 'Statement balance',
+      'term.tokenUnits': 'token units',
+      'term.asOf': 'As of {date}',
+      'term.period': 'Statement period',
+      'term.postedDate': 'Posted date',
+      'term.initiatedDate': 'Initiated date',
+      'term.dateBasisNote': 'Dates and totals use the posted date.',
+      'term.timezone': 'Times shown in {tz}',
+
+      'integrity.title': 'This statement is being withheld',
+      'integrity.body': 'Its totals do not reconcile, so we are not showing balances that could be wrong. It has been routed for correction. Nothing on this page has been rounded or adjusted to hide the difference.',
+      'integrity.simulated': 'You are viewing a simulated integrity failure (showcase only).',
+      'integrity.return': 'Return to the valid demo statement',
+      'integrity.checks': 'Release checks',
+      'integrity.pass': 'Passed',
+      'integrity.fail': 'Failed',
+      'check.unique_ids': 'Every transaction has a unique ID',
+      'check.precision': 'Amounts use exact whole minor units',
+      'check.single_asset': 'Only the statement asset is in the balance journey',
+      'check.period_basis': 'Every posted transaction falls inside the period (posted-date basis)',
+      'check.equation': 'Opening balance plus movements equals closing balance',
+      'check.running_balance': 'Running balances reconcile in date order',
+      'check.categories': 'Journey categories add up to the net change',
+      'check.fee_links': 'Every fee links to the transaction it belongs to',
+      'check.pending_excluded': 'Pending transactions are excluded from the balance',
+
+      'footer.demo': 'Showcase statement with illustrative demo data. No real customer, account or blockchain information is used. Nothing you do on this page is sent anywhere.',
+      'footer.statementId': 'Statement {id} · version {version}',
+      'footer.generated': 'Generated {date}',
+      'footer.disclosures': 'Disclosures',
+      'footer.poweredBy': 'Interactive statement delivered via InfoSlips',
+
+      'route.announce': '{view} section'
+    },
+    es: {
+      'fmt.minus': 'menos',
+      'fmt.plus': 'más',
+
+      'app.title': 'Estado de cuenta de YES',
+      'app.docTitle': '{view} · Estado de cuenta de YES, {period} · Demostración ilustrativa',
+      'app.skip': 'Ir al estado de cuenta',
+      'app.noscript': 'Este estado de cuenta interactivo necesita JavaScript. A continuación verás un resumen estático.',
+
+      'brand.logoAlt': 'YES',
+      'brand.logoPlaceholder': 'Marcador de logotipo',
+      'brand.statement': 'Estado de cuenta',
+
+      'demo.badge': 'Datos ilustrativos de demostración',
+      'demo.badgeLong': 'Datos ilustrativos de demostración — cliente, importes y referencias ficticios',
+      'demo.watermark': 'DATOS ILUSTRATIVOS DE DEMOSTRACIÓN',
+      'demo.only': 'Solo demostración',
+
+      'nav.label': 'Secciones del estado de cuenta',
+      'nav.overview': 'Resumen',
+      'nav.transactions': 'Movimientos',
+      'nav.understand': 'Entender',
+      'nav.help': 'Ayuda',
+
+      'lang.label': 'Idioma',
+      'lang.en': 'English',
+      'lang.es': 'Español',
+      'lang.switchTo': 'Switch to English',
+      'lang.changed': 'Idioma cambiado a español',
+
+      'ask.button': 'Pregunta a YES',
+      'ask.buttonLong': 'Pregunta a YES sobre este estado de cuenta',
+      'explain.button': 'Explicar con IA',
+      'explain.buttonFor': 'Explicar con IA: {topic}',
+
+      'common.close': 'Cerrar',
+      'common.back': 'Atrás',
+      'common.next': 'Siguiente',
+      'common.cancel': 'Cancelar',
+      'common.clear': 'Borrar',
+      'common.clearAll': 'Borrar todo',
+      'common.apply': 'Aplicar',
+      'common.show': 'Mostrar',
+      'common.hide': 'Ocultar',
+      'common.copy': 'Copiar',
+      'common.copied': 'Copiado al portapapeles',
+      'common.copyFailed': 'Copiar no está disponible aquí. Selecciona el texto para copiarlo.',
+      'common.more': 'Más',
+      'common.details': 'Detalles',
+      'common.learnMore': 'Más información',
+      'common.yes': 'Sí',
+      'common.no': 'No',
+      'common.optional': 'opcional',
+      'common.required': 'obligatorio',
+      'common.none': 'Ninguno',
+      'common.notAvailable': 'No disponible',
+      'common.unavailable': 'No disponible',
+      'common.placeholder': 'marcador de posición',
+      'common.illustrative': 'Ilustrativo',
+      'common.txCount1': '1 movimiento',
+      'common.txCountN': '{n} movimientos',
+      'common.of': '{a} de {b}',
+      'common.print': 'Imprimir estado de cuenta',
+      'common.loading': 'Cargando…',
+
+      'type.deposit': 'Depósito',
+      'type.transfer_in': 'Recibido',
+      'type.transfer_out': 'Enviado',
+      'type.redemption': 'Canjeado',
+      'type.fee': 'Comisión',
+      'type.unknown': 'Tipo desconocido',
+
+      'cat.opening': 'Saldo inicial',
+      'cat.deposits': 'Depósitos',
+      'cat.transfers_in': 'Transferencias recibidas',
+      'cat.transfers_out': 'Transferencias enviadas',
+      'cat.redemptions': 'Canjes',
+      'cat.fees': 'Comisiones',
+      'cat.closing': 'Saldo final',
+      'group.incoming': 'Entradas',
+      'group.outgoing': 'Salidas y comisiones',
+
+      'status.posted': 'Registrado',
+      'status.pending': 'Pendiente',
+      'status.failed': 'Fallido',
+      'status.unknown': 'Estado desconocido',
+      'status.notInBalance': 'No incluido en el saldo del estado de cuenta',
+
+      'rail.internal': 'Interno (YES)',
+      'rail.onchain': 'En cadena',
+      'rail.other': 'Banco o tarjeta',
+
+      'method.bank_transfer': 'Transferencia bancaria',
+      'method.debit_card': 'Tarjeta de débito',
+      'method.yes_transfer': 'Transferencia YES',
+      'method.yes_payment': 'Pago YES',
+      'method.network_send': 'Envío por red blockchain',
+      'method.network_receive': 'Recepción por red blockchain',
+      'method.bank_payout': 'Pago a banco',
+      'method.fee': 'Comisión de servicio',
+
+      'dir.in': 'Entrada',
+      'dir.out': 'Salida',
+
+      'term.statementBalance': 'Saldo del estado de cuenta',
+      'term.tokenUnits': 'unidades de token',
+      'term.asOf': 'Al {date}',
+      'term.period': 'Período del estado de cuenta',
+      'term.postedDate': 'Fecha de registro',
+      'term.initiatedDate': 'Fecha de inicio',
+      'term.dateBasisNote': 'Las fechas y los totales usan la fecha de registro.',
+      'term.timezone': 'Horas mostradas en {tz}',
+
+      'integrity.title': 'Este estado de cuenta está retenido',
+      'integrity.body': 'Sus totales no cuadran, así que no mostramos saldos que podrían ser incorrectos. Se ha enviado para su corrección. Nada en esta página se ha redondeado ni ajustado para ocultar la diferencia.',
+      'integrity.simulated': 'Estás viendo una falla de integridad simulada (solo demostración).',
+      'integrity.return': 'Volver al estado de cuenta de demostración válido',
+      'integrity.checks': 'Controles de publicación',
+      'integrity.pass': 'Superado',
+      'integrity.fail': 'Fallido',
+      'check.unique_ids': 'Cada movimiento tiene un identificador único',
+      'check.precision': 'Los importes usan unidades mínimas exactas',
+      'check.single_asset': 'Solo el activo del estado de cuenta está en el recorrido del saldo',
+      'check.period_basis': 'Cada movimiento registrado está dentro del período (según fecha de registro)',
+      'check.equation': 'El saldo inicial más los movimientos es igual al saldo final',
+      'check.running_balance': 'Los saldos acumulados cuadran en orden cronológico',
+      'check.categories': 'Las categorías del recorrido suman el cambio neto',
+      'check.fee_links': 'Cada comisión está vinculada a su movimiento',
+      'check.pending_excluded': 'Los movimientos pendientes se excluyen del saldo',
+
+      'footer.demo': 'Estado de cuenta de muestra con datos ilustrativos de demostración. No se usa información real de clientes, cuentas ni blockchain. Nada de lo que hagas en esta página se envía a ningún sitio.',
+      'footer.statementId': 'Estado de cuenta {id} · versión {version}',
+      'footer.generated': 'Generado el {date}',
+      'footer.disclosures': 'Divulgaciones',
+      'footer.poweredBy': 'Estado de cuenta interactivo entregado a través de InfoSlips',
+
+      'route.announce': 'Sección {view}'
+    }
+  });
+
+  /** "1 transaction" / "5 transactions" in the current language. */
+  YES.txCount = function (n) {
+    return n === 1 ? YES.t('common.txCount1') : YES.t('common.txCountN', { n: fmt.count(n) });
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---- js/04-core.js ---- */
+/*
+ * Core runtime: state store, events, module registry, hash router and the shared
+ * UI toolkit (escaping, icons, announcements, dialogs, focus, copy, download).
+ *
+ * Modules never talk to each other's DOM. They call the public APIs documented
+ * in docs/ARCHITECTURE.md (YES.explorer, YES.inquiry, YES.assistant, ...).
+ * Each API has a safe stub here so a module can be built and tested alone.
+ */
+(function (root) {
+  'use strict';
+  var YES = (root.YES = root.YES || {});
+  var doc = root.document;
+
+  /* ------------------------------------------------------------------ */
+  /* Events                                                              */
+  /* ------------------------------------------------------------------ */
+  var handlers = {};
+  YES.on = function (evt, fn) {
+    (handlers[evt] = handlers[evt] || []).push(fn);
+    return function off() {
+      handlers[evt] = (handlers[evt] || []).filter(function (h) {
+        return h !== fn;
+      });
+    };
+  };
+  YES.emit = function (evt, payload) {
+    (handlers[evt] || []).slice().forEach(function (fn) {
+      try {
+        fn(payload);
+      } catch (e) {
+        if (root.console) console.error('[YES] handler for "' + evt + '" failed', e);
+      }
+    });
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* State                                                               */
+  /* ------------------------------------------------------------------ */
+  YES.defaultFilters = function () {
+    return {
+      q: '', // free-text search
+      from: '', // YYYY-MM-DD, inclusive, on the active date basis
+      to: '', // YYYY-MM-DD, inclusive
+      direction: 'all', // all | in | out
+      types: [], // canonical types: deposit, transfer_in, transfer_out, redemption, fee
+      statuses: [], // posted, pending, failed, unknown
+      rails: [], // internal, onchain, other
+      min: '', // absolute amount, major units as typed by the customer
+      max: '',
+      step: null, // balance-journey step id or group id (incoming/outgoing) that scoped the list
+      ids: null // explicit transaction id list (e.g. "rows used" from an explanation)
+    };
+  };
+
+  YES.state = {
+    lang: 'en',
+    view: 'overview', // overview | transactions | understand | help
+    journeyStep: null, // selected balance-journey step id
+    filters: YES.defaultFilters(),
+    sort: { key: 'posted', dir: 'desc' }, // key: posted | initiated | amount
+    selectedTx: null, // id of the transaction open in the detail view
+    inquiry: null, // draft owned by the inquiry module
+    assistant: null, // conversation owned by the assistant module
+    feedback: {} // local-session-only feedback records
+  };
+
+  /**
+   * Shallow-merge `patch` into state and emit 'state' with the changed keys.
+   * Objects are replaced, not deep-merged: pass a full new object for nested keys.
+   */
+  YES.set = function (patch) {
+    var changed = [];
+    Object.keys(patch).forEach(function (k) {
+      if (JSON.stringify(YES.state[k]) !== JSON.stringify(patch[k])) {
+        YES.state[k] = patch[k];
+        changed.push(k);
+      }
+    });
+    if (changed.length) YES.emit('state', changed);
+    return changed;
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* Module registry                                                     */
+  /* ------------------------------------------------------------------ */
+  var modules = [];
+  /**
+   * YES.register({ name, i18n, init(), render(), onState(changedKeys) })
+   *   i18n    — { en: {...}, es: {...} } strings merged before boot
+   *   init    — called once after the DOM is ready (bind events, first render)
+   *   render  — full re-render; called on language change
+   *   onState — optional; called with the list of changed state keys
+   */
+  YES.register = function (mod) {
+    if (mod.i18n) YES.i18n.add(mod.i18n);
+    modules.push(mod);
+    return mod;
+  };
+  YES.modules = function () {
+    return modules.slice();
+  };
+  YES.renderAll = function () {
+    modules.forEach(function (m) {
+      if (m.render) {
+        try {
+          m.render();
+        } catch (e) {
+          if (root.console) console.error('[YES] render failed in module ' + m.name, e);
+        }
+      }
+    });
+    YES.emit('rendered');
+  };
+  YES.on('state', function (keys) {
+    modules.forEach(function (m) {
+      if (m.onState) {
+        try {
+          m.onState(keys);
+        } catch (e) {
+          if (root.console) console.error('[YES] onState failed in module ' + m.name, e);
+        }
+      }
+    });
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* Public API stubs (replaced by the owning modules)                   */
+  /* ------------------------------------------------------------------ */
+  function stub(owner, fn) {
+    return function () {
+      if (root.console) console.warn('[YES] ' + owner + '.' + fn + ' is not available yet');
+    };
+  }
+  YES.overview = { selectStep: stub('overview', 'selectStep'), clearStep: stub('overview', 'clearStep') };
+  YES.explorer = {
+    applyFilter: stub('explorer', 'applyFilter'),
+    clearFilters: stub('explorer', 'clearFilters'),
+    showRows: stub('explorer', 'showRows'),
+    openTx: stub('explorer', 'openTx'),
+    closeTx: stub('explorer', 'closeTx'),
+    exportCsv: stub('explorer', 'exportCsv'),
+    filtered: function () {
+      return [];
+    }
+  };
+  YES.inquiry = { start: stub('inquiry', 'start'), resume: stub('inquiry', 'resume') };
+  YES.assistant = { open: stub('assistant', 'open'), close: stub('assistant', 'close'), ask: stub('assistant', 'ask') };
+  YES.understand = { openTopic: stub('understand', 'openTopic') };
+  YES.help = { open: stub('help', 'open') };
+
+  /* ------------------------------------------------------------------ */
+  /* Router: #/view[/param][?key=value]                                  */
+  /* ------------------------------------------------------------------ */
+  var VIEWS = ['overview', 'transactions', 'understand', 'help'];
+  YES.VIEWS = VIEWS;
+
+  function parseHash() {
+    var h = (root.location && root.location.hash) || '';
+    h = h.replace(/^#\/?/, '');
+    var q = '';
+    var qi = h.indexOf('?');
+    if (qi !== -1) {
+      q = h.slice(qi + 1);
+      h = h.slice(0, qi);
+    }
+    var parts = h.split('/').filter(Boolean).map(decodeURIComponent);
+    var params = {};
+    q.split('&')
+      .filter(Boolean)
+      .forEach(function (kv) {
+        var i = kv.indexOf('=');
+        params[decodeURIComponent(i === -1 ? kv : kv.slice(0, i))] = i === -1 ? '' : decodeURIComponent(kv.slice(i + 1));
+      });
+    var view = VIEWS.indexOf(parts[0]) !== -1 ? parts[0] : 'overview';
+    return { view: view, param: parts[1] || null, params: params };
+  }
+
+  function buildHash(view, param, params) {
+    var h = '#/' + view + (param ? '/' + encodeURIComponent(param) : '');
+    var keys = Object.keys(params || {}).filter(function (k) {
+      return params[k] != null && params[k] !== '';
+    });
+    if (keys.length) {
+      h +=
+        '?' +
+        keys
+          .map(function (k) {
+            return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+          })
+          .join('&');
+    }
+    return h;
+  }
+
+  var nav = (YES.nav = {
+    current: parseHash,
+    /**
+     * Navigate to a view. opts.param — sub-route (e.g. a transaction id or topic),
+     * opts.focus — move focus to the view heading (default true for user navigation),
+     * opts.replace — replace history entry instead of pushing.
+     */
+    go: function (view, opts) {
+      opts = opts || {};
+      if (VIEWS.indexOf(view) === -1) view = 'overview';
+      var params = {};
+      var cur = parseHash();
+      if (cur.params.simulate) params.simulate = cur.params.simulate;
+      var hash = buildHash(view, opts.param || null, params);
+      pendingFocus = opts.focus !== false;
+      if (root.location.hash === hash) {
+        applyRoute();
+      } else if (root.history && root.history.pushState) {
+        // Update the address synchronously so state, view and focus change in the
+        // same tick as the click; back/forward still arrive via 'hashchange'.
+        try {
+          if (opts.replace) root.history.replaceState(null, '', hash);
+          else root.history.pushState(null, '', hash);
+          applyRoute();
+        } catch (e) {
+          root.location.hash = hash; // some file:// contexts refuse pushState
+        }
+      } else {
+        root.location.hash = hash;
+      }
+    },
+    /** Update the sub-route of the current view without moving focus. */
+    setParam: function (param) {
+      var cur = parseHash();
+      var hash = buildHash(cur.view, param, cur.params.simulate ? { simulate: cur.params.simulate } : {});
+      if (root.location.hash !== hash && root.history && root.history.replaceState) {
+        root.history.replaceState(null, '', hash);
+      }
+    }
+  });
+
+  var pendingFocus = false;
+  function applyRoute() {
+    var r = parseHash();
+    var changed = YES.set({ view: r.view });
+    showView(r.view);
+    YES.emit('route', r);
+    if (pendingFocus) {
+      pendingFocus = false;
+      YES.ui.focusView(r.view);
+      YES.ui.announce(YES.t('route.announce', { view: YES.t('nav.' + r.view) }));
+    } else if (changed.length) {
+      root.scrollTo && root.scrollTo(0, 0);
+    }
+  }
+  nav.apply = applyRoute;
+
+  function showView(view) {
+    VIEWS.forEach(function (v) {
+      var el = doc.getElementById('view-' + v);
+      if (el) el.hidden = v !== view;
+    });
+    YES.emit('view', view);
+  }
+  nav.showView = showView;
+
+  if (root.addEventListener) {
+    root.addEventListener('hashchange', function () {
+      applyRoute();
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Language                                                            */
+  /* ------------------------------------------------------------------ */
+  YES.setLang = function (lang, opts) {
+    if (YES.config.languages.indexOf(lang) === -1) return;
+    var activeKey = doc.activeElement && doc.activeElement.getAttribute && doc.activeElement.getAttribute('data-fk');
+    YES.i18n.lang = lang;
+    doc.documentElement.lang = lang;
+    try {
+      root.sessionStorage.setItem('yes.lang', lang);
+    } catch (e) {
+      /* storage unavailable: language still applies for this view */
+    }
+    YES.set({ lang: lang });
+    YES.renderAll();
+    YES.emit('lang', lang);
+    if (activeKey) YES.ui.focusKey(activeKey);
+    if (!(opts && opts.silent)) YES.ui.announce(YES.t('lang.changed'));
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* UI toolkit                                                          */
+  /* ------------------------------------------------------------------ */
+  var ui = (YES.ui = {});
+
+  var ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  /** Escape any value for safe inclusion in HTML text or attribute values. */
+  ui.esc = function (v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return ESC[c];
+    });
+  };
+
+  ui.$ = function (sel, rootEl) {
+    return (rootEl || doc).querySelector(sel);
+  };
+  ui.$$ = function (sel, rootEl) {
+    return Array.prototype.slice.call((rootEl || doc).querySelectorAll(sel));
+  };
+
+  /** Run `fn` once per matching click/keyboard activation inside `rootEl` (event delegation). */
+  ui.delegate = function (rootEl, evt, selector, fn) {
+    rootEl.addEventListener(evt, function (e) {
+      var target = e.target.closest ? e.target.closest(selector) : null;
+      if (target && rootEl.contains(target)) fn(e, target);
+    });
+  };
+
+  /**
+   * Replace `el`'s content with `html`, restoring focus to the element carrying
+   * the same data-fk ("focus key") afterwards. Give every interactive control a
+   * stable data-fk so language switches and re-renders never drop focus.
+   */
+  ui.render = function (el, html) {
+    if (!el) return;
+    var active = doc.activeElement;
+    var key = active && el.contains(active) && active.getAttribute('data-fk');
+    var sel = null;
+    if (key && typeof active.selectionStart === 'number') {
+      try {
+        sel = [active.selectionStart, active.selectionEnd];
+      } catch (e) {
+        sel = null;
+      }
+    }
+    el.innerHTML = html;
+    if (key) {
+      var next = el.querySelector('[data-fk="' + key + '"]');
+      if (next) {
+        next.focus({ preventScroll: true });
+        if (sel && typeof next.setSelectionRange === 'function') {
+          try {
+            next.setSelectionRange(sel[0], sel[1]);
+          } catch (e2) {
+            /* not a text control */
+          }
+        }
+      }
+    }
+  };
+
+  ui.focusKey = function (key) {
+    var el = doc.querySelector('[data-fk="' + key + '"]');
+    if (el && el.offsetParent !== null) el.focus({ preventScroll: true });
+    return el;
+  };
+
+  /** Focus the heading of a view (each view root renders h1[data-view-heading]). */
+  ui.focusView = function (view) {
+    var el = doc.querySelector('#view-' + view + ' [data-view-heading]');
+    if (el) {
+      if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+      el.focus({ preventScroll: true });
+      el.scrollIntoView && el.scrollIntoView({ block: 'start', behavior: ui.reducedMotion() ? 'auto' : 'smooth' });
+    }
+  };
+
+  /** Screen-reader announcement via the shared live regions. */
+  var announceTimer = null;
+  ui.announce = function (msg, assertive) {
+    var region = doc.getElementById(assertive ? 'live-assertive' : 'live-polite');
+    if (!region) return;
+    region.textContent = '';
+    clearTimeout(announceTimer);
+    announceTimer = setTimeout(function () {
+      region.textContent = msg;
+    }, 60);
+  };
+
+  ui.reducedMotion = function () {
+    return !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  };
+  ui.isNarrow = function () {
+    return !!(root.matchMedia && root.matchMedia('(max-width: 719px)').matches);
+  };
+
+  /** Short visual confirmation (also announced). */
+  var toastTimer = null;
+  ui.toast = function (msg) {
+    var el = doc.getElementById('toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('is-visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      el.classList.remove('is-visible');
+    }, 2600);
+    ui.announce(msg);
+  };
+
+  /** Copy text with a fallback for contexts without the async clipboard API. */
+  ui.copy = function (text) {
+    function fallback() {
+      var ta = doc.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      doc.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try {
+        ok = doc.execCommand('copy');
+      } catch (e) {
+        ok = false;
+      }
+      doc.body.removeChild(ta);
+      ui.toast(YES.t(ok ? 'common.copied' : 'common.copyFailed'));
+    }
+    if (root.navigator && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        ui.toast(YES.t('common.copied'));
+      }, fallback);
+    } else {
+      fallback();
+    }
+  };
+
+  /** Save a generated file locally (no network). */
+  ui.download = function (filename, content, mime) {
+    var blob = new Blob([content], { type: mime || 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = doc.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    doc.body.appendChild(a);
+    a.click();
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+      a.remove();
+    }, 1000);
+  };
+
+  /* ---------------------------- Dialogs ----------------------------- */
+  ui.anyModalOpen = function () {
+    try {
+      return !!doc.querySelector('dialog[open]:modal');
+    } catch (e) {
+      return !!doc.querySelector('dialog[open]');
+    }
+  };
+
+  /**
+   * Open a native <dialog> as a modal with focus management.
+   * opts.trigger — element to return focus to on close (defaults to the active element)
+   * opts.initialFocus — selector inside the dialog to focus first
+   * opts.onClose — callback after closing
+   * Escape closes (native `cancel`), focus is trapped by the browser's modal
+   * behaviour, and the page behind becomes inert.
+   */
+  ui.openDialog = function (dlg, opts) {
+    if (!dlg) return;
+    opts = opts || {};
+    dlg._trigger = opts.trigger || doc.activeElement;
+    dlg._onClose = opts.onClose || null;
+    if (!dlg._yesBound) {
+      dlg._yesBound = true;
+      dlg.addEventListener('close', function () {
+        doc.documentElement.classList.toggle('has-modal', ui.anyModalOpen());
+        var t = dlg._trigger;
+        var cb = dlg._onClose;
+        dlg._trigger = null;
+        dlg._onClose = null;
+        if (cb) cb(dlg.returnValue);
+        if (t && t.isConnected && !dlg._noReturnFocus) {
+          t.focus({ preventScroll: true });
+        } else if (t && !t.isConnected && t.getAttribute && t.getAttribute('data-fk')) {
+          ui.focusKey(t.getAttribute('data-fk'));
+        }
+        dlg._noReturnFocus = false;
+      });
+      // Click on the backdrop (outside the dialog box) closes it.
+      dlg.addEventListener('click', function (e) {
+        if (e.target !== dlg) return;
+        var r = dlg.getBoundingClientRect();
+        var inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+        if (!inside) dlg.close('backdrop');
+      });
+    }
+    if (!dlg.open) {
+      if (typeof dlg.showModal === 'function') dlg.showModal();
+      else dlg.setAttribute('open', '');
+    }
+    doc.documentElement.classList.add('has-modal');
+    var first = opts.initialFocus ? dlg.querySelector(opts.initialFocus) : null;
+    if (!first) first = dlg.querySelector('[autofocus]') || dlg.querySelector('h1, h2, [data-dialog-title]');
+    if (first) {
+      if (!first.hasAttribute('tabindex') && !/^(A|BUTTON|INPUT|SELECT|TEXTAREA)$/.test(first.tagName)) first.setAttribute('tabindex', '-1');
+      first.focus({ preventScroll: true });
+    }
+  };
+
+  /** Close a dialog. opts.returnFocus=false skips focus restoration (when handing off to another dialog). */
+  ui.closeDialog = function (dlg, opts) {
+    if (!dlg || !dlg.open) return;
+    if (opts && opts.returnFocus === false) dlg._noReturnFocus = true;
+    dlg.close(opts && opts.value);
+  };
+
+  /* ------------------------------ Icons ----------------------------- */
+  /* 24×24 stroke icons; decorative unless a label is passed. */
+  var ICONS = {
+    'arrow-in': '<path d="M12 4v13"/><path d="m6 11 6 6 6-6"/><path d="M5 20h14"/>',
+    'arrow-out': '<path d="M12 20V7"/><path d="m6 13 6-6 6 6"/><path d="M5 4h14"/>',
+    'arrow-right': '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>',
+    'arrow-left': '<path d="M19 12H5"/><path d="m11 18-6-6 6-6"/>',
+    fee: '<circle cx="12" cy="12" r="8"/><path d="M9 15 15 9"/><circle cx="9.5" cy="9.5" r="1"/><circle cx="14.5" cy="14.5" r="1"/>',
+    redeem: '<path d="M4 7h13l-3-3"/><path d="M20 17H7l3 3"/>',
+    deposit: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M12 9v6"/><path d="m9 12 3 3 3-3"/>',
+    balance: '<path d="M4 19V9"/><path d="M10 19V5"/><path d="M16 19v-7"/><path d="M3 19h18"/>',
+    search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
+    filter: '<path d="M4 6h16"/><path d="M7 12h10"/><path d="M10 18h4"/>',
+    sort: '<path d="M8 4v16"/><path d="m4 8 4-4 4 4"/><path d="M16 20V4"/><path d="m12 16 4 4 4-4"/>',
+    close: '<path d="M6 6l12 12"/><path d="M18 6 6 18"/>',
+    check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    'check-circle': '<circle cx="12" cy="12" r="9"/><path d="m8 12.5 3 3 5-6"/>',
+    alert: '<path d="M12 3 2.5 20h19z"/><path d="M12 10v4.5"/><path d="M12 17.5v.01"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    question: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.5v.7"/><path d="M12 17v.01"/>',
+    chat: '<path d="M4 5h16v11H9l-5 4z"/>',
+    sparkle: '<path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m6 6 2.5 2.5"/><path d="m15.5 15.5 2.5 2.5"/><path d="m18 6-2.5 2.5"/><path d="M8.5 15.5 6 18"/>',
+    copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+    download: '<path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/>',
+    print: '<path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="7" rx="1.5"/><path d="M7 14h10v6H7z"/>',
+    play: '<path d="M8 5.5v13l11-6.5z"/>',
+    chevron: '<path d="m9 6 6 6-6 6"/>',
+    'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+    external: '<path d="M14 4h6v6"/><path d="M20 4 11 13"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>',
+    lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/>',
+    chain: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+    bank: '<path d="M3 9 12 4l9 5"/><path d="M5 10v7"/><path d="M9.5 10v7"/><path d="M14.5 10v7"/><path d="M19 10v7"/><path d="M3 20h18"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"/>',
+    phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+    book: '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5"/><path d="M19 19v2H6"/>',
+    shield: '<path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z"/>',
+    thumbsUp: '<path d="M7 11v9H4v-9z"/><path d="M7 11l4-7c1.5 0 2.5 1 2.5 2.5V10H19a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 17.8 20H7"/>',
+    thumbsDown: '<path d="M7 13V4H4v9z"/><path d="M7 13l4 7c1.5 0 2.5-1 2.5-2.5V14H19a2 2 0 0 0 2-2.3l-1.2-6A2 2 0 0 0 17.8 4H7"/>',
+    menu: '<path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/>',
+    eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+    video: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/>',
+    accessibility: '<circle cx="12" cy="4.5" r="1.5"/><path d="M5 8.5 12 10l7-1.5"/><path d="M12 10v4"/><path d="m8.5 20 3.5-6 3.5 6"/>',
+    calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16"/><path d="M9 3v4"/><path d="M15 3v4"/>'
+  };
+  /**
+   * Inline SVG icon. ui.icon('search') is decorative (aria-hidden);
+   * ui.icon('alert', { label: 'Warning' }) is announced.
+   */
+  ui.icon = function (name, opts) {
+    opts = opts || {};
+    var body = ICONS[name] || ICONS.info;
+    var size = opts.size || 20;
+    var a11y = opts.label ? 'role="img" aria-label="' + ui.esc(opts.label) + '"' : 'aria-hidden="true" focusable="false"';
+    return (
+      '<svg class="icon' +
+      (opts.cls ? ' ' + opts.cls : '') +
+      '" width="' +
+      size +
+      '" height="' +
+      size +
+      '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ' +
+      a11y +
+      '>' +
+      body +
+      '</svg>'
+    );
+  };
+  ui.ICONS = ICONS;
+
+  /* -------------------- Shared statement renderers ------------------- */
+  /** Icon name for a transaction type. */
+  ui.typeIcon = function (type) {
+    return { deposit: 'deposit', transfer_in: 'arrow-in', transfer_out: 'arrow-out', redemption: 'redeem', fee: 'fee' }[type] || 'question';
+  };
+
+  /**
+   * Signed amount markup with direction carried by sign, icon and words — never
+   * colour alone (PRD 5.8). opts.sign defaults to 'always'.
+   */
+  ui.amountHtml = function (minor, opts) {
+    opts = opts || {};
+    var dir = minor < 0 ? 'out' : minor > 0 ? 'in' : 'zero';
+    var text = YES.fmt.amount(minor, { sign: opts.sign || 'always', unit: opts.unit !== false });
+    var spoken = YES.fmt.amountSpoken(minor, { sign: opts.sign || 'always', unit: opts.unit !== false });
+    return (
+      '<span class="amount amount--' +
+      dir +
+      (opts.cls ? ' ' + opts.cls : '') +
+      '"><span aria-hidden="true">' +
+      ui.esc(text) +
+      '</span><span class="sr-only">' +
+      ui.esc(spoken) +
+      '</span></span>'
+    );
+  };
+
+  /** Status chip with icon + text (pending/failed/unknown always explicit). */
+  ui.statusHtml = function (status) {
+    var icon = { posted: 'check-circle', pending: 'clock', failed: 'alert' }[status] || 'question';
+    var key = { posted: 1, pending: 1, failed: 1 }[status] ? 'status.' + status : 'status.unknown';
+    return '<span class="status status--' + ui.esc(status || 'unknown') + '">' + ui.icon(icon, { size: 16 }) + '<span>' + ui.esc(YES.t(key)) + '</span></span>';
+  };
+
+  /** Customer-friendly type label; canonical type kept in data-type. */
+  ui.typeLabel = function (type) {
+    var k = 'type.' + type;
+    return YES.i18n.dict[YES.i18n.lang][k] ? YES.t(k) : YES.t('type.unknown');
+  };
+
+  /** "Illustrative" tag used on fictional blockchain / reserve / rate content. */
+  ui.illustrativeTag = function (textKey) {
+    return '<span class="tag tag--illustrative">' + ui.icon('info', { size: 14 }) + '<span>' + ui.esc(YES.t(textKey || 'common.illustrative')) + '</span></span>';
+  };
+
+  /**
+   * "Explain with AI" entry point. ctx = { topic, id } is passed to YES.assistant.open.
+   * topicLabel is the human name of the fact being explained (for the accessible name).
+   */
+  ui.explainButton = function (ctx, topicLabel, opts) {
+    opts = opts || {};
+    return (
+      '<button type="button" class="btn btn--ai' +
+      (opts.compact ? ' btn--sm' : '') +
+      '" data-explain="' +
+      ui.esc(ctx.topic) +
+      '"' +
+      (ctx.id ? ' data-explain-id="' + ui.esc(ctx.id) + '"' : '') +
+      ' data-fk="' +
+      ui.esc(opts.fk || 'explain-' + ctx.topic + '-' + (ctx.id || 'all')) +
+      '" aria-label="' +
+      ui.esc(YES.t('explain.buttonFor', { topic: topicLabel })) +
+      '">' +
+      ui.icon('sparkle', { size: 16 }) +
+      '<span>' +
+      ui.esc(YES.t('explain.button')) +
+      '</span></button>'
+    );
+  };
+
+  /* Global delegation: any [data-explain] button opens the assistant with context. */
+  if (doc) {
+    doc.addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('[data-explain]');
+      if (!b) return;
+      e.preventDefault();
+      YES.assistant.open({ topic: b.getAttribute('data-explain'), id: b.getAttribute('data-explain-id') || null, trigger: b });
+    });
+    // [data-nav] links/buttons navigate between views: data-nav="transactions" [data-nav-param]
+    doc.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('[data-nav]');
+      if (!a) return;
+      e.preventDefault();
+      YES.nav.go(a.getAttribute('data-nav'), { param: a.getAttribute('data-nav-param') || null });
+    });
+  }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---- js/05-shell.js ---- */
+/*
+ * Shell: masthead (brand slot, period, demo badge, language switcher, Ask YES),
+ * section navigation, footer, document title and the withheld-statement state
+ * shown when reconciliation fails (PRD 4, 5.1, 5.2).
+ */
+(function (root) {
+  'use strict';
+  var YES = root.YES;
+  var ui = YES.ui;
+  var t = YES.t;
+  var esc = ui.esc;
+  var doc = root.document;
+
+  function logoHtml() {
+    var slot = YES.config.slots.YES_LOGO;
+    if (slot.svg) return '<span class="brand__logo" role="img" aria-label="' + esc(t('brand.logoAlt')) + '">' + slot.svg + '</span>';
+    return (
+      '<span class="brand__logo brand__logo--placeholder" role="img" aria-label="' +
+      esc(t('brand.logoAlt')) +
+      '" title="' +
+      esc(t('brand.logoPlaceholder')) +
+      '" data-slot="YES_LOGO">' +
+      esc(slot.text) +
+      '</span>'
+    );
+  }
+
+  function periodLabel() {
+    var s = YES.data.statement;
+    return YES.fmt.date(s.periodEnd, 'monthYear');
+  }
+
+  function renderMasthead() {
+    var lang = YES.i18n.lang;
+    var view = YES.state.view;
+    var langButtons = YES.config.languages
+      .map(function (l) {
+        return (
+          '<button type="button" class="seg__btn" lang="' +
+          l +
+          '" data-lang="' +
+          l +
+          '" data-fk="lang-' +
+          l +
+          '" aria-pressed="' +
+          (l === lang) +
+          '"><span class="seg__long">' +
+          esc(t('lang.' + l)) +
+          '</span><span class="seg__short" aria-hidden="true">' +
+          l.toUpperCase() +
+          '</span></button>'
+        );
+      })
+      .join('');
+
+    var navItems = YES.VIEWS.map(function (v) {
+      return (
+        '<li><a class="nav__link" href="#/' +
+        v +
+        '" data-nav="' +
+        v +
+        '" data-fk="nav-' +
+        v +
+        '"' +
+        (v === view ? ' aria-current="page"' : '') +
+        '>' +
+        esc(t('nav.' + v)) +
+        '</a></li>'
+      );
+    }).join('');
+
+    var html =
+      '<div class="masthead__bar container">' +
+      '<a class="brand" href="#/overview" data-nav="overview" data-fk="brand">' +
+      logoHtml() +
+      '<span class="brand__text"><span class="brand__title">' +
+      esc(t('brand.statement')) +
+      '</span><span class="brand__period">' +
+      esc(periodLabel()) +
+      '</span></span></a>' +
+      (YES.config.demo
+        ? '<span class="demo-badge" title="' + esc(t('demo.badgeLong')) + '">' + ui.icon('info', { size: 16 }) + '<span>' + esc(t('demo.badge')) + '</span></span>'
+        : '') +
+      '<div class="masthead__actions">' +
+      '<div class="seg" role="group" aria-label="' +
+      esc(t('lang.label')) +
+      '">' +
+      ui.icon('globe', { size: 18, cls: 'seg__icon' }) +
+      langButtons +
+      '</div>' +
+      '<button type="button" class="btn btn--ai btn--ask" data-ask data-fk="ask-yes" aria-label="' +
+      esc(t('ask.buttonLong')) +
+      '">' +
+      ui.icon('chat', { size: 18 }) +
+      '<span class="btn__label">' +
+      esc(t('ask.button')) +
+      '</span></button>' +
+      '</div></div>' +
+      '<nav class="nav" aria-label="' +
+      esc(t('nav.label')) +
+      '"><ul class="nav__list container">' +
+      navItems +
+      '</ul></nav>';
+    ui.render(doc.getElementById('masthead'), html);
+  }
+
+  function renderFooter() {
+    var s = YES.data.statement;
+    var html =
+      '<div class="container footer__inner">' +
+      '<p class="footer__ids"><span>' +
+      esc(t('footer.statementId', { id: s.id, version: s.version })) +
+      '</span> · <span>' +
+      esc(t('footer.generated', { date: YES.fmt.date(s.generatedAt, 'datetime') + ' ' + YES.fmt.tz(s.generatedAt) })) +
+      '</span></p>' +
+      '<p class="footer__disclosures" data-slot="DISCLOSURES"><strong>' +
+      esc(t('footer.disclosures')) +
+      ':</strong> ' +
+      esc(YES.L(YES.config.slots.DISCLOSURES)) +
+      '</p>' +
+      (YES.config.demo ? '<p class="footer__demo">' + ui.icon('info', { size: 16 }) + ' ' + esc(t('footer.demo')) + '</p>' : '') +
+      '<p class="footer__powered">' +
+      esc(t('footer.poweredBy')) +
+      '</p>' +
+      '</div>';
+    ui.render(doc.getElementById('site-footer'), html);
+  }
+
+  function updateTitle() {
+    doc.title = t('app.docTitle', { view: t('nav.' + YES.state.view), period: periodLabel() });
+  }
+
+  function syncNav() {
+    ui.$$('.nav__link').forEach(function (a) {
+      if (a.getAttribute('data-nav') === YES.state.view) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    });
+    updateTitle();
+  }
+
+  /** Withheld state: shown instead of the statement when reconciliation fails. */
+  function renderWithheld(result) {
+    var simulated = !!YES.data.simulated;
+    var checks = result.checks
+      .map(function (c) {
+        return (
+          '<li class="check ' +
+          (c.ok ? 'check--ok' : 'check--fail') +
+          '">' +
+          ui.icon(c.ok ? 'check-circle' : 'alert', { size: 18 }) +
+          '<span>' +
+          esc(t('check.' + c.id)) +
+          '</span><span class="check__state">' +
+          esc(t(c.ok ? 'integrity.pass' : 'integrity.fail')) +
+          '</span></li>'
+        );
+      })
+      .join('');
+    var html =
+      '<section class="withheld container" aria-labelledby="withheld-title">' +
+      '<div class="notice notice--critical" role="alert">' +
+      ui.icon('alert', { size: 24 }) +
+      '<div><h1 id="withheld-title" class="withheld__title" tabindex="-1">' +
+      esc(t('integrity.title')) +
+      '</h1><p>' +
+      esc(t('integrity.body')) +
+      '</p>' +
+      (simulated ? '<p><strong>' + esc(t('integrity.simulated')) + '</strong></p>' : '') +
+      '</div></div>' +
+      '<h2 class="withheld__checks-title">' +
+      esc(t('integrity.checks')) +
+      '</h2><ul class="checks">' +
+      checks +
+      '</ul>' +
+      (simulated ? '<p><a class="btn btn--primary" href="#/overview" data-integrity-return data-fk="integrity-return">' + esc(t('integrity.return')) + '</a></p>' : '') +
+      '</section>';
+    ui.render(doc.getElementById('integrity-root'), html);
+  }
+
+  YES.shell = {
+    renderWithheld: renderWithheld,
+    updateTitle: updateTitle
+  };
+
+  YES.register({
+    name: 'shell',
+    init: function () {
+      var mast = doc.getElementById('masthead');
+      ui.delegate(mast, 'click', '[data-lang]', function (e, b) {
+        var l = b.getAttribute('data-lang');
+        if (l !== YES.i18n.lang) YES.setLang(l);
+      });
+      ui.delegate(mast, 'click', '[data-ask]', function (e, b) {
+        YES.assistant.open({ topic: 'general', trigger: b });
+      });
+      doc.addEventListener('click', function (e) {
+        var r = e.target.closest && e.target.closest('[data-integrity-return]');
+        if (!r) return;
+        e.preventDefault();
+        root.location.hash = '#/overview';
+        root.location.reload();
+      });
+      YES.on('view', syncNav);
+      this.render();
+    },
+    render: function () {
+      renderMasthead();
+      renderFooter();
+      updateTitle();
+      if (YES.integrity && !YES.integrity.ok) renderWithheld(YES.integrity);
+    }
+  });
+})(window);
+
+/* ---- js/06-userway.js ---- */
+/*
+ * Accessibility widget integration point (PRD 2, 5.8, 8 Phase A).
+ *
+ * Loads the official UserWay widget exactly once, online only, with the account
+ * ID from YES.config.userway. The statement itself is the accessibility
+ * implementation; the widget only augments it. If the widget cannot load
+ * (offline, blocked, timed out) the status becomes 'unavailable' and nothing
+ * else changes. If the hosting viewer (e.g. InfoSlips) already provides
+ * UserWay, the loader detects it and does not add a second launcher.
+ *
+ * Status values: idle | disabled | host | loading | loaded | unavailable
+ */
+(function (root) {
+  'use strict';
+  var YES = root.YES;
+  var doc = root.document;
+
+  var uw = (YES.userway = { status: 'idle' });
+
+  function set(status) {
+    uw.status = status;
+    YES.emit('userway', status);
+  }
+
+  function hostProvidesWidget() {
+    var scripts = doc.querySelectorAll('script[src]');
+    for (var i = 0; i < scripts.length; i++) {
+      if (/userway\.org/i.test(scripts[i].getAttribute('src')) && !scripts[i].hasAttribute('data-yes-userway')) return true;
+    }
+    return !!(root.UserWay || root._userway_config);
+  }
+
+  uw.load = function () {
+    var cfg = YES.config.userway;
+    if (!cfg || !cfg.enabled || !cfg.accountId || !cfg.src) return set('disabled');
+    if (doc.querySelector('script[data-yes-userway]')) return; // already requested once
+    if (hostProvidesWidget()) return set('host');
+    if (root.navigator && root.navigator.onLine === false) return set('unavailable');
+    if (root.location && root.location.protocol !== 'https:' && root.location.protocol !== 'http:' && root.location.protocol !== 'file:') return set('unavailable');
+
+    set('loading');
+    var s = doc.createElement('script');
+    s.src = cfg.src;
+    s.async = true;
+    s.setAttribute('data-account', cfg.accountId);
+    s.setAttribute('data-yes-userway', '');
+    var timer = setTimeout(function () {
+      if (uw.status === 'loading') set('unavailable');
+    }, cfg.timeoutMs || 8000);
+    s.onload = function () {
+      clearTimeout(timer);
+      set('loaded');
+    };
+    s.onerror = function () {
+      clearTimeout(timer);
+      set('unavailable');
+    };
+    doc.body.appendChild(s);
+  };
+
+  root.addEventListener('online', function () {
+    if (uw.status === 'unavailable' && !doc.querySelector('script[data-yes-userway]')) uw.load();
+  });
+})(window);
+
+/* ---- js/99-boot.js ---- */
+/*
+ * Boot: apply brand slots, choose language, run the release gate, initialise
+ * modules, resolve the initial route and load connected enhancements.
+ */
+(function (root) {
+  'use strict';
+  var YES = root.YES;
+  var doc = root.document;
+
+  function applyBrandSlots() {
+    var s = YES.config.slots;
+    var r = doc.documentElement.style;
+    r.setProperty('--yes-primary-slot', s.YES_PRIMARY);
+    r.setProperty('--yes-primary-dark-slot', s.YES_PRIMARY_DARK || s.YES_PRIMARY);
+    r.setProperty('--yes-accent-slot', s.YES_ACCENT);
+    r.setProperty('--yes-font-slot', s.YES_FONT);
+  }
+
+  function initialLang() {
+    var fromHash = YES.nav.current().params.lang;
+    if (fromHash && YES.config.languages.indexOf(fromHash) !== -1) return fromHash;
+    try {
+      var stored = root.sessionStorage.getItem('yes.lang');
+      if (stored && YES.config.languages.indexOf(stored) !== -1) return stored;
+    } catch (e) {
+      /* storage unavailable */
+    }
+    return YES.data.statement.language || YES.config.defaultLanguage;
+  }
+
+  function boot() {
+    applyBrandSlots();
+
+    // Showcase-only integrity preview: #/overview?simulate=mismatch
+    var simulate = YES.nav.current().params.simulate;
+    if (simulate === 'mismatch') YES.data = YES.calc.simulateMismatch(YES.data);
+
+    var lang = initialLang();
+    YES.i18n.lang = lang;
+    YES.state.lang = lang;
+    doc.documentElement.lang = lang;
+
+    // Release gate: a statement whose totals do not reconcile is withheld.
+    YES.integrity = YES.calc.reconcile(YES.data);
+    var withheld = !YES.integrity.ok && YES.config.reconciliation.blockOnMismatch;
+    doc.documentElement.classList.toggle('is-withheld', withheld);
+    if (withheld && root.console) console[YES.data.simulated ? 'warn' : 'error']('[YES] statement withheld: reconciliation failed', YES.integrity);
+
+    YES.modules().forEach(function (m) {
+      if (withheld && m.name !== 'shell') return;
+      if (m.init) {
+        try {
+          m.init();
+        } catch (e) {
+          if (root.console) console.error('[YES] init failed in module ' + m.name, e);
+        }
+      }
+    });
+
+    if (withheld) {
+      var h = doc.getElementById('withheld-title');
+      if (h) h.focus();
+    } else {
+      YES.nav.apply();
+    }
+
+    doc.documentElement.classList.add('is-ready');
+    YES.ready = true;
+    YES.emit('ready');
+
+    // Re-boot when the integrity preview is toggled through the address bar.
+    root.addEventListener('hashchange', function () {
+      var now = YES.nav.current().params.simulate || null;
+      if ((now || null) !== (simulate || null)) root.location.reload();
+    });
+
+    // Connected enhancement: accessibility widget (online only, never blocking).
+    YES.userway.load();
+  }
+
+  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})(window);
+
+    </script>
+  </body>
+</html>

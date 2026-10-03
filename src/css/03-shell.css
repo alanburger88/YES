@@ -1,0 +1,213 @@
+/* Shell: masthead, navigation, views, footer, withheld state. */
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: saturate(1.4) blur(8px);
+  -webkit-backdrop-filter: saturate(1.4) blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+.masthead__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 60px;
+  flex-wrap: wrap;
+  padding-block: var(--s2);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  color: var(--ink);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  min-height: 44px;
+}
+.brand__logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  min-width: 52px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  font-size: 1.05rem;
+}
+.brand__logo--placeholder {
+  outline: 1px dashed color-mix(in srgb, var(--primary) 60%, transparent);
+  outline-offset: 2px;
+}
+.brand__text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.brand__title {
+  font-weight: 700;
+  font-size: var(--fs-sm);
+}
+.brand__period {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.masthead__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-left: auto;
+}
+.btn--ask {
+  min-height: 42px;
+}
+.nav {
+  border-top: 1px solid var(--line);
+}
+.nav__list {
+  display: flex;
+  gap: var(--s1);
+  list-style: none;
+  margin-block: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nav__list::-webkit-scrollbar {
+  display: none;
+}
+.nav__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 46px;
+  padding: 0 var(--s3);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+  border-radius: 0;
+}
+.nav__link:hover {
+  color: var(--ink);
+  border-bottom-color: var(--line-strong);
+}
+.nav__link[aria-current='page'] {
+  color: var(--ink);
+  border-bottom-color: var(--primary);
+}
+.nav__link:focus-visible {
+  outline-offset: -4px;
+}
+
+@media (max-width: 719px) {
+  .masthead__bar {
+    gap: var(--s2);
+  }
+  .demo-badge {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: center;
+    margin-top: -2px;
+  }
+  .seg__long {
+    display: none;
+  }
+  .seg__short {
+    display: inline;
+  }
+  .seg__icon {
+    display: none;
+  }
+  .btn--ask .btn__label {
+    display: none;
+  }
+  .btn--ask {
+    width: 44px;
+    padding: 0;
+    border-radius: 50%;
+  }
+  .nav__list {
+    justify-content: space-between;
+    gap: 0;
+  }
+  .nav__link {
+    padding: 0 var(--s2);
+  }
+}
+@media (max-width: 359px) {
+  .brand__text {
+    display: none;
+  }
+}
+
+/* Views */
+main {
+  display: block;
+  padding-bottom: var(--s16);
+  min-height: 60vh;
+}
+main:focus {
+  outline: none;
+}
+.view {
+  animation: yes-fade-up var(--dur) var(--ease);
+}
+
+/* Assistant open on wide screens: content reflows so the drawer never covers it. */
+@media (min-width: 1100px) {
+  html.assistant-docked #app {
+    padding-right: var(--drawer-w);
+  }
+}
+
+/* Withheld (reconciliation failure) */
+#integrity-root:empty {
+  display: none;
+}
+html.is-withheld main,
+html.is-withheld .masthead .nav,
+html.is-withheld .btn--ask {
+  display: none;
+}
+.withheld {
+  padding-block: var(--s8);
+  max-width: 760px;
+}
+.withheld__title {
+  font-size: var(--fs-lg);
+}
+.withheld__checks-title {
+  margin-top: var(--s6);
+}
+
+/* Footer */
+.site-footer {
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  padding-block: var(--s6) var(--s8);
+}
+.footer__inner p {
+  max-width: 90ch;
+}
+.footer__demo {
+  display: flex;
+  gap: var(--s2);
+  align-items: flex-start;
+}
+.footer__powered {
+  color: var(--muted);
+}
+
+/* No-JS fallback summary */
+.noscript-summary {
+  max-width: 760px;
+  margin: var(--s8) auto;
+  padding: 0 var(--gutter);
+}

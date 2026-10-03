@@ -1,0 +1,163 @@
+/*
+ * Design tokens. Brand slots ([YES_PRIMARY], [YES_ACCENT], [YES_FONT]) are set
+ * at boot from YES.config.slots; every component reads roles, never raw hex.
+ * Light and dark schemes are selected separately (not an automatic flip).
+ */
+:root {
+  color-scheme: light;
+
+  /* Brand slots (placeholders until YES assets are approved) */
+  --yes-primary: var(--yes-primary-slot, #0e5a8a);
+  --yes-accent: var(--yes-accent-slot, #e8a33d);
+  --yes-font: var(--yes-font-slot, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+
+  /* Surfaces */
+  --bg: #f5f6f8; /* page plane */
+  --surface: #ffffff; /* cards, dialogs, chart surface */
+  --surface-2: #f0f2f5; /* insets, table header, hover wash */
+  --surface-3: #e6e9ee;
+  --overlay: rgba(14, 22, 33, 0.48);
+
+  /* Ink (all text tokens ≥ 4.5:1 on --surface and --surface-2) */
+  --ink: #111820;
+  --ink-2: #3f4a57;
+  --muted: #5d6874;
+  --on-primary: #ffffff;
+
+  /* Lines */
+  --line: #dde2e8;
+  --line-strong: #b9c2cd;
+
+  /* Interaction */
+  --primary: var(--yes-primary);
+  --primary-hover: color-mix(in srgb, var(--yes-primary) 86%, #000);
+  --primary-wash: color-mix(in srgb, var(--yes-primary) 9%, var(--surface));
+  --primary-ink: color-mix(in srgb, var(--yes-primary) 88%, #000); /* primary used as text */
+  --accent: var(--yes-accent);
+  --focus: #1a5fd0;
+  --focus-ring: 0 0 0 3px var(--surface), 0 0 0 5px var(--focus);
+
+  /* Data: direction (validated pair, ≥3:1 on surface). Marks only — text uses ink. */
+  --in: #1d6fd6;
+  --in-wash: #e3eefb;
+  --out: #c2552b;
+  --out-wash: #fbe9e1;
+  --total: #3f4a57; /* opening / closing bars */
+  --grid: #e6e9ee;
+  --axis: #b9c2cd;
+
+  /* Status (always paired with icon + label) */
+  --ok: #0a7a35;
+  --ok-wash: #e4f4ea;
+  --warn: #8a5a00;
+  --warn-wash: #fff3d6;
+  --warn-line: #e0a100;
+  --danger: #b42318;
+  --danger-wash: #fdecea;
+  --info: #1a5fd0;
+  --info-wash: #e7effc;
+
+  /* Demo / illustrative marking */
+  --demo-ink: #4f3800;
+  --demo-bg: #fff4d1;
+  --demo-line: #d9a200;
+  --ai: #5b3fbf; /* "Explain with AI" accent (border/icon) */
+  --ai-wash: #f1edfc;
+
+  /* Type scale */
+  --fs-hero: clamp(2.6rem, 6vw + 1rem, 3.75rem);
+  --fs-xl: clamp(1.5rem, 1.6vw + 1rem, 2rem);
+  --fs-lg: 1.25rem;
+  --fs-md: 1.0625rem;
+  --fs-base: 1rem;
+  --fs-sm: 0.875rem;
+  --fs-xs: 0.8125rem;
+  --lh: 1.5;
+
+  /* Space (4px grid) */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  --s10: 40px;
+  --s12: 48px;
+  --s16: 64px;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --shadow-1: 0 1px 2px rgba(17, 24, 32, 0.06), 0 1px 1px rgba(17, 24, 32, 0.04);
+  --shadow-2: 0 6px 20px rgba(17, 24, 32, 0.1), 0 2px 6px rgba(17, 24, 32, 0.06);
+  --shadow-3: 0 20px 48px rgba(17, 24, 32, 0.18);
+
+  --container: 1120px;
+  --gutter: 16px;
+  --masthead-h: 112px;
+  --drawer-w: 400px;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur: 220ms;
+}
+
+@media (min-width: 720px) {
+  :root {
+    --gutter: 24px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --yes-primary: var(--yes-primary-dark-slot, #6cb4ee);
+
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1d222b;
+    --surface-3: #262c36;
+    --overlay: rgba(0, 0, 0, 0.62);
+
+    --ink: #f1f4f8;
+    --ink-2: #c5ccd6;
+    --muted: #a3acb8;
+    --on-primary: #0b1220;
+
+    --line: #2b323d;
+    --line-strong: #46505e;
+
+    --primary-hover: color-mix(in srgb, var(--yes-primary) 85%, #fff);
+    --primary-wash: color-mix(in srgb, var(--yes-primary) 14%, var(--surface));
+    --primary-ink: var(--yes-primary);
+    --focus: #8ab4ff;
+
+    --in: #4b94ea;
+    --in-wash: #182a40;
+    --out: #e0703f;
+    --out-wash: #3a2219;
+    --total: #aeb7c3;
+    --grid: #262c36;
+    --axis: #46505e;
+
+    --ok: #4cc27a;
+    --ok-wash: #15291e;
+    --warn: #f0b84a;
+    --warn-wash: #2f2512;
+    --warn-line: #b58300;
+    --danger: #ff8a7f;
+    --danger-wash: #3a1d1b;
+    --info: #8ab4ff;
+    --info-wash: #17233a;
+
+    --demo-ink: #ffd772;
+    --demo-bg: #2e2510;
+    --demo-line: #8f6c10;
+    --ai: #b3a2f5;
+    --ai-wash: #231d3b;
+
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.45);
+    --shadow-3: 0 20px 48px rgba(0, 0, 0, 0.6);
+  }
+}
