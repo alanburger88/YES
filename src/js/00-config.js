@@ -28,7 +28,7 @@
       YES_FONT: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
       PRODUCT_NAME: { en: 'Example USD Stablecoin', es: 'Example USD Stablecoin' },
       ISSUER_OR_PARTNER: { en: '[Issuer or partner — pending YES approval]', es: '[Emisor o socio — pendiente de aprobación de YES]' },
-      VIDEO_POSTER: null, // approved poster image (data URI or packaged asset) — placeholder SVG is drawn when null
+      VIDEO_POSTER: null, // approved poster image (data URI); when null the player shows its own opening frame
       /* Approved recorded voiceover for "Your statement in 60 seconds", one per
          language, as data: audio URIs (e.g. data:audio/mpeg;base64,…) so the file
          still fetches nothing. When a language has one, the player plays it in
