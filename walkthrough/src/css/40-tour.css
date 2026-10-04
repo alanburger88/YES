@@ -1,0 +1,1010 @@
+/*
+ * 40-tour.css — the guided walkthrough (#/tour/<featureId>). Owner: tour.
+ *
+ * ≥1024px: statement on the left, panel on the right (clamp(360px, 32vw, 440px)).
+ * 720–1023px: the panel is 340px wide.
+ * <720px: the statement takes the top ~52svh, the panel scrolls below it, and a
+ * bar between them maximises either one ([data-pane="statement" | "panel"]).
+ * The tour fills the space under the masthead exactly, so the page itself never
+ * scrolls; the panel and the statement scroll on their own.
+ */
+
+/* ---- Fill the viewport under the masthead ---- */
+html[data-view='tour'] body {
+  height: 100vh;
+  height: 100svh;
+  min-height: 0;
+  overflow: hidden;
+}
+html[data-view='tour'] .wt-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+html[data-view='tour'] #view-tour {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.wt-tour {
+  --panel-w: clamp(360px, 32vw, 440px);
+  --spot-inner: var(--bg); /* white in light, Slate 1 in dark: contrast on any background */
+  --spot-text: var(--bg);
+  --tour-shadow: 0 -1px 0 var(--border), 0 -8px 24px rgb(15 23 42 / 0.06);
+  position: relative;
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-columns: minmax(0, 1fr) var(--panel-w);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    'bar panel'
+    'stage panel';
+}
+:root[data-theme='dark'] .wt-tour {
+  --tour-shadow: 0 -1px 0 var(--border), 0 -8px 24px rgb(0 0 0 / 0.35);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .wt-tour {
+    --tour-shadow: 0 -1px 0 var(--border), 0 -8px 24px rgb(0 0 0 / 0.35);
+  }
+}
+@media (min-width: 720px) and (max-width: 1023.98px) {
+  .wt-tour {
+    --panel-w: 340px;
+  }
+}
+
+/* =================================================================== */
+/* Panel                                                               */
+/* =================================================================== */
+.wt-tour__panel {
+  grid-area: panel;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+}
+/* .wt-fill takes --muted to Slate 2 for #F8F8F8; on the dark panel (Slate 1) muted text is Slate 4 (6.96:1). */
+:root[data-theme='dark'] .wt-tour__panel {
+  --muted: #94a3b8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .wt-tour__panel {
+    --muted: #94a3b8;
+  }
+}
+.wt-tour__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: var(--sp-5) var(--sp-5) var(--sp-6);
+  scroll-padding: var(--sp-5);
+  scrollbar-gutter: stable;
+}
+.wt-tour__content > :last-child {
+  margin-bottom: 0;
+}
+
+/* Header: section, step count, progress, title */
+.wt-tour__head {
+  margin-bottom: var(--sp-5);
+}
+.wt-tour__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+.wt-tour__section {
+  color: var(--highlight);
+  font-size: var(--fs-label);
+  font-weight: 650;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.wt-tour__count {
+  color: var(--muted);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.wt-tour__progress {
+  height: 6px;
+  margin-bottom: var(--sp-5);
+}
+.wt-tour__title {
+  margin: 0;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  scroll-margin-top: var(--sp-5);
+}
+
+/* Section headings: 12/650 caps labels */
+.wt-tour__h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--sp-2);
+  color: var(--heading);
+  font-size: var(--fs-label);
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.wt-tour__h .wt-icon {
+  color: var(--highlight);
+}
+.wt-tour__sec {
+  margin: 0 0 var(--sp-5);
+}
+.wt-tour__sec p,
+.wt-tour__try p {
+  margin: 0;
+}
+.wt-tour__what {
+  color: var(--body);
+}
+.wt-tour__ui {
+  color: var(--heading);
+  font-weight: 650;
+}
+
+/* Value for YES / for customers */
+.wt-tour__values {
+  display: grid;
+  gap: var(--sp-4);
+  margin: 0 0 var(--sp-5);
+  padding: var(--sp-4) var(--sp-4) var(--sp-4);
+  border-radius: 14px;
+}
+.wt-tour__value + .wt-tour__value {
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border);
+}
+.wt-tour__list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wt-tour__list li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.wt-tour__list .wt-icon {
+  margin-top: 4px;
+  color: var(--highlight);
+  stroke-width: 2.6;
+}
+
+/* Try it: a callout (white with a Green bar in light, the Dark Green section in dark) */
+.wt-tour__try {
+  margin: 0 0 var(--sp-5);
+  padding: 14px 16px 16px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 12px;
+  background: var(--surface);
+}
+:root[data-theme='dark'] .wt-tour__try {
+  background: var(--section);
+  border-left-color: var(--highlight);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .wt-tour__try {
+    background: var(--section);
+    border-left-color: var(--highlight);
+  }
+}
+.wt-tour__try .wt-tour__h .wt-icon {
+  color: var(--highlight);
+}
+
+/* The polite "couldn't highlight" note */
+.wt-tour__note.is-shown {
+  margin: 0 0 var(--sp-4);
+}
+.wt-tour__note .wt-notice {
+  margin: 0;
+}
+
+.wt-tour__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-4);
+}
+.wt-tour__content [data-brand-notice] {
+  margin: 0;
+}
+
+/* Your view */
+.wt-tour__view {
+  margin-top: var(--sp-5);
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+}
+.wt-tour__fieldset {
+  margin: 0;
+}
+.wt-tour__legend {
+  float: left; /* lets the legend sit in the flow like a heading */
+  width: 100%;
+  margin: 0 0 4px;
+  padding: 0;
+}
+.wt-tour__legend + * {
+  clear: both;
+}
+.wt-tour__view-h {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.wt-tour__view-hint {
+  margin: 0 0 var(--sp-4);
+}
+.wt-tour__form > .wt-fieldset,
+.wt-tour__form > .wt-field {
+  margin-bottom: var(--sp-4);
+}
+.wt-tour__form > :last-child {
+  margin-bottom: var(--sp-3);
+}
+.wt-tour__form .wt-textarea {
+  min-height: 0;
+}
+.wt-tour__savebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border);
+}
+.wt-tour__status {
+  margin: 0;
+  margin-right: auto;
+}
+.wt-tour__status[data-state='idle'] .wt-icon {
+  color: var(--highlight);
+}
+.wt-tour__clear {
+  font-size: var(--fs-caption);
+}
+
+.wt-tour__keys {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: var(--sp-4) 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+.wt-tour__keys .wt-icon {
+  flex: none;
+  margin-top: 2px;
+}
+.wt-tour__keys kbd {
+  font-size: 0.75rem;
+  padding: 0 5px;
+}
+
+/* Navigation: sticky at the bottom of the panel */
+.wt-tour__nav {
+  flex: none;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'steps restart'
+    'prev next';
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2) var(--sp-5) var(--sp-4);
+  padding-bottom: calc(var(--sp-4) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface-2);
+  box-shadow: var(--tour-shadow);
+}
+.wt-tour__tool--steps {
+  grid-area: steps;
+  justify-self: start;
+  margin-left: -10px;
+}
+.wt-tour__tool--restart {
+  grid-area: restart;
+  justify-self: end;
+  margin-right: -10px;
+}
+.wt-tour__tool {
+  --_fg: var(--body);
+}
+.wt-tour__tool:hover {
+  --_fg: var(--heading);
+}
+.wt-tour__prev {
+  grid-area: prev;
+  min-height: 48px;
+}
+.wt-tour__next {
+  grid-area: next;
+  min-height: 48px;
+}
+.wt-tour__prev:disabled {
+  --_bg: transparent;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .wt-tour__next .wt-icon {
+    transition: transform var(--dur) var(--ease);
+  }
+  .wt-tour__next:hover .wt-icon {
+    transform: translateX(3px);
+  }
+}
+
+/* =================================================================== */
+/* Bar (Dim the rest, phone layout toggles)                            */
+/* =================================================================== */
+.wt-tour__bar {
+  grid-area: bar;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+  min-height: 52px;
+  padding: 2px var(--sp-4) 2px var(--sp-5);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.wt-tour__bar-label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  margin: 0 auto 0 0;
+  color: var(--body);
+  font-size: var(--fs-caption);
+  line-height: 1.3;
+}
+.wt-tour__bar-label > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wt-tour__bar-label strong {
+  color: var(--heading);
+}
+.wt-tour__bar-label .wt-icon {
+  flex: none;
+  color: var(--highlight);
+}
+.wt-tour__panes {
+  display: none;
+  gap: 6px;
+}
+.wt-tour__pane {
+  min-height: 36px;
+  padding-inline: 10px 12px;
+}
+.wt-tour__pane .wt-icon {
+  width: 16px;
+  height: 16px;
+}
+.wt-tour__dim {
+  flex: none;
+}
+.wt-tour__dim .wt-switch {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* =================================================================== */
+/* Stage: the frame, the overlay and the edge indicator               */
+/* =================================================================== */
+.wt-tour__stage {
+  grid-area: stage;
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+.wt-tour__frame-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.wt-tour__frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--bg);
+}
+
+/* Loading veil until the statement has booted */
+.wt-tour__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  background: var(--bg);
+  color: var(--muted);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  transition: opacity var(--dur-slow) var(--ease), visibility 0s linear var(--dur-slow);
+}
+.wt-tour.is-ready .wt-tour__veil {
+  opacity: 0;
+  visibility: hidden;
+}
+.wt-tour__spinner {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid var(--track);
+  border-top-color: var(--fill);
+  border-radius: 50%;
+  animation: wt-spin 0.8s linear infinite;
+}
+
+/* Overlay (in this page, over the frame; never blocks clicks) */
+.wt-tour__overlay {
+  --x: 0px;
+  --y: 0px;
+  --w: 0px;
+  --h: 0px;
+  --tx: 0px;
+  --ty: 0px;
+  --tmax: 320px;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+.wt-spot {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity var(--dur-slow) var(--ease);
+}
+.wt-spot__all {
+  fill: white;
+}
+.wt-spot__hole {
+  fill: black;
+}
+.wt-spot__dim {
+  fill: var(--overlay-dim);
+}
+.wt-tour__overlay[data-state='shown'] .wt-spot {
+  opacity: 1;
+}
+.wt-tour__overlay[data-state='busy'] .wt-spot {
+  opacity: 0.45;
+}
+.wt-tour__overlay[data-dim='off'] .wt-spot {
+  opacity: 0;
+}
+
+/* The outline: 3px --spot with an inner contrast ring */
+.wt-spot__ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--w);
+  height: var(--h);
+  transform: translate(var(--x), var(--y));
+  border: 3px solid var(--spot);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 0 0 2px var(--spot-inner),
+    0 0 0 1px var(--spot-inner),
+    0 6px 24px rgb(15 23 42 / 0.28);
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.wt-spot__ring[data-clip~='top'] {
+  border-top-style: dashed;
+}
+.wt-spot__ring[data-clip~='bottom'] {
+  border-bottom-style: dashed;
+}
+.wt-spot__ring[data-clip~='left'] {
+  border-left-style: dashed;
+}
+.wt-spot__ring[data-clip~='right'] {
+  border-right-style: dashed;
+}
+.wt-tour__overlay[data-state='shown'] .wt-spot__ring,
+.wt-tour__overlay[data-state='shown'] .wt-spot__tag {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .wt-spot__ring.is-pulse::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border: 3px solid var(--spot);
+    border-radius: 14px;
+    opacity: 0;
+    animation: wt-spot-pulse 1.3s var(--ease) 0.25s 2;
+  }
+}
+@keyframes wt-spot-pulse {
+  0% {
+    inset: -3px;
+    opacity: 0.85;
+  }
+  100% {
+    inset: -15px;
+    border-radius: 24px;
+    opacity: 0;
+  }
+}
+
+/* The "k · Title" tag */
+.wt-spot__tag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: var(--tmax);
+  transform: translate(var(--tx), var(--ty));
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--spot);
+  color: var(--spot-text);
+  box-shadow: 0 0 0 1px var(--spot-inner), 0 4px 14px rgb(15 23 42 / 0.25);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+
+/* "Showing …" while a step is being set up (only when it takes a moment) */
+.wt-spot__busy {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 32px);
+  padding: 8px 16px 8px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translate(-50%, -6px);
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.wt-spot__busy > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wt-spot__busy .wt-tour__spinner {
+  width: 16px;
+  height: 16px;
+  border-color: rgb(148 163 184 / 0.5);
+  border-top-color: var(--accent);
+}
+.wt-tour__overlay[data-state='busy'].is-slow .wt-spot__busy {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* Edge indicator: interactive, so it lives outside the aria-hidden overlay */
+.wt-tour__edge {
+  --edge-y: 12px;
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: max-content;
+  max-width: calc(100% - 24px);
+  margin-inline: auto;
+  padding: 6px 6px 6px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+.wt-tour__edge[data-edge='above'] {
+  top: var(--edge-y);
+}
+.wt-tour__edge[data-edge='below'] {
+  bottom: var(--edge-y);
+}
+.wt-tour__edge-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.wt-tour__edge-text > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wt-tour__edge .wt-btn {
+  flex: none;
+  border-radius: var(--radius-pill);
+}
+.wt-tour__edge .wt-btn:focus-visible {
+  outline-color: var(--toast-text);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .wt-tour__edge:not([hidden]) {
+    animation: wt-edge-in var(--dur-slow) var(--ease);
+  }
+}
+@keyframes wt-edge-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* =================================================================== */
+/* Phones: statement on top, panel below, a bar between them           */
+/* =================================================================== */
+@media (max-width: 719.98px) {
+  .wt-tour {
+    --frame-h: 52svh;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--frame-h) auto minmax(0, 1fr);
+    grid-template-areas:
+      'stage'
+      'bar'
+      'panel';
+  }
+  .wt-tour__panel {
+    border-left: 0;
+  }
+  .wt-tour__bar {
+    min-height: 48px;
+    padding: 2px 8px 2px var(--gutter);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -4px 12px rgb(15 23 42 / 0.08);
+  }
+  .wt-tour__bar-label {
+    display: none;
+  }
+  .wt-tour__panes {
+    display: flex;
+    margin-right: auto;
+  }
+    .wt-tour__scroll {
+    padding: var(--sp-4) var(--gutter) var(--sp-5);
+  }
+  .wt-tour__head {
+    margin-bottom: var(--sp-4);
+  }
+  .wt-tour__progress {
+    margin-bottom: var(--sp-4);
+  }
+  .wt-tour__title {
+    font-size: 1.5rem;
+  }
+  .wt-tour__view {
+    padding: var(--sp-4);
+  }
+  .wt-tour__nav {
+    grid-template-columns: auto auto auto minmax(0, 1fr);
+    grid-template-areas: 'prev steps restart next';
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--gutter);
+    padding-bottom: calc(var(--sp-2) + env(safe-area-inset-bottom, 0px));
+  }
+  .wt-tour__tool {
+    width: var(--target);
+    height: var(--target);
+    min-height: var(--target);
+    padding: 0;
+    margin: 0 !important;
+    justify-self: center !important;
+  }
+  .wt-tour__tool-label {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    clip-path: inset(50%) !important;
+    white-space: nowrap !important;
+  }
+  .wt-tour__prev,
+  .wt-tour__next {
+    min-height: var(--target);
+    padding-inline: 14px;
+  }
+  .wt-tour__next.is-finish {
+    font-size: 0.9375rem;
+    padding-inline: 10px;
+  }
+  .wt-tour__keys {
+    display: none;
+  }
+
+  /* Statement maximised: the panel shows only its navigation */
+  .wt-tour[data-pane='statement'] {
+    grid-template-rows: minmax(0, 1fr) auto auto;
+  }
+  .wt-tour[data-pane='statement'] .wt-tour__scroll {
+    display: none;
+  }
+  /* Panel maximised: the statement keeps its size underneath (so its layout and scroll stay put) */
+  .wt-tour[data-pane='panel'] {
+    grid-template-rows: 0 auto minmax(0, 1fr);
+  }
+  .wt-tour[data-pane='panel'] .wt-tour__stage {
+    align-self: start;
+    height: var(--frame-h);
+    visibility: hidden;
+  }
+}
+@media (max-width: 379.98px) {
+  .wt-tour__pane {
+    padding-inline: 8px;
+  }
+  .wt-tour__dim .wt-switch__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* =================================================================== */
+/* All steps dialog                                                    */
+/* =================================================================== */
+.wt-steplist__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-3);
+  margin: 0 0 var(--sp-4);
+  color: var(--body);
+}
+.wt-steplist__summary strong {
+  color: var(--heading);
+}
+.wt-steplist__counts {
+  display: inline-flex;
+  gap: 6px;
+}
+.wt-steplist {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wt-steplist__item {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: center;
+  min-height: 92px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--body);
+  text-decoration: none;
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+.wt-steplist__item:hover {
+  color: var(--body);
+  border-color: var(--control-border);
+  background: var(--hover-fill);
+}
+.wt-steplist__item.is-current {
+  border: 2px solid var(--highlight);
+  padding: 9px;
+}
+.wt-steplist__thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 70px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.wt-steplist__thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top left;
+}
+.wt-steplist__ph {
+  display: none;
+}
+.wt-steplist__thumb.is-missing img {
+  display: none;
+}
+.wt-steplist__thumb.is-missing .wt-steplist__ph {
+  display: block;
+}
+.wt-steplist__text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.wt-steplist__top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.wt-steplist__n {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--control-border);
+  color: var(--heading);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.wt-steplist__item.is-current .wt-steplist__n {
+  border-color: var(--selected-bg);
+  background: var(--selected-bg);
+  color: var(--selected-text);
+}
+.wt-steplist__section {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--fs-label);
+  font-weight: 650;
+  letter-spacing: var(--tracking-caps);
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.wt-steplist__title {
+  color: var(--heading);
+  font-weight: 650;
+  line-height: 1.3;
+}
+.wt-steplist__state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.wt-steplist__here {
+  color: var(--highlight);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+@media (max-width: 719.98px) {
+  .wt-steplist__item {
+    grid-template-columns: 88px minmax(0, 1fr);
+    min-height: 80px;
+  }
+  .wt-steplist__thumb {
+    width: 88px;
+    height: 56px;
+  }
+}
+
+/* =================================================================== */
+/* Data requirements dialog (fallback list when the explorer is absent) */
+/* =================================================================== */
+.wt-tour__dr-summary {
+  max-width: 72ch;
+}
+.wt-tour__fields {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.wt-tour__field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--sp-2);
+  padding: 10px 14px;
+}
+.wt-tour__field + .wt-tour__field {
+  border-top: 1px solid var(--border);
+}
+.wt-tour__fpath {
+  color: var(--heading);
+  font-weight: 600;
+  word-break: break-all;
+}
+.wt-tour__ftype {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+.wt-tour__fopt {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.wt-tour__fdesc {
+  flex-basis: 100%;
+  color: var(--body);
+  font-size: var(--fs-caption);
+}
+
+/* =================================================================== */
+/* Forced colours: keep the outline, tag and indicator visible          */
+/* =================================================================== */
+@media (forced-colors: active) {
+  .wt-spot__ring {
+    border-color: Highlight;
+    box-shadow: none;
+  }
+  .wt-spot__tag,
+  .wt-tour__edge,
+  .wt-spot__busy {
+    border: 1px solid CanvasText;
+    forced-color-adjust: none;
+    background: Canvas;
+    color: CanvasText;
+  }
+  .wt-steplist__item.is-current {
+    border-color: Highlight;
+  }
+}
