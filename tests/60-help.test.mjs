@@ -28,6 +28,12 @@ export default async function (t) {
   const { page } = t;
   const mobile = t.viewport !== 'desktop';
   mkdirSync(SHOTS, { recursive: true });
+  // The slot rows are checked from an empty VIDEO_VOICEOVER; the recordings
+  // packaged from src/media are covered by tests/08-voiceover.test.mjs.
+  await page.addInitScript(() => {
+    window.YES_SKIP_PACKAGED_MEDIA = true;
+  });
+  await t.goto('#/help');
   // Intl output uses no-break / narrow spaces; compare with plain spaces.
   const nbsp = (s) => String(s).replace(/[   ]/g, ' ');
   const text = (sel) => page.locator(sel).first().innerText().then(nbsp);
