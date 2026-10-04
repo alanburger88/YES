@@ -15,7 +15,9 @@
  *   4. "Why it changed": a running-balance step chart (hover/focus layer,
  *      keyboard points, summary sentence, table view; a plain list when there is
  *      too little data), a fees summary and one data-supported insight.
- *   5. The personalized-video placeholder card and its storyboard dialog.
+ *   5. "Your statement in 60 seconds": an animated, narrated walkthrough that
+ *      plays like a video (never on its own), drawn from this statement's
+ *      figures, with captions, chapters and a transcript.
  *
  * Every figure comes from YES.calc over YES.data — nothing is typed in twice.
  */
@@ -27,14 +29,6 @@
   var esc = ui.esc;
   var doc = root.document;
 
-  var VIDEO_SECONDS = 60;
-  var FRAMES = [
-    { key: 'f1', icon: 'user', at: 0 },
-    { key: 'f2', icon: 'balance', at: 12 },
-    { key: 'f3', icon: 'arrow-out', at: 24 },
-    { key: 'f4', icon: 'search', at: 36 },
-    { key: 'f5', icon: 'chat', at: 48 }
-  ];
   /* Same-time chart markers (a movement and its fee) are dodged sideways by this many px. */
   var DODGE = 8;
 
@@ -49,7 +43,7 @@
 
   /* Disclosure state survives re-renders and language switches. The selected
      journey step itself lives in the shared YES.state.journeyStep. */
-  if (!YES.state.overview) YES.state.overview = { details: false, journeyTable: false, chartTable: false };
+  if (!YES.state.overview) YES.state.overview = { details: false, journeyTable: false, chartTable: false, transcript: false, cc: true, muted: false };
 
   var pendingAnim = false;
   var chart = { pts: [], xs: [], ys: [], w: 0, lastW: 0, focusIdx: 0, hover: -1 };
@@ -92,11 +86,6 @@
   }
   function stamp(iso) {
     return YES.fmt.date(iso, 'datetime') + ' ' + YES.fmt.tz(iso);
-  }
-  function timecode(sec) {
-    var m = Math.floor(sec / 60);
-    var s = sec % 60;
-    return m + ':' + (s < 10 ? '0' : '') + s;
   }
   function has(obj, k) {
     return Object.prototype.hasOwnProperty.call(obj, k);
@@ -1700,90 +1689,909 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* 5. Personalized video placeholder                                   */
+  /* 5. "Your statement in 60 seconds": an animated, narrated player      */
   /* ------------------------------------------------------------------ */
-  /**
-   * The [YES_LOGO] slot in the poster's top-left corner. Approved artwork (SVG
-   * markup or a data: image) comes from the shared slot helper, like the
-   * masthead and the print header, and keeps its own aspect ratio, left-aligned
-   * at the poster's lettering height. Without it, the poster draws its own
-   * text placeholder, inverted on the poster colours.
+  /*
+   * PRD 5.7. Not a video file: a 16:9 stage drawn in the page from this
+   * statement's own figures (YES.calc, YES.fmt), in the current language, with
+   * nothing fetched. It behaves like a video: it never plays on its own; Play /
+   * Pause, a seek slider with chapter markers, captions (on by default), mute
+   * and full screen; chapters and a transcript beneath it.
+   *
+   * The picture is a pure function of time. drawFrame(t) sets every animated
+   * property (entrances, bar growth, highlights, the pointer) from t alone, so
+   * seeking to any time draws exactly that frame, and reduced motion swaps
+   * movement for fades and cuts. requestAnimationFrame only advances t.
+   *
+   * Narration: the approved recording for the current language
+   * (YES.config.slots.VIDEO_VOICEOVER[lang], a data:audio URI) kept in step
+   * with the playhead; otherwise the device's built-in voice (Web Speech API)
+   * reads one short sentence per caption cue when the playhead reaches it.
+   * With neither, it plays silently with captions on and says so.
    */
-  function posterLogoHtml() {
-    var art = ui.logoHtml({ cls: 'ov-poster__art', size: 24, decorative: true });
-    if (/\bov-poster__art--art\b/.test(art)) return '<foreignObject class="ov-poster__artbox" x="20" y="18" width="120" height="24">' + art + '</foreignObject>';
-    return (
-      '<rect class="ov-poster__logo" x="20" y="18" width="48" height="24" rx="6"/>' +
-      '<text class="ov-poster__logotext" x="44" y="35" text-anchor="middle">' +
-      esc(YES.config.slots.YES_LOGO.text || 'YES') +
-      '</text>'
-    );
+  var VID = {
+    end: 60,
+    poster: 5, // the frame shown before the first Play
+    chapters: [
+      { id: 'greet', at: 0 },
+      { id: 'balance', at: 6.6 },
+      { id: 'largest', at: 24.5 },
+      { id: 'inspect', at: 35 },
+      { id: 'help', at: 50.4 }
+    ],
+    /* One short sentence each. Each window holds its sentence at about 2.5
+       words a second, numbers spoken in full, in English and in Spanish
+       (the test checks this), with a little air before the next one. */
+    cues: [
+      { id: 'hello', at: 0 },
+      { id: 'period', at: 1.5 },
+      { id: 'opening', at: 6.6 },
+      { id: 'incoming', at: 10.5 },
+      { id: 'outgoing', at: 13.1 },
+      { id: 'closing', at: 18.2 },
+      { id: 'largest', at: 24.5 },
+      { id: 'what', at: 29.1 },
+      { id: 'select', at: 35 },
+      { id: 'rows', at: 38.2 },
+      { id: 'open', at: 41.7 },
+      { id: 'actions', at: 45.6 },
+      { id: 'help', at: 50.4 },
+      { id: 'bye', at: 54.5 }
+    ],
+    lastCueEnd: 59.3,
+    /* A voice still reading when its window ends holds the picture this long at most. */
+    holdMs: 2500,
+    /* Resuming (or seeking) inside the first 40% of a cue reads it; later, the next one. */
+    resumeShare: 0.4
+  };
+  /** Cue start times by id (scene timings are written against them). */
+  var C = {};
+  VID.cues.forEach(function (c) {
+    C[c.id] = c.at;
+  });
+  function sceneEnd(i) {
+    return i + 1 < VID.chapters.length ? VID.chapters[i + 1].at : VID.end;
   }
 
-  function posterHtml() {
-    var slot = YES.config.slots.VIDEO_POSTER;
-    // An approved poster may be packaged as a data: URI; anything else would be a network request.
-    if (typeof slot === 'string' && /^data:image\//.test(slot)) return '<img class="ov-poster__img" src="' + esc(slot) + '" alt="">';
-    // A miniature of this statement's own balance journey (opening → movements →
-    // closing), drawn from YES.calc like every other figure: a preview of what the
-    // video explains, not a decorative "performance" chart.
-    var steps = YES.calc.journey();
-    var hi = 0;
-    steps.forEach(function (sp) {
-      hi = Math.max(hi, sp.start, sp.end);
+  ui.registerIcons({
+    'vp-pause': '<rect x="6.5" y="5" width="3.6" height="14" rx="1"/><rect x="13.9" y="5" width="3.6" height="14" rx="1"/>',
+    'vp-replay': '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v4.2h4.2"/>',
+    'vp-volume': '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6"/><path d="M18.2 6.6a7.6 7.6 0 0 1 0 10.8"/>',
+    'vp-muted': '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="m16 9.5 5 5"/><path d="m21 9.5-5 5"/>',
+    'vp-cc': '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M10.6 10.3a2.2 2.2 0 1 0 0 3.4"/><path d="M17 10.3a2.2 2.2 0 1 0 0 3.4"/>',
+    'vp-fs': '<path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/>',
+    'vp-fs-exit': '<path d="M9 4v5H4"/><path d="M15 4v5h5"/><path d="M9 20v-5H4"/><path d="M15 20v-5h5"/>'
+  });
+
+  /** m:ss, whole seconds. */
+  function tc(sec) {
+    var s = Math.max(0, Math.floor(sec + 1e-6));
+    var m = Math.floor(s / 60);
+    s %= 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function r2(v) {
+    return Math.round(v * 100) / 100;
+  }
+  function chapterAt(t) {
+    var i = 0;
+    for (var k = 0; k < VID.chapters.length; k++) if (t >= VID.chapters[k].at - 1e-6) i = k;
+    return i;
+  }
+  function chapterTitle(i) {
+    return t('overview.video.ch.' + VID.chapters[i].id);
+  }
+
+  /**
+   * A number for the voice only: no grouping and no trailing zeros, so a voice
+   * reads "1147.5" as "one thousand one hundred forty-seven point five" (and
+   * "1147,5" as "mil ciento cuarenta y siete coma cinco"). Captions and the
+   * picture use YES.fmt.amount like the rest of the statement.
+   */
+  function sayNum(minor) {
+    var p = asset().precision;
+    return new Intl.NumberFormat(YES.i18n.locale(), { minimumFractionDigits: 0, maximumFractionDigits: p, useGrouping: false }).format(Math.abs(minor) / Math.pow(10, p));
+  }
+
+  /** Everything the video shows, from the same snapshot as the rest of the page. */
+  function vidModel() {
+    var groups = YES.calc.groups();
+    var cats = YES.calc.categories().filter(function (c) {
+      return c.count > 0;
     });
-    var slot = 100 / Math.max(1, steps.length);
-    var barSvg = steps
-      .map(function (sp, i) {
-        var top = 128 - (Math.max(sp.start, sp.end) / (hi || 1)) * 70;
-        var h = Math.max(2, (Math.abs(sp.end - sp.start) / (hi || 1)) * 70);
-        var cls = sp.kind === 'total' ? 'ov-poster__bar ov-poster__bar--total' : 'ov-poster__bar';
-        return '<rect class="' + cls + '" x="' + r1(206 + i * slot + slot * 0.2) + '" y="' + r1(top) + '" width="' + r1(slot * 0.6) + '" height="' + r1(h) + '" rx="1.5"/>';
+    // How to inspect a transaction: the first journey step holding a movement
+    // with a linked fee (so the detail has one to show), else the first step.
+    var step = null;
+    var tx = null;
+    cats.some(function (c) {
+      var rows = rowsFor(c.txIds);
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].type !== 'fee' && YES.calc.feesFor(rows[i].id).length) {
+          step = c;
+          tx = rows[i];
+          return true;
+        }
+      }
+      return false;
+    });
+    if (!step && cats.length) {
+      step = cats[0];
+      tx = rowsFor(step.txIds)[0] || null;
+    }
+    return {
+      s: st(),
+      inc: groups.incoming.total,
+      out: groups.outgoing.total,
+      big: YES.calc.largest(),
+      posted: YES.calc.posted(),
+      step: step,
+      rows: step ? rowsFor(step.txIds) : [],
+      tx: tx,
+      fees: tx
+        ? YES.calc.feesFor(tx.id).filter(function (f) {
+            return f.status === 'posted';
+          })
+        : []
+    };
+  }
+
+  /** Caption text and spoken text for every cue. */
+  function cueList(m) {
+    var s = m.s;
+    var big = m.big;
+    var v = {
+      name: s.customer.firstName,
+      period: periodText(),
+      month: monthText(),
+      opening: amt(s.opening),
+      openingSay: sayNum(s.opening),
+      incoming: amt(Math.abs(m.inc)),
+      incomingSay: sayNum(m.inc),
+      outgoing: amt(Math.abs(m.out)),
+      outgoingSay: sayNum(m.out),
+      closing: amt(s.closing),
+      closingSay: sayNum(s.closing)
+    };
+    if (big) {
+      v.amount = amt(big.amount, 'always');
+      v.amountSay = sayNum(big.amount);
+      v.description = noStop(YES.L(big.description));
+      v.date = YES.fmt.date(big.postedAt, 'long');
+    }
+    var table = YES.i18n.dict[YES.i18n.lang] || {};
+    return VID.cues.map(function (c, i) {
+      var id = c.id;
+      if ((id === 'largest' || id === 'what') && !big) id += 'None';
+      var text = t('overview.video.cue.' + id, v);
+      var sayKey = 'overview.video.say.' + (id === 'largest' ? (big.amount < 0 ? 'largestOut' : 'largestIn') : id);
+      return {
+        id: c.id,
+        at: c.at,
+        end: i + 1 < VID.cues.length ? VID.cues[i + 1].at : VID.lastCueEnd,
+        ch: chapterAt(c.at),
+        text: text,
+        say: has(table, sayKey) ? t(sayKey, v) : text
+      };
+    });
+  }
+
+  /* --------------------------------------------------------- the stage */
+  /**
+   * Animation attributes, read once by buildAnims():
+   *   i  — enters at (s): fades in, moving by fx ('up' default, 'left', 'right', 'fade')
+   *   d  — entrance duration (s)
+   *   o  — leaves at (s): fades out
+   *   p  — [at, dur]: --p grows 0 → 1 (bar heights)
+   *   hl — [from, to]: --hl rises to 1 and falls back (highlights, pressed states)
+   *   dim — recedes from (s) to a quieter opacity
+   *   pt — a target the pointer can travel to
+   */
+  function att(o) {
+    var out = '';
+    if (o.i != null) out += ' data-in="' + r2(o.i) + '"';
+    if (o.d != null) out += ' data-dur="' + r2(o.d) + '"';
+    if (o.o != null) out += ' data-out="' + r2(o.o) + '"';
+    if (o.fx) out += ' data-fx="' + o.fx + '"';
+    if (o.p) out += ' data-p="' + r2(o.p[0]) + ':' + r2(o.p[1]) + '"';
+    if (o.hl) out += ' data-hl="' + r2(o.hl[0]) + ':' + r2(o.hl[1]) + '"';
+    if (o.dim != null) out += ' data-dim="' + r2(o.dim) + '"';
+    if (o.pt) out += ' data-pt="' + o.pt + '"';
+    return out;
+  }
+  function scene(i, cls, inner) {
+    var at = VID.chapters[i].at;
+    var end = sceneEnd(i);
+    return '<div class="vs-scene ' + cls + '"' + att({ i: at, d: 0.45, fx: 'fade', o: end < VID.end ? end - 0.35 : null }) + '>' + inner + '</div>';
+  }
+  function eyebrow(i) {
+    return (
+      '<p class="vs-eyebrow"' +
+      att({ i: VID.chapters[i].at + 0.15, fx: 'fade' }) +
+      '><span class="vs-n">' +
+      (i + 1) +
+      '</span><span>' +
+      esc(chapterTitle(i)) +
+      '</span></p>'
+    );
+  }
+  function logo() {
+    return ui.logoHtml({ cls: 'vs-logo', decorative: true });
+  }
+  function dirIcon(minor, kind) {
+    var dir = kind || (minor < 0 ? 'out' : 'in');
+    var icon = dir === 'total' ? 'balance' : dir === 'out' ? 'arrow-out' : 'arrow-in';
+    return '<span class="vs-dir vs-dir--' + dir + '">' + ui.icon(icon, { size: 16 }) + '</span>';
+  }
+  /** A signed figure without its unit, for the dense parts of the picture. */
+  function figure(minor, sign) {
+    return YES.fmt.amount(minor, { sign: sign || 'always', unit: false });
+  }
+
+  function sceneGreet(m) {
+    var items = VID.chapters
+      .slice(1)
+      .map(function (c, i) {
+        return '<li' + att({ i: 2.9 + i * 0.35, fx: 'left' }) + '><span class="vs-n">' + (i + 2) + '</span><span>' + esc(chapterTitle(i + 1)) + '</span></li>';
       })
       .join('');
-    return (
-      '<svg class="ov-poster__svg" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">' +
-      '<rect class="ov-poster__bg" width="320" height="180"/>' +
-      '<circle class="ov-poster__glow" cx="300" cy="-10" r="150"/>' +
-      posterLogoHtml() +
-      '<text class="ov-poster__hello" x="20" y="76">' +
-      esc(t('overview.video.posterHello', { name: st().customer.firstName })) +
-      '</text>' +
-      '<text class="ov-poster__sub" x="20" y="96">' +
-      esc(monthText()) +
-      '</text>' +
-      barSvg +
-      '<path class="ov-poster__base" d="M206 128H306"/>' +
-      '</svg>'
+    return scene(
+      0,
+      'vs-greet',
+      '<div class="vs-greet__logo"' +
+        att({ i: 0.15, fx: 'fade' }) +
+        '>' +
+        logo() +
+        '</div>' +
+        '<div class="vs-greet__text"><p class="vs-greet__hello"' +
+        att({ i: 0.35 }) +
+        '>' +
+        esc(t('overview.video.posterHello', { name: m.s.customer.firstName })) +
+        '</p><p class="vs-greet__sub"' +
+        att({ i: C.period + 0.3 }) +
+        '>' +
+        esc(t('overview.video.greetSub', { period: periodText() })) +
+        '</p></div>' +
+        '<div class="vs-card vs-greet__agenda"' +
+        att({ i: 2.6, fx: 'right' }) +
+        '><p class="vs-label">' +
+        esc(t('overview.video.inThis')) +
+        '</p><ol class="vs-agenda">' +
+        items +
+        '</ol></div>'
     );
   }
 
-  function videoCardHtml() {
-    var title = t('overview.video.title');
-    var time = timecode(VIDEO_SECONDS);
+  function sceneBalance(m) {
+    var s = m.s;
+    var end = sceneEnd(1);
+    var afterIn = s.opening + m.inc;
+    var afterOut = afterIn + m.out;
+    var top = Math.max(1, s.opening, afterIn, afterOut, s.closing);
+    function pc(v) {
+      return r2((Math.max(0, v) / top) * 80);
+    }
+    var bars = [
+      { kind: 'total', from: 0, to: s.opening, at: C.opening + 0.5, label: figure(s.opening, 'auto') },
+      { kind: 'in', from: s.opening, to: afterIn, at: C.incoming + 0.3, label: figure(m.inc) },
+      { kind: 'out', from: afterIn, to: afterOut, at: C.outgoing + 0.3, label: figure(m.out) },
+      { kind: 'total', from: 0, to: s.closing, at: C.closing + 0.3, label: figure(s.closing, 'auto') }
+    ];
+    var hls = [
+      [C.opening + 0.3, C.incoming],
+      [C.incoming + 0.1, C.outgoing],
+      [C.outgoing + 0.1, C.closing],
+      [C.closing + 0.1, end]
+    ];
+    var plot = bars
+      .map(function (b, i) {
+        var lo = pc(Math.min(b.from, b.to));
+        var hi = pc(Math.max(b.from, b.to));
+        var x = 5 + i * 25;
+        var link =
+          i < bars.length - 1
+            ? '<span class="vs-link" style="left:' + (x + 15) + '%;width:10%;bottom:' + pc(b.to) + '%"' + att({ i: bars[i + 1].at, d: 0.4, fx: 'fade' }) + '></span>'
+            : '';
+        return (
+          '<span class="vs-bar vs-bar--' +
+          b.kind +
+          (b.to < b.from ? ' vs-bar--down' : '') +
+          '" style="left:' +
+          x +
+          '%;bottom:' +
+          lo +
+          '%;height:' +
+          Math.max(0.8, r2(hi - lo)) +
+          '%"' +
+          att({ i: b.at, d: 0.25, fx: 'fade', p: [b.at, 0.9], hl: hls[i] }) +
+          '></span><span class="vs-bar__v" style="left:' +
+          (x - 4) +
+          '%;bottom:' +
+          hi +
+          '%"' +
+          att({ i: b.at + 0.6, fx: 'fade' }) +
+          '>' +
+          esc(b.label) +
+          '</span>' +
+          link
+        );
+      })
+      .join('');
+    var rows = [
+      { cls: 'total', icon: dirIcon(0, 'total'), label: t('cat.opening'), val: amt(s.opening), at: C.opening + 0.4 },
+      { cls: 'in', icon: dirIcon(m.inc || 1), label: t('group.incoming'), val: figure(m.inc), at: C.incoming + 0.2 },
+      { cls: 'out', icon: dirIcon(m.out || -1), label: t('group.outgoing'), val: figure(m.out), at: C.outgoing + 0.2 },
+      { cls: 'closing', icon: dirIcon(0, 'total'), label: t('cat.closing'), val: amt(s.closing), at: C.closing + 0.2 }
+    ]
+      .map(function (r, i) {
+        return (
+          '<li class="vs-row vs-row--' +
+          r.cls +
+          '"' +
+          att({ i: r.at, fx: 'left', hl: hls[i] }) +
+          '>' +
+          r.icon +
+          '<span class="vs-row__label">' +
+          esc(r.label) +
+          '</span><span class="vs-row__val">' +
+          esc(r.val) +
+          '</span></li>'
+        );
+      })
+      .join('');
+    var net = YES.calc.netChange();
+    return scene(
+      1,
+      'vs-bal',
+      eyebrow(1) +
+        '<div class="vs-card vs-bal__card"' +
+        att({ i: C.opening + 0.15 }) +
+        '><div class="vs-bal__side"><ul class="vs-rows">' +
+        rows +
+        '</ul><p class="vs-net"' +
+        att({ i: C.closing + 1.4, fx: 'fade' }) +
+        '>' +
+        ui.icon(net < 0 ? 'trend-down' : net > 0 ? 'trend-up' : 'trend-flat', { size: 16 }) +
+        '<span>' +
+        esc(t('overview.journey.net')) +
+        '</span><strong>' +
+        esc(amt(net, 'always')) +
+        '</strong></p></div>' +
+        '<div class="vs-bal__chart"><div class="vs-plot"><span class="vs-plot__base"></span>' +
+        plot +
+        '</div></div></div>'
+    );
+  }
+
+  function sceneLargest(m) {
+    var big = m.big;
+    var end = sceneEnd(2);
+    if (!big) {
+      return scene(2, 'vs-big', eyebrow(2) + '<div class="vs-card vs-big__none"' + att({ i: C.largest + 0.3 }) + '><p>' + esc(t('overview.video.cue.largestNone')) + '</p></div>');
+    }
+    var list = m.posted;
+    var max = 1;
+    list.forEach(function (tx) {
+      max = Math.max(max, Math.abs(tx.amount));
+    });
+    var w = 100 / Math.max(1, list.length);
+    var flagX = 50;
+    var flagH = 0;
+    var bars = list
+      .map(function (tx, i) {
+        var h = Math.max(1.5, r2((Math.abs(tx.amount) / max) * 40));
+        var isMax = tx.id === big.id;
+        var x = r2(i * w + w * 0.18);
+        if (isMax) {
+          flagX = r2(i * w + w / 2);
+          flagH = h;
+        }
+        var at = C.largest + 0.3 + i * 0.06;
+        return (
+          '<span class="vs-mv vs-mv--' +
+          (tx.amount < 0 ? 'out' : 'in') +
+          (isMax ? ' is-max' : '') +
+          '" style="left:' +
+          x +
+          '%;width:' +
+          r2(w * 0.64) +
+          '%;height:' +
+          h +
+          '%;' +
+          (tx.amount < 0 ? 'top:50%' : 'bottom:50%') +
+          '"' +
+          att({ i: at, d: 0.3, fx: 'fade', p: [at, 0.5], dim: isMax ? null : C.largest + 1.6, hl: isMax ? [C.largest + 1.6, end] : null }) +
+          '></span>'
+        );
+      })
+      .join('');
+    // The flag sits beside the bar's end, on whichever side has room.
+    var side = flagX < 60 ? 'left:calc(' + r2(flagX + w * 0.32) + '% + 1cqw)' : 'right:calc(' + r2(100 - flagX + w * 0.32) + '% + 1cqw)';
+    var flag =
+      '<span class="vs-flag" style="' +
+      side +
+      ';' +
+      (big.amount < 0 ? 'top:calc(50% + ' + flagH + '% - 3.2cqw)' : 'bottom:calc(50% + ' + flagH + '% - 3.2cqw)') +
+      '"' +
+      att({ i: C.largest + 1.8, fx: 'fade' }) +
+      '>' +
+      esc(figure(big.amount)) +
+      '</span>';
+    var dir = big.amount < 0 ? 'out' : 'in';
+    return scene(
+      2,
+      'vs-big',
+      eyebrow(2) +
+        '<div class="vs-card vs-big__chart"' +
+        att({ i: C.largest + 0.15 }) +
+        '><p class="vs-label">' +
+        esc(t('overview.video.everyMove')) +
+        '</p><div class="vs-mvplot"><span class="vs-mvplot__base"></span>' +
+        bars +
+        flag +
+        '</div><p class="vs-axis"><span>' +
+        esc(YES.fmt.date(list[0].postedAt, 'short')) +
+        '</span><span>' +
+        esc(YES.fmt.date(list[list.length - 1].postedAt, 'short')) +
+        '</span></p></div>' +
+        '<div class="vs-card vs-big__tx"' +
+        att({ i: C.largest + 1.2, fx: 'right' }) +
+        '><div class="vs-big__head"><span class="vs-ico vs-ico--' +
+        dir +
+        '">' +
+        ui.icon(ui.typeIcon(big.type), { size: 20 }) +
+        '</span><p class="vs-label">' +
+        esc(t('overview.insight.title')) +
+        '</p></div><p class="vs-big__amt">' +
+        esc(figure(big.amount)) +
+        ' <span>' +
+        esc(sym()) +
+        '</span></p><p class="vs-big__desc"' +
+        att({ i: C.what + 0.2, fx: 'fade' }) +
+        '>' +
+        esc(noStop(YES.L(big.description))) +
+        '</p><dl class="vs-kv vs-kv--grid"' +
+        att({ i: C.what + 0.7, fx: 'fade' }) +
+        '><div class="vs-kv__row"' +
+        att({ hl: [C.what + 2.2, C.what + 4.4] }) +
+        '><dt>' +
+        esc(t('term.postedDate')) +
+        '</dt><dd>' +
+        esc(YES.fmt.date(big.postedAt, 'medium')) +
+        '</dd></div><div class="vs-kv__row"><dt>' +
+        esc(t('overview.video.reference')) +
+        '</dt><dd class="mono">' +
+        esc(big.reference) +
+        '</dd></div></dl></div>'
+    );
+  }
+
+  /** The pointer's path in the walkthrough: [time, target] stops; moving between different targets. */
+  function pointerPath() {
+    return [
+      [C.select + 0.8, 'rest'],
+      [C.select + 1.9, 'step'],
+      [C.open + 0.2, 'step'],
+      [C.open + 0.9, 'row'],
+      [C.open + 1.3, 'row'],
+      [C.open + 2, 'aside'], // out of the way while the detail's facts are read
+      [C.actions + 0.3, 'aside'],
+      [C.actions + 0.95, 'explain'],
+      [C.actions + 2.4, 'explain'],
+      [C.actions + 3.05, 'ask']
+    ];
+  }
+  var PRESS = function () {
+    return [C.select + 2, C.open + 0.95, C.actions + 1, C.actions + 3.1];
+  };
+
+  function sceneInspect(m) {
+    var end = sceneEnd(3);
+    var press = PRESS();
+    var cats = YES.calc.categories();
+    var steps = cats
+      .map(function (c) {
+        var target = m.step && c.id === m.step.id;
+        return (
+          '<li class="vs-step"' +
+          att({ hl: target ? [press[0], end] : null, pt: target ? 'step' : null }) +
+          '>' +
+          dirIcon(c.total || (c.group === 'outgoing' ? -1 : 1)) +
+          '<span class="vs-step__label">' +
+          esc(t('cat.' + c.id)) +
+          '</span><span class="vs-step__val">' +
+          esc(figure(c.total)) +
+          '</span>' +
+          (target ? '<span class="vs-step__check">' + ui.icon('check', { size: 14 }) + '</span>' : '') +
+          '</li>'
+        );
+      })
+      .join('');
+    var shown = m.rows.slice(0, 4);
+    var rows = shown
+      .map(function (tx, i) {
+        var target = m.tx && tx.id === m.tx.id;
+        return (
+          '<li class="vs-trow"' +
+          att({ i: C.rows - 0.1 + i * 0.25, fx: 'left', hl: target ? [press[1], C.open + 1.8] : null, pt: target ? 'row' : null }) +
+          '><span class="vs-trow__date">' +
+          esc(YES.fmt.date(tx.postedAt, 'short')) +
+          '</span><span class="vs-trow__desc">' +
+          esc(noStop(YES.L(tx.description))) +
+          '</span><span class="vs-trow__amt">' +
+          esc(figure(tx.amount)) +
+          '</span></li>'
+        );
+      })
+      .join('');
+    var tx = m.tx;
+    var feeTotal = sumOf(m.fees);
+    var sheet = tx
+      ? '<div class="vs-sheet"' +
+        att({ i: press[1] + 0.25, d: 0.5, fx: 'right' }) +
+        '><p class="vs-sheet__title">' +
+        esc(noStop(YES.L(tx.description))) +
+        '</p><p class="vs-sheet__amt"><span>' +
+        esc(amt(tx.amount, 'always')) +
+        '</span><span class="vs-status">' +
+        ui.icon('check-circle', { size: 14 }) +
+        esc(t('status.' + tx.status)) +
+        '</span></p><div class="vs-kv vs-kv--grid">' +
+        '<div class="vs-kv__row"' +
+        att({ hl: [C.open + 1.7, C.open + 2.7] }) +
+        '><span>' +
+        esc(t('term.initiatedDate')) +
+        '</span><span>' +
+        esc(YES.fmt.date(tx.initiatedAt, 'datetime')) +
+        '</span></div>' +
+        '<div class="vs-kv__row"' +
+        att({ hl: [C.open + 1.7, C.open + 2.7] }) +
+        '><span>' +
+        esc(t('term.postedDate')) +
+        '</span><span>' +
+        esc(YES.fmt.date(tx.postedAt, 'datetime')) +
+        '</span></div>' +
+        '<div class="vs-kv__row"' +
+        att({ hl: [C.open + 2.5, C.open + 3.3] }) +
+        '><span>' +
+        esc(t('overview.video.reference')) +
+        '</span><span class="mono">' +
+        esc(tx.reference) +
+        '</span></div>' +
+        '<div class="vs-kv__row"' +
+        att({ hl: [C.open + 3, C.actions + 0.3] }) +
+        '><span>' +
+        esc(t('type.fee')) +
+        '</span><span>' +
+        esc(m.fees.length ? amt(feeTotal, 'always') : t('overview.video.feeNone')) +
+        '</span></div></div>' +
+        '<div class="vs-actions"><span class="vs-btn vs-btn--ai"' +
+        att({ hl: [press[2], press[3] - 0.2], pt: 'explain' }) +
+        '>' +
+        ui.icon('sparkle', { size: 14 }) +
+        '<span>' +
+        esc(t('explain.button')) +
+        '</span></span><span class="vs-btn"' +
+        att({ hl: [press[3], end], pt: 'ask' }) +
+        '>' +
+        ui.icon('chat', { size: 14 }) +
+        '<span>' +
+        esc(t('overview.video.ask')) +
+        '</span></span></div></div>'
+      : '';
+    return scene(
+      3,
+      'vs-ins',
+      eyebrow(3) +
+        '<div class="vs-card vs-app"' +
+        att({ i: C.select + 0.15 }) +
+        '><div class="vs-app__journey"><p class="vs-label">' +
+        esc(t('overview.journey.title')) +
+        '</p><ul class="vs-steps">' +
+        steps +
+        '</ul></div><div class="vs-app__panel"' +
+        // While the detail slides in over it, the list beneath fades out, so no text shows through.
+        (tx ? att({ o: press[1] + 0.15 }) : '') +
+        '><p class="vs-hint"' +
+        att({ o: press[0] + 0.15 }) +
+        '>' +
+        esc(t('overview.video.pick')) +
+        '</p><p class="vs-label"' +
+        att({ i: press[0] + 0.3, fx: 'fade' }) +
+        '>' +
+        esc(t('overview.panel.eyebrow')) +
+        (m.step ? ' · ' + esc(t('cat.' + m.step.id)) : '') +
+        '</p><ul class="vs-trows">' +
+        rows +
+        '</ul>' +
+        (m.step
+          ? '<p class="vs-sum"' +
+            att({ i: C.rows + 1.4, fx: 'fade', hl: [C.rows + 1.5, C.open] }) +
+            '>' +
+            ui.icon('check-circle', { size: 16 }) +
+            '<span>' +
+            esc(t('overview.panel.sum')) +
+            '</span><strong>' +
+            esc(amt(m.step.total, 'always')) +
+            '</strong></p>'
+          : '') +
+        '</div>' +
+        sheet +
+        '</div><span class="vs-pointer" data-pointer></span>'
+    );
+  }
+
+  function sceneHelp() {
+    var sup = YES.config.support || {};
+    var contact = [];
+    if (sup.phone) contact.push(['phone', sup.phone]);
+    if (sup.email) contact.push(['mail', sup.email]);
+    contact.push(['file-down', t('record.button')]);
+    return scene(
+      4,
+      'vs-help',
+      '<div class="vs-help__cards"' +
+        att({ o: C.bye - 0.2 }) +
+        '>' +
+        eyebrow(4) +
+        '<div class="vs-card vs-help__ask"' +
+        att({ i: C.help + 0.3, hl: [C.help + 0.6, C.help + 2.4] }) +
+        '><span class="vs-ico vs-ico--ai">' +
+        ui.icon('chat', { size: 20 }) +
+        '</span><p class="vs-help__t">' +
+        esc(t('ask.button')) +
+        '</p><p class="vs-help__p">' +
+        esc(t('overview.video.askBody')) +
+        '</p><span class="vs-chip">' +
+        ui.icon('sparkle', { size: 14 }) +
+        '<span>' +
+        esc(t('overview.video.askSample')) +
+        '</span></span></div>' +
+        '<div class="vs-card vs-help__help"' +
+        att({ i: C.help + 0.8, hl: [C.help + 2.4, C.bye - 0.3] }) +
+        '><span class="vs-ico vs-ico--help">' +
+        ui.icon('question', { size: 20 }) +
+        '</span><p class="vs-help__t">' +
+        esc(t('nav.help')) +
+        '</p><p class="vs-help__p">' +
+        esc(t('overview.video.helpBody')) +
+        '</p><ul class="vs-contact">' +
+        contact
+          .map(function (c) {
+            return '<li>' + ui.icon(c[0], { size: 14 }) + '<span>' + esc(c[1]) + '</span></li>';
+          })
+          .join('') +
+        '</ul></div></div>' +
+        '<div class="vs-end"><div' +
+        att({ i: C.bye + 0.3, fx: 'fade' }) +
+        '>' +
+        logo() +
+        '</div><p class="vs-end__bye"' +
+        att({ i: C.bye + 0.6 }) +
+        '>' +
+        esc(t('overview.video.bye')) +
+        '</p><p class="vs-end__sig"' +
+        att({ i: C.bye + 1.2 }) +
+        '>' +
+        esc(t('overview.video.sig', { month: monthText() })) +
+        '</p><p class="vs-end__demo"' +
+        att({ i: C.bye + 1.8, fx: 'fade' }) +
+        '>' +
+        esc(t('demo.badge')) +
+        '</p></div>'
+    );
+  }
+
+  function stageHtml(m) {
     return (
-      '<section class="card ov-video" aria-labelledby="ov-video-title">' +
-      // A size container: with very large text the play control and the
-      // duration move below the artwork instead of colliding on it.
-      '<div class="ov-video__media"><div class="ov-video__poster">' +
-      posterHtml() +
-      '<button type="button" class="ov-video__play" data-ov-video data-fk="ov-video-play" aria-label="' +
-      esc(t('overview.video.playLabel', { title: title, time: time })) +
-      '"><span class="ov-video__playicon">' +
-      ui.icon('play', { size: 16 }) +
-      '</span><span>' +
-      esc(t('overview.video.play')) +
-      '</span></button>' +
-      '<span class="ov-video__dur" aria-hidden="true">' +
-      esc(time) +
-      '</span></div></div>' +
-      '<div class="ov-video__body">' +
+      '<div class="vp-stage" aria-hidden="true" data-vp="stage">' +
+      '<div class="vs-chrome"' +
+      att({ i: VID.chapters[1].at + 0.2, fx: 'fade', o: C.bye - 0.3 }) +
+      '>' +
+      logo() +
+      '</div>' +
+      sceneGreet(m) +
+      sceneBalance(m) +
+      sceneLargest(m) +
+      sceneInspect(m) +
+      sceneHelp(m) +
+      '<div class="vp-cc" data-vp-cc hidden><span class="vp-cc__t"></span></div>' +
+      '</div>'
+    );
+  }
+
+  /* -------------------------------------------------------- the player */
+  /** The approved recording for the current language, if packaged as a data: audio URI. */
+  function recordedSrc() {
+    var slot = YES.config.slots && YES.config.slots.VIDEO_VOICEOVER;
+    var v = slot && slot[YES.i18n.lang];
+    return typeof v === 'string' && /^data:audio\/[a-z0-9.+-]+[;,]/i.test(v) ? v : null;
+  }
+
+  function playerHtml(m) {
+    var title = t('overview.video.title');
+    var total = tc(VID.end);
+    var posterSlot = YES.config.slots.VIDEO_POSTER;
+    var rec = recordedSrc();
+    var marks = VID.chapters
+      .slice(1)
+      .map(function (c) {
+        return '<span style="left:' + r2((c.at / VID.end) * 100) + '%"></span>';
+      })
+      .join('');
+    function btn(act, fk, label, icons, pressed) {
+      return (
+        '<button type="button" class="vp-btn vp-btn--' +
+        act +
+        '" data-vp="' +
+        act +
+        '" data-fk="' +
+        fk +
+        '" aria-label="' +
+        esc(label) +
+        '"' +
+        (pressed == null ? '' : ' aria-pressed="' + pressed + '"') +
+        '>' +
+        icons +
+        '</button>'
+      );
+    }
+    function ic(name, cls) {
+      return ui.icon(name, { size: 22, cls: cls });
+    }
+    // Rendered in its current state, so focus kept on a bar control survives a re-render.
+    var at = VP.started ? VP.t : 0;
+    var ccOn = ovState().cc !== false || !!VP.forcedCc[YES.i18n.lang];
+    return (
+      '<div class="vp' +
+      (VP.started ? ' is-started' : '') +
+      (VP.ended ? ' is-ended' : '') +
+      '" data-vp-player role="region" aria-label="' +
+      esc(t('overview.video.player', { title: title })) +
+      '">' +
+      '<div class="vp-screen">' +
+      stageHtml(m) +
+      // An approved poster may be packaged as a data: image; anything else would be a request.
+      (typeof posterSlot === 'string' && /^data:image\//.test(posterSlot) ? '<img class="vp-posterimg" src="' + esc(posterSlot) + '" alt="">' : '') +
+      '<button type="button" class="vp-big" data-vp="toggle" data-vp-big data-fk="vp-big" aria-label="' +
+      esc(t('overview.video.playLabel', { title: title, time: total })) +
+      '">' +
+      ui.icon('play', { size: 30, cls: 'vp-i-play' }) +
+      ui.icon('vp-replay', { size: 30, cls: 'vp-i-replay' }) +
+      '</button>' +
+      '<span class="vp-dur" aria-hidden="true">' +
+      esc(total) +
+      '</span></div>' +
+      // In the order the controls sit on a wide player, so Tab follows what the eye sees.
+      '<div class="vp-bar">' +
+      btn('toggle', 'vp-toggle', t(VP.ended ? 'overview.video.replay' : 'overview.video.play'), ic('play', 'vp-i-play') + ic('vp-pause', 'vp-i-pause') + ic('vp-replay', 'vp-i-replay')) +
+      btn('mute', 'vp-mute', t('overview.video.mute'), ic('vp-volume', 'vp-i-on') + ic('vp-muted', 'vp-i-off'), !!ovState().muted) +
+      '<span class="vp-time" aria-hidden="true"><span data-vp-now>' +
+      esc(tc(at)) +
+      '</span> / ' +
+      esc(total) +
+      '</span>' +
+      '<div class="vp-seek"><span class="vp-track" aria-hidden="true"><span class="vp-fill"></span><span class="vp-marks">' +
+      marks +
+      '</span></span><input type="range" class="vp-range" min="0" max="' +
+      VID.end +
+      '" step="0.1" value="' +
+      r2(at) +
+      '" data-vp-range data-fk="vp-seek" aria-label="' +
+      esc(t('overview.video.seek')) +
+      '" aria-valuetext="' +
+      esc(seekText(at)) +
+      '"></div>' +
+      btn('cc', 'vp-cc', t('overview.video.cc'), ic('vp-cc'), ccOn) +
+      btn('fs', 'vp-fs', t('overview.video.fs'), ic('vp-fs', 'vp-i-fs') + ic('vp-fs-exit', 'vp-i-fsx')) +
+      '</div>' +
+      (rec ? '<audio class="vp-audio" preload="auto" src="' + esc(rec) + '" data-vp-audio></audio>' : '') +
+      '</div>'
+    );
+  }
+
+  function seekText(sec) {
+    var ch = chapterAt(sec);
+    return t('overview.video.seekText', { now: tc(sec), total: tc(VID.end), n: ch + 1, chapter: chapterTitle(ch) });
+  }
+
+  function chaptersHtml() {
+    return (
+      '<h3 class="ov-vchap__title" id="ov-vchap-title">' +
+      esc(t('overview.video.chapters')) +
+      '</h3><ol class="ov-vchap" aria-labelledby="ov-vchap-title">' +
+      VID.chapters
+        .map(function (c, i) {
+          var title = chapterTitle(i);
+          return (
+            '<li><button type="button" class="ov-vchap__btn" data-vp-seek="' +
+            c.at +
+            '" data-vp-ch="' +
+            i +
+            '" data-fk="vp-ch-' +
+            i +
+            '" aria-label="' +
+            esc(t('overview.video.chapterLabel', { n: i + 1, title: title, time: tc(c.at) })) +
+            '"><span class="ov-vchap__n" aria-hidden="true">' +
+            (i + 1) +
+            '</span><span class="ov-vchap__name">' +
+            esc(title) +
+            '</span><span class="ov-vchap__time">' +
+            esc(tc(c.at)) +
+            '</span></button></li>'
+          );
+        })
+        .join('') +
+      '</ol>'
+    );
+  }
+
+  function transcriptHtml(cues) {
+    var open = !!ovState().transcript;
+    return (
+      '<details class="disclosure ov-vtr" data-ov-disclosure="transcript"' +
+      (open ? ' open' : '') +
+      '><summary data-fk="vp-transcript">' +
+      ui.icon('book', { size: 18 }) +
+      '<span>' +
+      esc(t('overview.video.transcript')) +
+      '</span></summary><div class="disclosure__body"><p class="ov-vtr__note">' +
+      esc(t('overview.video.transcriptNote')) +
+      '</p>' +
+      VID.chapters
+        .map(function (c, ci) {
+          return (
+            '<h4 class="ov-vtr__ch">' +
+            esc(t('overview.video.chapterHead', { n: ci + 1, title: chapterTitle(ci) })) +
+            '</h4><ol class="ov-vtr__list">' +
+            cues
+              .map(function (cue, i) {
+                if (cue.ch !== ci) return '';
+                return (
+                  '<li><button type="button" class="ov-vtr__line" data-vp-seek="' +
+                  cue.at +
+                  '" data-vp-cue="' +
+                  i +
+                  '" data-fk="vp-cue-' +
+                  i +
+                  '"><span class="ov-vtr__time">' +
+                  esc(tc(cue.at)) +
+                  '</span><span class="ov-vtr__text">' +
+                  esc(cue.text) +
+                  '</span></button></li>'
+                );
+              })
+              .join('') +
+            '</ol>'
+          );
+        })
+        .join('') +
+      '</div></details>'
+    );
+  }
+
+  function videoCardHtml(rec) {
+    var title = t('overview.video.title');
+    var time = tc(VID.end);
+    var head =
       '<p class="card__eyebrow">' +
       esc(t('overview.video.eyebrow')) +
-      '</p>' +
-      '<h2 id="ov-video-title" class="ov-video__title">' +
+      '</p><h2 id="ov-video-title" class="ov-video__title">' +
       esc(title) +
-      '</h2>' +
+      '</h2>';
+    if (!rec.ok) {
+      // The video's figures are the statement's: a statement that does not reconcile shows none.
+      VP.cues = [];
+      return '<section class="card ov-video" aria-labelledby="ov-video-title">' + head + '<p class="ov-video__desc">' + esc(t('overview.video.withheld')) + '</p></section>';
+    }
+    var m = vidModel();
+    VP.cues = cueList(m);
+    return (
+      '<section class="card ov-video" aria-labelledby="ov-video-title"><div class="ov-video__grid">' +
+      '<div class="ov-video__media">' +
+      playerHtml(m) +
+      '</div>' +
+      '<div class="ov-video__body">' +
+      head +
       '<p class="ov-video__desc">' +
       esc(t('overview.video.desc', { month: monthText() })) +
       '</p>' +
@@ -1798,131 +2606,817 @@
       '<span>' +
       esc(t('overview.video.optional')) +
       '</span></li></ul>' +
-      '<p class="ov-video__ph">' +
-      ui.illustrativeTag('demo.only') +
-      ' <span>' +
-      esc(t('overview.video.placeholderShort')) +
+      '<p class="ov-video__honest">' +
+      ui.illustrativeTag() +
+      ' <span data-vp-honest>' +
+      esc(t(recordedSrc() ? 'overview.video.honestRecorded' : 'overview.video.honest')) +
       '</span></p>' +
+      '<p class="ov-video__voice" data-vp-note hidden>' +
+      ui.icon('info', { size: 18 }) +
+      '<span>' +
+      esc(t('overview.video.noVoice')) +
+      '</span></p>' +
+      chaptersHtml() +
+      '</div>' +
+      transcriptHtml(VP.cues) +
       '</div></section>'
     );
   }
 
-  function storyVars() {
-    var s = st();
-    var big = YES.calc.largest();
-    var vars = {
-      name: s.customer.firstName,
-      period: periodText(),
-      opening: amt(s.opening),
-      closing: amt(s.closing),
-      net: amt(YES.calc.netChange(), 'always')
-    };
-    if (big) {
-      vars.amount = amt(big.amount, 'always');
-      vars.date = YES.fmt.date(big.postedAt, 'long');
-      vars.description = noStop(YES.L(big.description));
-    }
-    return { vars: vars, big: big };
+  /* ------------------------------------------------------ the runtime */
+  var VP = {
+    el: null, // the player ([data-vp-player]) currently in the page
+    stage: null,
+    cues: [],
+    anims: [],
+    ptr: null,
+    targets: null,
+    audio: null,
+    t: 0,
+    playing: false,
+    started: false, // left the poster (played or sought)
+    ended: false,
+    raf: 0,
+    last: 0,
+    dragging: false,
+    spokenCue: -1, // the cue the voice has handled on this pass
+    shown: { sec: -1, cue: -2, ch: -2, cc: null },
+    idle: 0,
+    sp: { token: 0, speaking: false, cue: -1, holdAt: 0 },
+    audioFailed: {}, // language → the recording could not play: fall back to the device voice
+    forcedCc: {} // language → captions were turned on because there is no voice
+  };
+  var VOICE = { settled: false, bound: false };
+
+  function now() {
+    return root.performance && root.performance.now ? root.performance.now() : Date.now();
+  }
+  function clamp01(x) {
+    return x < 0 ? 0 : x > 1 ? 1 : x;
+  }
+  function easeOut(x) {
+    return 1 - Math.pow(1 - x, 3);
+  }
+  function easeInOut(x) {
+    return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  }
+  /** 0 → 1 from `at` over `dur` seconds (eased); a cut when dur is 0. */
+  function ramp(t, at, dur) {
+    if (!(dur > 0)) return t >= at ? 1 : 0;
+    return easeOut(clamp01((t - at) / dur));
   }
 
-  function videoDialogHtml() {
-    var sv = storyVars();
-    var frames = FRAMES.map(function (f, i) {
-      var k = f.key === 'f3' && !sv.big ? 'f3none' : f.key;
-      var to = i + 1 < FRAMES.length ? FRAMES[i + 1].at : VIDEO_SECONDS;
-      return {
-        n: i + 1,
-        icon: f.key === 'f3' && sv.big ? ui.typeIcon(sv.big.type) : f.icon,
-        from: timecode(f.at),
-        to: timecode(to),
-        title: t('overview.video.' + k + '.title'),
-        screen: t('overview.video.' + k + '.screen', sv.vars),
-        say: t('overview.video.' + k + '.say', sv.vars)
-      };
+  var MOVES = { up: [0, 1.6], left: [-2.4, 0], right: [3, 0] };
+  function buildAnims(stage) {
+    return ui.$$('[data-in],[data-out],[data-p],[data-hl],[data-dim]', stage).map(function (el) {
+      function num(a) {
+        var v = el.getAttribute(a);
+        return v === null ? null : parseFloat(v);
+      }
+      function pair(a) {
+        var v = el.getAttribute(a);
+        if (v === null) return null;
+        var p = v.split(':');
+        return [parseFloat(p[0]), parseFloat(p[1])];
+      }
+      return { el: el, i: num('data-in'), d: num('data-dur'), o: num('data-out'), dim: num('data-dim'), fx: el.getAttribute('data-fx') || 'up', p: pair('data-p'), hl: pair('data-hl'), last: {} };
     });
-    var reqs = ['req1', 'req2', 'req3', 'req4', 'req5', 'req6'];
-    return (
-      '<div class="dlg__head">' +
-      '<h2 id="video-dialog-title" class="dlg__title" tabindex="-1" data-fk="ov-video-title">' +
-      esc(t('overview.video.title')) +
-      '</h2>' +
-      '<button type="button" class="btn btn--icon btn--ghost" data-ov-video-close data-fk="ov-video-x" aria-label="' +
-      esc(t('common.close')) +
-      '">' +
-      ui.icon('close') +
-      '</button></div>' +
-      '<div class="dlg__body ov-vdlg" tabindex="0" role="region" aria-label="' +
-      esc(t('overview.video.bodyLabel')) +
-      '">' +
-      '<div class="notice notice--illustrative">' +
-      ui.icon('info', { size: 18 }) +
-      '<p><strong>' +
-      esc(t('overview.video.dlgTitle')) +
-      '</strong> ' +
-      esc(t('overview.video.dlgNotice')) +
-      '</p></div>' +
-      '<h3 class="ov-vdlg__h">' +
-      esc(t('overview.video.storyboard')) +
-      '</h3>' +
-      '<ol class="ov-story">' +
-      frames
-        .map(function (f) {
-          return (
-            '<li class="ov-story__frame" data-frame="' +
-            f.n +
-            '"><div class="ov-story__thumb" aria-hidden="true"><span class="ov-story__n">' +
-            f.n +
-            '</span>' +
-            ui.icon(f.icon, { size: 22 }) +
-            '</div><div class="ov-story__text"><p class="ov-story__time">' +
-            esc(t('overview.video.frame', { n: f.n, from: f.from, to: f.to })) +
-            '</p><h4 class="ov-story__title">' +
-            esc(f.title) +
-            '</h4><p class="ov-story__screen"><span class="ov-story__label">' +
-            esc(t('overview.video.onScreen')) +
-            '</span> ' +
-            esc(f.screen) +
-            '</p></div></li>'
-          );
-        })
-        .join('') +
-      '</ol>' +
-      '<p class="ov-vdlg__note">' +
-      esc(t('overview.video.figures')) +
-      '</p>' +
-      '<h3 class="ov-vdlg__h">' +
-      esc(t('overview.video.transcript')) +
-      '</h3>' +
-      '<div class="ov-transcript">' +
-      frames
-        .map(function (f) {
-          return '<p><span class="ov-transcript__time">' + esc(f.from) + '</span><span>' + esc(f.say) + '</span></p>';
-        })
-        .join('') +
-      '</div>' +
-      '<h3 class="ov-vdlg__h">' +
-      esc(t('overview.video.prodTitle')) +
-      '</h3>' +
-      '<ul class="ov-req">' +
-      reqs
-        .map(function (r) {
-          return '<li>' + ui.icon('check', { size: 16 }) + '<span>' + esc(t('overview.video.' + r)) + '</span></li>';
-        })
-        .join('') +
-      '</ul>' +
-      '</div>' +
-      '<div class="dlg__foot"><button type="button" class="btn" data-ov-video-close data-fk="ov-video-done">' +
-      esc(t('common.close')) +
-      '</button></div>'
-    );
+  }
+  function put(a, prop, val) {
+    if (a.last[prop] === val) return;
+    a.last[prop] = val;
+    if (prop.charAt(0) === '-') a.el.style.setProperty(prop, val);
+    else a.el.style[prop] = val;
+  }
+  /** One element at time t: a pure function of t (and of reduced motion). */
+  function applyAnim(a, t, rm) {
+    if (a.i !== null || a.o !== null || a.dim !== null) {
+      var o = 1;
+      var move = MOVES[a.fx];
+      var k = 1;
+      if (a.i !== null) {
+        k = ramp(t, a.i, rm ? 0.3 : a.d || 0.55);
+        o = k;
+      }
+      if (a.o !== null) o *= 1 - ramp(t, a.o, 0.35);
+      if (a.dim !== null) o *= 1 - 0.62 * ramp(t, a.dim, 0.5);
+      o = Math.round(o * 1000) / 1000;
+      put(a, 'opacity', String(o));
+      put(a, 'visibility', o <= 0 ? 'hidden' : '');
+      if (move) {
+        var off = rm ? 0 : 1 - k;
+        put(a, 'transform', off > 0.0005 ? 'translate(' + r2(move[0] * off) + 'cqw,' + r2(move[1] * off) + 'cqw)' : '');
+      }
+    }
+    if (a.p) put(a, '--p', String(rm ? (t >= a.p[0] ? 1 : 0) : Math.round(easeInOut(clamp01((t - a.p[0]) / a.p[1])) * 1000) / 1000));
+    if (a.hl) {
+      var d = rm ? 0.15 : 0.3;
+      put(a, '--hl', String(Math.round(Math.min(ramp(t, a.hl[0], d), 1 - ramp(t, a.hl[1] - d, d)) * 1000) / 1000));
+    }
   }
 
-  function openVideo(trigger) {
-    var dlg = doc.getElementById('video-dialog');
-    if (!dlg) return;
-    ui.render(dlg, videoDialogHtml());
-    ui.openDialog(dlg, { trigger: trigger, initialFocus: '#video-dialog-title' });
+  /** Pointer targets as percentages of the stage, from the laid-out (untransformed) boxes. */
+  function measureTargets() {
+    var stage = VP.stage;
+    if (!stage || !stage.clientWidth) return null;
+    var W = stage.clientWidth;
+    var H = stage.clientHeight;
+    var out = { rest: { x: 72, y: 82 }, aside: { x: 87, y: 63 } };
+    ui.$$('[data-pt]', stage).forEach(function (el) {
+      var x = 0;
+      var y = 0;
+      var n = el;
+      while (n && n !== stage) {
+        x += n.offsetLeft;
+        y += n.offsetTop;
+        n = n.offsetParent;
+      }
+      var name = el.getAttribute('data-pt');
+      // Point near the start of a row or button, clear of most of its words.
+      var fx = name === 'step' ? 0.08 : name === 'row' ? 0.2 : 0.13;
+      out[name] = { x: ((x + el.offsetWidth * fx) / W) * 100, y: ((y + el.offsetHeight * 0.55) / H) * 100 };
+    });
+    return out;
   }
+  function drawPointer(t, rm) {
+    var el = VP.ptr;
+    if (!el) return;
+    if (!VP.targets) VP.targets = measureTargets();
+    var tg = VP.targets;
+    var path = pointerPath();
+    var o = ramp(t, path[0][0] - 0.3, 0.3) * (1 - ramp(t, sceneEnd(3) - 0.7, 0.3));
+    el.style.opacity = String(Math.round(o * 1000) / 1000);
+    el.style.visibility = o <= 0 || !tg ? 'hidden' : '';
+    if (!tg) return;
+    var pos = tg[path[0][1]];
+    for (var k = 0; k < path.length - 1; k++) {
+      var a = path[k];
+      var b = path[k + 1];
+      if (t < a[0]) break;
+      var from = tg[a[1]] || pos;
+      var to = tg[b[1]] || from;
+      if (t >= b[0]) {
+        pos = to;
+        continue;
+      }
+      if (a[1] === b[1]) pos = from;
+      else if (rm) pos = from; // a cut on arrival
+      else {
+        var q = easeInOut((t - a[0]) / (b[0] - a[0]));
+        pos = { x: from.x + (to.x - from.x) * q, y: from.y + (to.y - from.y) * q };
+      }
+      break;
+    }
+    if (!pos) pos = tg.rest;
+    el.style.left = r2(pos.x) + '%';
+    el.style.top = r2(pos.y) + '%';
+    var press = 0;
+    PRESS().forEach(function (p) {
+      var d = t - p;
+      if (d >= 0 && d < 0.6) press = Math.max(press, Math.sin((d / 0.6) * Math.PI));
+    });
+    el.style.setProperty('--press', String(Math.round(press * 1000) / 1000));
+  }
+
+  /** The picture at time t. */
+  function drawFrame(t) {
+    var rm = ui.reducedMotion();
+    for (var i = 0; i < VP.anims.length; i++) applyAnim(VP.anims[i], t, rm);
+    drawPointer(t, rm);
+  }
+  function shownTime() {
+    return VP.started ? VP.t : VID.poster;
+  }
+  function draw() {
+    if (VP.el) drawFrame(shownTime());
+  }
+
+  function cueAt(t) {
+    for (var i = VP.cues.length - 1; i >= 0; i--) if (t >= VP.cues[i].at && t < VP.cues[i].end) return i;
+    return -1;
+  }
+
+  /* ---- narration */
+  function synth() {
+    try {
+      return root.speechSynthesis || null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function normLang(s) {
+    return String(s || '')
+      .replace(/_/g, '-')
+      .toLowerCase();
+  }
+  /**
+   * The device voice for the current language: an exact locale, then the same
+   * language. Offline voices only: a network voice (localService false, such
+   * as Chrome's "Google …" voices) would send the narration, with the
+   * statement's figures, off the device. Without one it plays with captions.
+   */
+  function voiceInfo() {
+    var s = synth();
+    if (!s || typeof root.SpeechSynthesisUtterance !== 'function') return { state: 'none' };
+    var list;
+    try {
+      list = s.getVoices() || [];
+    } catch (e) {
+      list = [];
+    }
+    if (!list.length) return { state: VOICE.settled ? 'none' : 'pending' };
+    var lang = YES.i18n.lang;
+    var want = normLang(YES.i18n.locale());
+    var exact = [];
+    var same = [];
+    for (var i = 0; i < list.length; i++) {
+      var l = normLang(list[i].lang);
+      if (l === want) exact.push(list[i]);
+      else if (l.split('-')[0] === lang) same.push(list[i]);
+    }
+    function local(arr) {
+      for (var j = 0; j < arr.length; j++) if (arr[j].localService) return arr[j];
+      return null;
+    }
+    var v = local(exact) || local(same);
+    return v ? { state: 'ready', voice: v } : { state: 'none' };
+  }
+  /** 'recorded' | 'voice' | 'pending' (voices still loading) | 'none'. */
+  function mode() {
+    if (VP.audio && recordedSrc() && !VP.audioFailed[YES.i18n.lang]) return 'recorded';
+    var s = voiceInfo().state;
+    return s === 'ready' ? 'voice' : s;
+  }
+  function watchVoices() {
+    var s = synth();
+    if (!s || VOICE.bound) return;
+    VOICE.bound = true;
+    var changed = function () {
+      VOICE.settled = true;
+      refreshVoice();
+    };
+    if (s.addEventListener) s.addEventListener('voiceschanged', changed);
+    else s.onvoiceschanged = changed;
+    // Some engines never announce their (empty) list: decide after a moment.
+    setTimeout(function () {
+      if (VOICE.settled) return;
+      VOICE.settled = true;
+      refreshVoice();
+    }, 1500);
+  }
+  /** Voices arrived (or never will): captions on and mute off when there is none. */
+  function refreshVoice() {
+    if (!VP.el) return;
+    var md = mode();
+    var lang = YES.i18n.lang;
+    if (md === 'none' && !VP.forcedCc[lang]) {
+      VP.forcedCc[lang] = true;
+      VP.cc = true;
+    }
+    if (md === 'voice' && VP.playing && VP.spokenCue >= 0 && !VP.sp.speaking) startCue();
+    syncUi();
+  }
+  function speakCue(i) {
+    if (!VP.playing || VP.muted || mode() !== 'voice') return;
+    var s = synth();
+    var cue = VP.cues[i];
+    var info = voiceInfo();
+    if (!s || !cue || info.state !== 'ready') return;
+    try {
+      if (VP.sp.speaking || s.speaking || s.pending) s.cancel();
+    } catch (e) {
+      /* the engine refused: speak anyway */
+    }
+    var u = new root.SpeechSynthesisUtterance(cue.say);
+    u.lang = YES.i18n.locale();
+    u.voice = info.voice;
+    u.rate = 1;
+    u.pitch = 1;
+    var token = ++VP.sp.token;
+    VP.sp.speaking = true;
+    VP.sp.cue = i;
+    VP.sp.holdAt = 0;
+    u.onend = u.onerror = function () {
+      if (token !== VP.sp.token) return;
+      VP.sp.speaking = false;
+      VP.sp.holdAt = 0;
+    };
+    try {
+      s.speak(u);
+    } catch (e) {
+      VP.sp.speaking = false;
+    }
+  }
+  function stopSpeech() {
+    VP.sp.token++;
+    VP.sp.speaking = false;
+    VP.sp.cue = -1;
+    VP.sp.holdAt = 0;
+    var s = synth();
+    if (s) {
+      try {
+        s.cancel();
+      } catch (e) {
+        /* nothing to stop */
+      }
+    }
+  }
+  /** After Play, a resume or a seek: read the cue under the playhead only from its first 40%. */
+  function startCue() {
+    var i = cueAt(VP.t);
+    VP.spokenCue = i;
+    if (i < 0 || !VP.playing) return;
+    var c = VP.cues[i];
+    if (VP.t - c.at <= VID.resumeShare * (c.end - c.at)) speakCue(i);
+  }
+  /** A slow voice holds the picture at the end of its cue (briefly), so it never runs into the next one. */
+  function holdForVoice(next, n) {
+    var sp = VP.sp;
+    if (!sp.speaking || sp.cue < 0 || VP.muted || mode() !== 'voice') {
+      sp.holdAt = 0;
+      return next;
+    }
+    var end = VP.cues[sp.cue].end;
+    if (next < end) return next;
+    if (!sp.holdAt) sp.holdAt = n;
+    if (n - sp.holdAt > VID.holdMs) return next;
+    return Math.max(VP.t, end - 0.001);
+  }
+
+  /* ---- recorded voiceover */
+  function audioUsable() {
+    return !!VP.audio && mode() === 'recorded';
+  }
+  function audioCanSeek(a) {
+    return !isFinite(a.duration) || VP.t < a.duration - 0.05;
+  }
+  function audioSeek() {
+    var a = VP.audio;
+    if (!audioUsable()) return;
+    try {
+      if (audioCanSeek(a)) a.currentTime = VP.t;
+    } catch (e) {
+      /* not seekable yet: play() starts from the default position */
+    }
+  }
+  function audioFailed() {
+    VP.audioFailed[YES.i18n.lang] = true;
+    if (VP.audio) VP.audio.pause();
+    syncUi();
+    if (VP.playing) startCue(); // the device voice takes over
+  }
+  function audioPlay() {
+    var a = VP.audio;
+    if (!audioUsable()) return;
+    a.muted = VP.muted;
+    audioSeek();
+    var p;
+    try {
+      p = a.play();
+    } catch (e) {
+      audioFailed();
+      return;
+    }
+    if (p && p.catch)
+      p.catch(function (err) {
+        if (!err || err.name !== 'AbortError') audioFailed();
+      });
+  }
+  function audioPause() {
+    if (VP.audio && !VP.audio.paused) VP.audio.pause();
+  }
+  function audioDrift() {
+    var a = VP.audio;
+    if (!audioUsable() || a.paused) return;
+    if (audioCanSeek(a) && Math.abs(a.currentTime - VP.t) > 0.3) {
+      try {
+        a.currentTime = VP.t;
+      } catch (e) {
+        /* try again on the next frame */
+      }
+    }
+  }
+
+  /* ---- transport */
+  function schedule() {
+    if (!VP.raf && VP.playing) VP.raf = root.requestAnimationFrame(tick);
+  }
+  function tick() {
+    VP.raf = 0;
+    if (!VP.playing || !VP.el || !VP.el.isConnected) return;
+    var n = now();
+    var dt = Math.min(0.25, Math.max(0, (n - VP.last) / 1000));
+    VP.last = n;
+    var next = holdForVoice(VP.t + dt, n);
+    if (next >= VID.end) {
+      finish();
+      return;
+    }
+    VP.t = next;
+    var i = cueAt(VP.t);
+    if (i !== VP.spokenCue) {
+      VP.spokenCue = i;
+      if (i >= 0) speakCue(i);
+    }
+    audioDrift();
+    drawFrame(VP.t);
+    tickUi();
+    schedule();
+  }
+  function vpPlay() {
+    if (!VP.el || VP.playing) return;
+    if (VP.ended || VP.t >= VID.end - 0.05) VP.t = 0;
+    VP.ended = false;
+    VP.started = true;
+    VP.playing = true;
+    VP.last = now();
+    startCue();
+    audioPlay();
+    drawFrame(VP.t);
+    syncUi();
+    wake();
+    schedule();
+  }
+  function vpPause() {
+    if (VP.raf) root.cancelAnimationFrame(VP.raf);
+    VP.raf = 0;
+    var was = VP.playing;
+    VP.playing = false;
+    stopSpeech();
+    audioPause();
+    if (was) {
+      syncUi();
+      wake();
+    }
+  }
+  function finish() {
+    if (VP.raf) root.cancelAnimationFrame(VP.raf);
+    VP.raf = 0;
+    VP.t = VID.end;
+    VP.playing = false;
+    VP.ended = true;
+    stopSpeech();
+    audioPause();
+    drawFrame(VP.t);
+    syncUi();
+    wake();
+  }
+  function vpToggle() {
+    if (VP.playing) vpPause();
+    else vpPlay();
+  }
+  function vpSeek(sec, opts) {
+    if (!VP.el) return;
+    VP.t = Math.max(0, Math.min(VID.end, sec));
+    VP.started = true;
+    stopSpeech();
+    if (VP.t >= VID.end) {
+      finish();
+      return;
+    }
+    VP.ended = false;
+    audioSeek();
+    if (VP.playing) {
+      VP.last = now();
+      startCue();
+    } else VP.spokenCue = cueAt(VP.t);
+    drawFrame(VP.t);
+    syncUi();
+    wake();
+    if (opts && opts.play) vpPlay();
+  }
+  function vpMute() {
+    if (mode() === 'none') return;
+    VP.muted = !VP.muted;
+    setOv('muted', VP.muted);
+    if (VP.audio) VP.audio.muted = VP.muted;
+    if (VP.muted) stopSpeech();
+    else if (VP.playing) startCue();
+    syncUi();
+  }
+  function vpCc() {
+    VP.cc = !VP.cc;
+    setOv('cc', VP.cc);
+    syncUi();
+  }
+  function fsEnabled() {
+    return !!(doc.fullscreenEnabled || doc.webkitFullscreenEnabled);
+  }
+  function fsActive() {
+    var f = doc.fullscreenElement || doc.webkitFullscreenElement || null;
+    return !!f && f === VP.el;
+  }
+  function vpFs() {
+    var p = VP.el;
+    if (!p || !fsEnabled()) return;
+    var r = null;
+    try {
+      if (fsActive()) {
+        var exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+        if (exit) r = exit.call(doc);
+      } else {
+        var req = p.requestFullscreen || p.webkitRequestFullscreen;
+        if (req) r = req.call(p);
+      }
+    } catch (e) {
+      r = null;
+    }
+    if (r && r.catch) r.catch(function () {});
+  }
+  /** On a phone held upright a 16:9 picture stays small in full screen: ask for landscape, as video players do. */
+  function fsOrientation(on) {
+    var o = root.screen && root.screen.orientation;
+    if (!o) return;
+    try {
+      if (!on) {
+        if (o.unlock) o.unlock();
+        return;
+      }
+      if (!o.lock || !root.matchMedia || !root.matchMedia('(pointer: coarse) and (orientation: portrait)').matches) return;
+      var r = o.lock('landscape');
+      if (r && r.catch) r.catch(function () {});
+    } catch (e) {
+      /* the browser keeps the orientation: the picture is letterboxed */
+    }
+  }
+  function onFullscreen() {
+    if (!VP.el) return;
+    fsOrientation(fsActive());
+    VP.el.classList.toggle('is-fs', fsActive());
+    VP.targets = null;
+    draw();
+    syncUi();
+  }
+
+  /** Activity shows the control bar; it hides again after a while of playing untouched. */
+  function wake() {
+    var p = VP.el;
+    if (!p) return;
+    p.classList.remove('is-idle');
+    clearTimeout(VP.idle);
+    if (!VP.playing) return;
+    VP.idle = setTimeout(function () {
+      if (VP.playing && VP.el === p && !p.querySelector(':focus-visible')) p.classList.add('is-idle');
+    }, 2800);
+  }
+
+  /* ---- controls and text */
+  function q(sel) {
+    return VP.el ? VP.el.querySelector(sel) : null;
+  }
+  function setAttr(el, name, val) {
+    if (el && el.getAttribute(name) !== val) el.setAttribute(name, val);
+  }
+  function syncUi() {
+    var p = VP.el;
+    if (!p) return;
+    var md = mode();
+    var title = t('overview.video.title');
+    p.classList.toggle('is-started', VP.started);
+    p.classList.toggle('is-playing', VP.playing);
+    p.classList.toggle('is-ended', VP.ended);
+    setAttr(
+      q('[data-vp-big]'),
+      'aria-label',
+      VP.ended ? t('overview.video.replayLabel', { title: title }) : t('overview.video.playLabel', { title: title, time: tc(VID.end) })
+    );
+    setAttr(q('[data-fk="vp-toggle"]'), 'aria-label', t(VP.ended ? 'overview.video.replay' : VP.playing ? 'overview.video.pause' : 'overview.video.play'));
+    var mute = q('[data-vp="mute"]');
+    if (mute) {
+      setAttr(mute, 'aria-pressed', String(VP.muted));
+      mute.disabled = md === 'none';
+    }
+    setAttr(q('[data-vp="cc"]'), 'aria-pressed', String(VP.cc));
+    var fs = q('[data-vp="fs"]');
+    if (fs) {
+      fs.hidden = !fsEnabled();
+      setAttr(fs, 'aria-label', t(fsActive() ? 'overview.video.fsExit' : 'overview.video.fs'));
+    }
+    var card = p.closest('.ov-video');
+    if (card) {
+      var note = card.querySelector('[data-vp-note]');
+      if (note) note.hidden = md !== 'none';
+      var honest = card.querySelector('[data-vp-honest]');
+      if (honest) honest.textContent = t(md === 'recorded' ? 'overview.video.honestRecorded' : md === 'none' ? 'overview.video.honestSilent' : 'overview.video.honest');
+    }
+    VP.shown = { sec: -1, cue: -2, ch: -2, cc: null };
+    tickUi();
+  }
+  /** Time, slider, captions and the current chapter / transcript line (only what changed). */
+  function tickUi() {
+    var p = VP.el;
+    if (!p) return;
+    var sec = VP.started ? VP.t : 0;
+    var range = q('[data-vp-range]');
+    if (range && !VP.dragging) range.value = String(r2(sec));
+    var seek = q('.vp-seek');
+    if (seek) seek.style.setProperty('--pct', r2((sec / VID.end) * 100) + '%');
+    var whole = Math.floor(sec + 1e-6);
+    if (whole !== VP.shown.sec) {
+      VP.shown.sec = whole;
+      var nowEl = q('[data-vp-now]');
+      if (nowEl) nowEl.textContent = tc(sec);
+      setAttr(range, 'aria-valuetext', seekText(sec));
+    }
+    var ci = VP.started && !VP.ended ? cueAt(sec) : -1;
+    if (ci !== VP.shown.cue || VP.cc !== VP.shown.cc) {
+      VP.shown.cue = ci;
+      VP.shown.cc = VP.cc;
+      var cc = q('[data-vp-cc]');
+      if (cc) {
+        cc.hidden = !(VP.cc && ci >= 0);
+        cc.firstChild.textContent = ci >= 0 ? VP.cues[ci].text : '';
+      }
+      var card = p.closest('.ov-video');
+      if (card) {
+        ui.$$('[data-vp-cue]', card).forEach(function (b) {
+          var on = +b.getAttribute('data-vp-cue') === ci;
+          b.classList.toggle('is-current', on);
+          if (on) b.setAttribute('aria-current', 'true');
+          else b.removeAttribute('aria-current');
+        });
+      }
+    }
+    var ch = VP.started ? chapterAt(sec) : -1;
+    if (ch !== VP.shown.ch) {
+      VP.shown.ch = ch;
+      var c2 = p.closest('.ov-video');
+      if (c2) {
+        ui.$$('[data-vp-ch]', c2).forEach(function (b) {
+          if (+b.getAttribute('data-vp-ch') === ch) b.setAttribute('aria-current', 'true');
+          else b.removeAttribute('aria-current');
+        });
+      }
+    }
+  }
+
+  /** After each render: find the new player, read its animations and redraw at the playhead. */
+  function vpBind() {
+    var p = doc.querySelector('#overview-root [data-vp-player]');
+    VP.el = p;
+    if (!p) {
+      VP.stage = VP.ptr = VP.audio = null;
+      VP.anims = [];
+      return;
+    }
+    VP.stage = p.querySelector('.vp-stage');
+    VP.anims = buildAnims(VP.stage);
+    VP.ptr = VP.stage.querySelector('[data-pointer]');
+    VP.targets = null;
+    VP.audio = p.querySelector('[data-vp-audio]');
+    VP.cc = ovState().cc !== false;
+    VP.muted = !!ovState().muted;
+    if (mode() === 'none') VP.cc = true;
+    if (VP.audio) {
+      VP.audio.muted = VP.muted;
+      VP.audio.addEventListener('error', audioFailed);
+    }
+    p.classList.toggle('is-fs', fsActive());
+    draw();
+    syncUi();
+  }
+
+  /** Keys inside the player (a focused button keeps Space and Enter for itself). */
+  function onPlayerKey(e) {
+    var p = e.target.closest && e.target.closest('[data-vp-player]');
+    if (!p || e.ctrlKey || e.metaKey || e.altKey) return;
+    var onRange = e.target.matches('[data-vp-range]');
+    var onButton = e.target.tagName === 'BUTTON';
+    var k = e.key;
+    var to = null;
+    if (onRange) {
+      if (k === 'ArrowLeft' || k === 'ArrowDown') to = VP.t - 5;
+      else if (k === 'ArrowRight' || k === 'ArrowUp') to = VP.t + 5;
+      else if (k === 'Home') to = 0;
+      else if (k === 'End') to = VID.end;
+      else if (k === 'PageUp' || k === 'PageDown') {
+        var ch = chapterAt(VP.started ? VP.t : 0);
+        if (k === 'PageUp') to = ch + 1 < VID.chapters.length ? VID.chapters[ch + 1].at : VID.end;
+        else to = VP.t - VID.chapters[ch].at > 1 ? VID.chapters[ch].at : VID.chapters[Math.max(0, ch - 1)].at;
+      }
+    } else if (k === 'ArrowLeft') to = VP.t - 5;
+    else if (k === 'ArrowRight') to = VP.t + 5;
+    if (to === null) {
+      if (k === 'j' || k === 'J') to = VP.t - 10;
+      else if (k === 'l' || k === 'L') to = VP.t + 10;
+    }
+    if (to !== null) {
+      e.preventDefault();
+      vpSeek(to);
+      return;
+    }
+    if ((k === ' ' && !onButton) || k === 'k' || k === 'K') vpToggle();
+    else if (k === 'm' || k === 'M') vpMute();
+    else if (k === 'c' || k === 'C') vpCc();
+    else if (k === 'f' || k === 'F') vpFs();
+    else return;
+    e.preventDefault();
+    wake();
+  }
+
+  /** Delegated events for the player, chapters and transcript (bound once, from init). */
+  function bindPlayer(el) {
+    ui.delegate(el, 'click', '[data-vp]', function (e, b) {
+      var act = b.getAttribute('data-vp');
+      if (act === 'toggle' || act === 'stage') {
+        var fromBig = b.hasAttribute('data-vp-big');
+        vpToggle();
+        // The big button goes away once playing: carry focus to Pause.
+        if (fromBig && VP.playing && doc.activeElement === b) {
+          var tg = q('[data-fk="vp-toggle"]');
+          if (tg) tg.focus({ preventScroll: true });
+        }
+      } else if (act === 'mute') vpMute();
+      else if (act === 'cc') vpCc();
+      else if (act === 'fs') vpFs();
+    });
+    ui.delegate(el, 'click', '[data-vp-seek]', function (e, b) {
+      vpSeek(parseFloat(b.getAttribute('data-vp-seek')), { play: true });
+      var p = VP.el;
+      if (p && p.getBoundingClientRect) {
+        var r = p.getBoundingClientRect();
+        // The sticky masthead covers the top of the window (the page's scroll padding).
+        var top = parseFloat(root.getComputedStyle(doc.documentElement).scrollPaddingTop) || 0;
+        if (r.top < top || r.bottom > (root.innerHeight || 0)) p.scrollIntoView({ block: 'nearest', behavior: ui.reducedMotion() ? 'auto' : 'smooth' });
+      }
+    });
+    el.addEventListener('input', function (e) {
+      if (e.target.matches && e.target.matches('[data-vp-range]')) vpSeek(parseFloat(e.target.value));
+    });
+    el.addEventListener('pointerdown', function (e) {
+      if (e.target.matches && e.target.matches('[data-vp-range]')) VP.dragging = true;
+    });
+    doc.addEventListener('pointerup', function () {
+      if (!VP.dragging) return;
+      VP.dragging = false;
+      tickUi();
+    });
+    doc.addEventListener('pointercancel', function () {
+      VP.dragging = false;
+    });
+    el.addEventListener('keydown', onPlayerKey);
+    el.addEventListener('pointermove', function (e) {
+      if (e.target.closest && e.target.closest('[data-vp-player]')) wake();
+    });
+    el.addEventListener('focusin', function (e) {
+      if (e.target.closest && e.target.closest('[data-vp-player]')) wake();
+    });
+    doc.addEventListener('fullscreenchange', onFullscreen);
+    doc.addEventListener('webkitfullscreenchange', onFullscreen);
+    // Pause whenever the video is out of sight: another view, a hidden tab, a page being left.
+    YES.on('view', function (v) {
+      if (v !== 'overview') vpPause();
+    });
+    doc.addEventListener('visibilitychange', function () {
+      if (doc.hidden) vpPause();
+    });
+    root.addEventListener('pagehide', function () {
+      vpPause();
+    });
+    // A voice left speaking by an earlier page (some engines keep their queue) stops now.
+    var s = synth();
+    if (s) {
+      try {
+        s.cancel();
+      } catch (e) {
+        /* nothing queued */
+      }
+    }
+    watchVoices();
+  }
+
+  /* Public API for the video (tests and other modules). */
+  var videoApi = {
+    play: vpPlay,
+    pause: vpPause,
+    seek: function (sec, opts) {
+      vpSeek(sec, opts);
+    },
+    state: function () {
+      return {
+        t: VP.t,
+        playing: VP.playing,
+        started: VP.started,
+        ended: VP.ended,
+        duration: VID.end,
+        cue: VP.started ? cueAt(VP.t) : -1,
+        chapter: VP.started ? chapterAt(VP.t) : -1,
+        captions: VP.cc,
+        muted: VP.muted,
+        mode: mode()
+      };
+    },
+    chapters: function () {
+      return VID.chapters.map(function (c, i) {
+        return { id: c.id, at: c.at, end: sceneEnd(i), title: chapterTitle(i) };
+      });
+    },
+    cues: function () {
+      return VP.cues.map(function (c) {
+        return { id: c.id, at: c.at, end: c.end, chapter: c.ch, text: c.text, say: c.say };
+      });
+    }
+  };
 
   /* ------------------------------------------------------------------ */
   /* Chart interaction (pointer crosshair + keyboard points)             */
@@ -2126,13 +3620,16 @@
   /* ------------------------------------------------------------------ */
   function viewHtml() {
     var rec = YES.calc.reconcile(YES.data);
-    return headerHtml() + balanceHtml() + journeySectionHtml(rec) + whyHtml(rec) + videoCardHtml();
+    return headerHtml() + balanceHtml() + journeySectionHtml(rec) + whyHtml(rec) + videoCardHtml(rec);
   }
 
   function render() {
     var el = doc.getElementById('overview-root');
     if (!el) return;
+    // A full re-render (a language switch) pauses the video and keeps its playhead.
+    if (VP.playing) vpPause();
     ui.render(el, viewHtml());
+    vpBind();
     placePanel(); // the first render cannot know the layout before the journey exists
     var host = plotHost();
     if (host && host.clientWidth && (!host.firstChild || Math.abs(host.clientWidth - chart.lastW) >= 1)) renderPlot();
@@ -2141,9 +3638,8 @@
       if (host) observer.observe(host);
       var body = doc.getElementById('ov-journey-body');
       if (body) observer.observe(body);
+      if (VP.stage) observer.observe(VP.stage);
     }
-    var dlg = doc.getElementById('video-dialog');
-    if (dlg && dlg.open) ui.render(dlg, videoDialogHtml());
   }
 
   /* Public API (replaces the stubs in 04-core.js). */
@@ -2155,7 +3651,9 @@
     /** Clear the journey selection. */
     clearStep: function () {
       clearSelection({ returnFocus: false });
-    }
+    },
+    /** "Your statement in 60 seconds": play(), pause(), seek(seconds, { play }), state(), chapters(), cues(). */
+    video: videoApi
   };
 
   YES.register({
@@ -2291,43 +3789,71 @@
         'overview.video.desc': 'A short, personal walkthrough of your {month} balance, your largest movement and where to get help.',
         'overview.video.duration': 'Duration {time}',
         'overview.video.optional': 'Optional; it never plays on its own',
-        'overview.video.dlgTitle': 'Placeholder: there is no video in this demo.',
-        'overview.video.placeholderShort': 'This demo includes a storyboard, not a video.',
+        'overview.video.honest': 'An animated walkthrough built from this statement’s sample figures, narrated by your device’s built-in voice.',
+        'overview.video.honestRecorded': 'An animated walkthrough built from this statement’s sample figures, narrated by the approved recording.',
+        'overview.video.honestSilent': 'An animated walkthrough built from this statement’s sample figures, with captions.',
+        'overview.video.noVoice': 'Voiceover isn’t available in this language on this device — captions are on.',
+        'overview.video.withheld': 'This video is withheld because the statement does not reconcile.',
+        'overview.video.player': 'Video player: {title}',
+        'overview.video.playLabel': 'Play video: {title} ({time})',
+        'overview.video.replayLabel': 'Replay video: {title}',
         'overview.video.play': 'Play',
-        'overview.video.playLabel': 'Play: {title} ({time}, placeholder storyboard)',
-        'overview.video.posterHello': 'Hello, {name}',
-        'overview.video.dlgNotice': 'Nothing is streamed or played. The storyboard below shows what a personalized video would cover, using figures from this statement.',
-        'overview.video.storyboard': 'Storyboard',
-        'overview.video.bodyLabel': 'Storyboard, transcript and production notes',
-        'overview.video.frame': 'Frame {n} · {from}–{to}',
-        'overview.video.onScreen': 'On screen:',
+        'overview.video.pause': 'Pause',
+        'overview.video.replay': 'Replay',
+        'overview.video.seek': 'Video position',
+        'overview.video.seekText': '{now} of {total}, chapter {n}: {chapter}',
+        'overview.video.mute': 'Mute voiceover',
+        'overview.video.cc': 'Captions',
+        'overview.video.fs': 'Full screen',
+        'overview.video.fsExit': 'Exit full screen',
+        'overview.video.chapters': 'Chapters',
+        'overview.video.chapterLabel': 'Chapter {n}, {title}, {time}. Plays from here.',
+        'overview.video.chapterHead': 'Chapter {n}: {title}',
         'overview.video.transcript': 'Transcript',
-        'overview.video.figures': 'Every figure comes from this statement snapshot.',
-        'overview.video.f1.title': 'Personal greeting',
-        'overview.video.f1.screen': 'The YES logo and “Hello, {name}”, with the statement period {period}.',
-        'overview.video.f1.say': 'Hello, {name}. This is your YES statement for {period}.',
-        'overview.video.f2.title': 'Opening and closing balance',
-        'overview.video.f2.screen': 'The balance journey from {opening} to {closing}.',
-        'overview.video.f2.say': 'You began the period with {opening} and closed it with {closing}, a net change of {net}.',
-        'overview.video.f3.title': 'Largest meaningful movement',
-        'overview.video.f3.screen': 'A highlight of {amount} on {date}.',
-        'overview.video.f3.say': 'Your largest movement was {amount} on {date}: {description}.',
-        'overview.video.f3none.title': 'Largest meaningful movement',
-        'overview.video.f3none.screen': 'A calm, unchanged balance.',
-        'overview.video.f3none.say': 'There were no movements this period.',
-        'overview.video.f4.title': 'How to inspect a transaction',
-        'overview.video.f4.screen': 'A journey step opening its transactions, then one transaction’s details.',
-        'overview.video.f4.say': 'Select any step of your balance journey to see the transactions behind it, then open one to check its dates, fees and reference.',
-        'overview.video.f5.title': 'Where to get help',
-        'overview.video.f5.screen': 'Ask YES and the Help section.',
-        'overview.video.f5.say': 'If something does not look right, ask YES or visit Help. We are here to help.',
-        'overview.video.prodTitle': 'What the production video needs',
-        'overview.video.req1': 'An approved video asset or rendering service',
-        'overview.video.req2': 'Captions in English and Spanish',
-        'overview.video.req3': 'A full transcript, like the one above',
-        'overview.video.req4': 'Play, pause and stop controls, and never autoplay',
-        'overview.video.req5': 'Localized voice-over and on-screen text',
-        'overview.video.req6': 'A static fallback: if the video cannot load, the written statement remains complete'
+        'overview.video.transcriptNote': 'Select a line to play the video from there.',
+        'overview.video.ch.greet': 'Personal greeting',
+        'overview.video.ch.balance': 'Opening and closing balance',
+        'overview.video.ch.largest': 'Largest meaningful movement',
+        'overview.video.ch.inspect': 'How to inspect a transaction',
+        'overview.video.ch.help': 'Where to get help',
+        'overview.video.posterHello': 'Hello, {name}',
+        'overview.video.greetSub': 'Your YES statement for {period}',
+        'overview.video.inThis': 'In this video',
+        'overview.video.everyMove': 'Every posted movement',
+        'overview.video.reference': 'Reference',
+        'overview.video.pick': 'Select a step to see its transactions',
+        'overview.video.feeNone': 'None',
+        'overview.video.ask': 'Ask about this transaction',
+        'overview.video.askBody': 'Answers about any figure, from this statement.',
+        'overview.video.askSample': 'Why did my balance change?',
+        'overview.video.helpBody': 'Contact options and your statement record.',
+        'overview.video.bye': 'We are here to help.',
+        'overview.video.sig': 'Your YES statement · {month}',
+        /* Captions: one short sentence per cue, with the figures as the statement shows them. */
+        'overview.video.cue.hello': 'Hello, {name}.',
+        'overview.video.cue.period': 'This is your YES statement for {period}.',
+        'overview.video.cue.opening': 'You started the period with {opening}.',
+        'overview.video.cue.incoming': 'Incoming activity added {incoming}.',
+        'overview.video.cue.outgoing': 'Outgoing activity and fees took away {outgoing}.',
+        'overview.video.cue.closing': 'You closed the period with {closing}.',
+        'overview.video.cue.largest': 'Your largest single movement was {amount}.',
+        'overview.video.cue.largestNone': 'There were no movements this period.',
+        'overview.video.cue.what': '{description}, posted on {date}.',
+        'overview.video.cue.whatNone': 'Your balance stayed at {closing}.',
+        'overview.video.cue.select': 'Select any step of your balance journey.',
+        'overview.video.cue.rows': 'Its transactions appear, and they add up exactly.',
+        'overview.video.cue.open': 'Open one to check its dates, reference and fees.',
+        'overview.video.cue.actions': 'From there, use Explain with AI or Ask about this transaction.',
+        'overview.video.cue.help': 'Questions? Ask YES, or open Help to contact us.',
+        'overview.video.cue.bye': 'If something does not look right, we are here to help.',
+        /* What the voice says where a caption would read badly aloud ("EXUSD", grouped decimals). */
+        'overview.video.say.period': 'This is your YES statement for {month}.',
+        'overview.video.say.opening': 'You started the period with {openingSay} tokens.',
+        'overview.video.say.incoming': 'Incoming activity added {incomingSay}.',
+        'overview.video.say.outgoing': 'Outgoing activity and fees took away {outgoingSay}.',
+        'overview.video.say.closing': 'You closed the period with {closingSay} tokens.',
+        'overview.video.say.largestIn': 'Your largest single movement added {amountSay} tokens.',
+        'overview.video.say.largestOut': 'Your largest single movement took away {amountSay} tokens.'
       },
       es: {
         'overview.title': 'Tu estado de cuenta de {month}',
@@ -2459,49 +3985,74 @@
         'overview.video.desc': 'Un recorrido breve y personal por tu saldo de {month}, tu mayor movimiento y dónde obtener ayuda.',
         'overview.video.duration': 'Duración {time}',
         'overview.video.optional': 'Opcional; nunca se reproduce solo',
-        'overview.video.dlgTitle': 'Marcador de posición: esta demostración no incluye ningún video.',
-        'overview.video.placeholderShort': 'Esta demostración incluye un guion gráfico, no un video.',
+        'overview.video.honest': 'Un recorrido animado creado con las cifras de muestra de este estado de cuenta, narrado con la voz integrada de tu dispositivo.',
+        'overview.video.honestRecorded': 'Un recorrido animado creado con las cifras de muestra de este estado de cuenta, narrado con la grabación aprobada.',
+        'overview.video.honestSilent': 'Un recorrido animado creado con las cifras de muestra de este estado de cuenta, con subtítulos.',
+        'overview.video.noVoice': 'La locución no está disponible en este idioma en este dispositivo; los subtítulos están activados.',
+        'overview.video.withheld': 'Este video se retiene porque el estado de cuenta no cuadra.',
+        'overview.video.player': 'Reproductor de video: {title}',
+        'overview.video.playLabel': 'Reproducir video: {title} ({time})',
+        'overview.video.replayLabel': 'Volver a ver el video: {title}',
         'overview.video.play': 'Reproducir',
-        'overview.video.playLabel': 'Reproducir: {title} ({time}, guion gráfico de muestra)',
-        'overview.video.posterHello': 'Hola, {name}',
-        'overview.video.dlgNotice': 'No se transmite ni se reproduce nada. El guion gráfico muestra lo que cubriría un video personalizado, con las cifras de este estado de cuenta.',
-        'overview.video.storyboard': 'Guion gráfico',
-        'overview.video.bodyLabel': 'Guion gráfico, transcripción y notas de producción',
-        'overview.video.frame': 'Escena {n} · {from}–{to}',
-        'overview.video.onScreen': 'En pantalla:',
+        'overview.video.pause': 'Pausar',
+        'overview.video.replay': 'Volver a ver',
+        'overview.video.seek': 'Posición del video',
+        'overview.video.seekText': '{now} de {total}, capítulo {n}: {chapter}',
+        'overview.video.mute': 'Silenciar la locución',
+        'overview.video.cc': 'Subtítulos',
+        'overview.video.fs': 'Pantalla completa',
+        'overview.video.fsExit': 'Salir de pantalla completa',
+        'overview.video.chapters': 'Capítulos',
+        'overview.video.chapterLabel': 'Capítulo {n}, {title}, {time}. Reproduce desde aquí.',
+        'overview.video.chapterHead': 'Capítulo {n}: {title}',
         'overview.video.transcript': 'Transcripción',
-        'overview.video.figures': 'Todas las cifras provienen de esta instantánea del estado de cuenta.',
-        'overview.video.f1.title': 'Saludo personal',
-        'overview.video.f1.screen': 'El logotipo de YES y «Hola, {name}», con el período del estado de cuenta: {period}.',
-        'overview.video.f1.say': 'Hola, {name}. Este es tu estado de cuenta de YES del {period}.',
-        'overview.video.f2.title': 'Saldo inicial y final',
-        'overview.video.f2.screen': 'El recorrido del saldo de {opening} a {closing}.',
-        'overview.video.f2.say': 'Empezaste el período con {opening} y lo cerraste con {closing}: un cambio neto de {net}.',
-        'overview.video.f3.title': 'El movimiento más relevante',
-        'overview.video.f3.screen': 'Un destacado de {amount} el {date}.',
-        'overview.video.f3.say': 'Tu mayor movimiento fue de {amount}, el {date}: {description}.',
-        'overview.video.f3none.title': 'El movimiento más relevante',
-        'overview.video.f3none.screen': 'Un saldo tranquilo, sin cambios.',
-        'overview.video.f3none.say': 'No hubo movimientos en este período.',
-        'overview.video.f4.title': 'Cómo revisar un movimiento',
-        'overview.video.f4.screen': 'Un paso del recorrido que muestra sus movimientos y, después, el detalle de uno de ellos.',
-        'overview.video.f4.say': 'Selecciona cualquier paso del recorrido del saldo para ver sus movimientos y abre uno para revisar sus fechas, comisiones y referencia.',
-        'overview.video.f5.title': 'Dónde obtener ayuda',
-        'overview.video.f5.screen': 'Pregunta a YES y la sección de Ayuda.',
-        'overview.video.f5.say': 'Si algo no te cuadra, pregunta a YES o visita la sección de Ayuda. Estamos aquí para ayudarte.',
-        'overview.video.prodTitle': 'Qué necesita el video en producción',
-        'overview.video.req1': 'Un video aprobado o un servicio de generación de video aprobado',
-        'overview.video.req2': 'Subtítulos en inglés y en español',
-        'overview.video.req3': 'Una transcripción completa, como la anterior',
-        'overview.video.req4': 'Controles para reproducir, pausar y detener, y nunca reproducción automática',
-        'overview.video.req5': 'Locución y texto en pantalla localizados',
-        'overview.video.req6': 'Una alternativa estática: si el video no carga, el estado de cuenta escrito sigue completo'
+        'overview.video.transcriptNote': 'Selecciona una línea para reproducir el video desde ahí.',
+        'overview.video.ch.greet': 'Saludo personal',
+        'overview.video.ch.balance': 'Saldo inicial y final',
+        'overview.video.ch.largest': 'El movimiento más relevante',
+        'overview.video.ch.inspect': 'Cómo revisar un movimiento',
+        'overview.video.ch.help': 'Dónde obtener ayuda',
+        'overview.video.posterHello': 'Hola, {name}',
+        'overview.video.greetSub': 'Tu estado de cuenta de YES del {period}',
+        'overview.video.inThis': 'En este video',
+        'overview.video.everyMove': 'Todos los movimientos registrados',
+        'overview.video.reference': 'Referencia',
+        'overview.video.pick': 'Selecciona un paso para ver sus movimientos',
+        'overview.video.feeNone': 'Ninguna',
+        'overview.video.ask': 'Preguntar por este movimiento',
+        'overview.video.askBody': 'Respuestas sobre cualquier cifra, a partir de este estado de cuenta.',
+        'overview.video.askSample': '¿Por qué cambió mi saldo?',
+        'overview.video.helpBody': 'Opciones de contacto y descarga de tu estado de cuenta.',
+        'overview.video.bye': 'Estamos aquí para ayudarte.',
+        'overview.video.sig': 'Tu estado de cuenta de YES · {month}',
+        'overview.video.cue.hello': 'Hola, {name}.',
+        'overview.video.cue.period': 'Este es tu estado de cuenta de YES del {period}.',
+        'overview.video.cue.opening': 'Empezaste el período con {opening}.',
+        'overview.video.cue.incoming': 'Las entradas sumaron {incoming}.',
+        'overview.video.cue.outgoing': 'Las salidas y las comisiones restaron {outgoing}.',
+        'overview.video.cue.closing': 'Cerraste el período con {closing}.',
+        'overview.video.cue.largest': 'Tu mayor movimiento individual fue de {amount}.',
+        'overview.video.cue.largestNone': 'No hubo movimientos en este período.',
+        'overview.video.cue.what': '{description}, del {date}.',
+        'overview.video.cue.whatNone': 'Tu saldo se mantuvo en {closing}.',
+        'overview.video.cue.select': 'Selecciona cualquier paso del recorrido del saldo.',
+        'overview.video.cue.rows': 'Aparecen sus movimientos, que suman justo ese importe.',
+        'overview.video.cue.open': 'Abre uno para ver sus fechas, referencia y comisiones.',
+        'overview.video.cue.actions': 'Desde ahí, usa Explicar con IA o Preguntar por este movimiento.',
+        'overview.video.cue.help': '¿Dudas? Pregunta a YES o abre Ayuda para contactarnos.',
+        'overview.video.cue.bye': 'Si algo no te cuadra, estamos aquí para ayudarte.',
+        'overview.video.say.period': 'Este es tu estado de cuenta de {month}.',
+        'overview.video.say.opening': 'Empezaste el período con {openingSay} unidades de token.',
+        'overview.video.say.incoming': 'Las entradas sumaron {incomingSay}.',
+        'overview.video.say.outgoing': 'Las salidas y las comisiones restaron {outgoingSay}.',
+        'overview.video.say.closing': 'Cerraste el período con {closingSay} unidades de token.',
+        'overview.video.say.largestIn': 'Tu mayor movimiento sumó {amountSay} unidades de token.',
+        'overview.video.say.largestOut': 'Tu mayor movimiento restó {amountSay} unidades de token.'
       }
     },
 
     init: function () {
       var el = doc.getElementById('overview-root');
-      var dlg = doc.getElementById('video-dialog');
       if (!el) return;
 
       // Journey: steps and groups are toggles.
@@ -2540,14 +4091,7 @@
       ui.delegate(el, 'click', '[data-ov-help]', function () {
         YES.help.open('contact');
       });
-      ui.delegate(el, 'click', '[data-ov-video]', function (e, b) {
-        openVideo(b);
-      });
-      if (dlg) {
-        ui.delegate(dlg, 'click', '[data-ov-video-close]', function () {
-          ui.closeDialog(dlg);
-        });
-      }
+      bindPlayer(el);
 
       // Running-balance chart: crosshair + tooltip on hover, nearest point on click.
       el.addEventListener('pointermove', function (e) {
@@ -2641,6 +4185,9 @@
             var host = plotHost();
             if (host && host.clientWidth && Math.abs(host.clientWidth - chart.lastW) >= 2) renderPlot();
             placePanel();
+            // The video's pointer targets follow the stage's size (full screen, a docked assistant).
+            VP.targets = null;
+            draw();
           });
         });
       } else {

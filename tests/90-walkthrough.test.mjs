@@ -88,8 +88,15 @@ export default async function (t) {
   /* ================================================================== */
   t.step('1. open the statement (single file, offline)');
   t.assert(await state(() => YES.integrity && YES.integrity.ok === true), 'statement reconciles (release gate passed)');
-  t.assert(await page.locator('.demo-badge').first().isVisible(), '"Illustrative demo data" badge visible');
-  t.eq((await text('.demo-badge')).trim(), 'Illustrative demo data', 'demo badge wording');
+  // The header has no demo badge (product owner, 2026-10-04; PRD 4.1 had asked
+  // for one). The fictional data stays marked by the footer notice, the
+  // document title, the Illustrative tags (step 10) and the print and PDF
+  // watermarks (steps 11 and 11b).
+  t.eq(await page.locator('#masthead .demo-badge').count(), 0, 'no "Illustrative demo data" badge in the header');
+  t.assert(!/illustrative/i.test(await page.locator('#masthead').innerText()), 'nor a demo band above it');
+  t.assert(await page.locator('#site-footer .footer__demo').isVisible(), 'the footer demo notice is shown');
+  t.assert((await text('#site-footer .footer__demo')).includes('Showcase statement with illustrative demo data'), 'footer demo notice wording');
+  t.assert((await page.title()).endsWith('· Illustrative demo'), 'the document title marks the demo: ' + (await page.title()));
   t.assert(await page.locator('#h-overview').isVisible(), 'Overview heading visible on the first screen');
   t.eq(await state(() => YES.state.view), 'overview', 'first screen is Overview');
   t.eq(await page.locator('script[src], link[rel="stylesheet"], img[src^="http"], iframe').count() - (await page.locator('script[src*="userway"]').count()), 0, 'no external script/style/image/frame besides the UserWay loader');
@@ -317,6 +324,9 @@ export default async function (t) {
   const esPanel = await text('#ov-panel');
   t.assert(esPanel.includes('Transferencias enviadas') && esPanel.includes('−450,00 EXUSD'), 'rows re-rendered in Spanish with Spanish number format');
   t.eq((await text('#h-overview')).trim(), 'Tu estado de cuenta de septiembre de 2026', 'Spanish heading');
+  t.eq(await page.locator('#masthead .demo-badge').count(), 0, 'Spanish: no demo badge in the header');
+  t.assert(!/ilustrativ/i.test(await page.locator('#masthead').innerText()), 'Spanish: nor a demo band above it');
+  t.assert((await text('#site-footer .footer__demo')).includes('datos ilustrativos de demostración'), 'Spanish footer demo notice');
   if (!before.open || mobile) {
     await page.click('[data-fk="ask-yes"]');
     await waitFor(() => YES.state.assistant.open && document.querySelector('#assistant-root .asst-ans'));

@@ -394,7 +394,7 @@ export default async function (t) {
   const enh = await page.$$eval('[data-help-enh] tbody tr', (els) => els.map((e) => e.getAttribute('data-enh')));
   t.eq(enh, ['userway', 'ai', 'inquiry', 'video', 'feedback', 'analytics', 'evidence', 'liveBalance'], 'enhancement rows');
   const about = await text('#help-about');
-  for (const x of ['Online only', 'Local demo', 'Local mock', 'Placeholder', 'Session only', 'None', 'Illustrative only', 'Not connected', 'no live blockchain verification', 'no reserve assertion']) t.assert(about.includes(x), `about mentions ${x}`);
+  for (const x of ['Online only', 'Local demo', 'Local mock', 'Session only', 'None', 'Illustrative only', 'Not connected', 'no live blockchain verification', 'no reserve assertion']) t.assert(about.includes(x), `about mentions ${x}`);
   // Analytics: the statement measures nothing, but while it loads the
   // third-party UserWay widget it must not say that nothing leaves the page.
   const analytics = () => text('[data-enh="analytics"] td:first-of-type .help-enh__text');

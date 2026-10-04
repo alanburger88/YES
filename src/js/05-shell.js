@@ -1,10 +1,15 @@
 /*
- * Shell: skip link, masthead (brand slot, period, demo badge, language switcher,
+ * Shell: skip link, masthead (brand slot, period, language switcher,
  * light/dark toggle, "Download or print", Ask YES), section navigation (tabs
  * from 720px, a Menu on phones), footer, document title and the
  * withheld-statement state shown when reconciliation fails (PRD 4, 5.1, 5.2).
  * The masthead is the only language switch in the statement: dialogs keep the
  * language chosen before they opened.
+ *
+ * The header carries no "Illustrative demo data" badge: the product owner
+ * removed it on 2026-10-04 (PRD 4.1 had asked for one on the first screen).
+ * Demo mode stays marked by the footer notice (renderFooter), the print and
+ * PDF watermarks, the document title and the Illustrative tags in the modules.
  */
 (function (root) {
   'use strict';
@@ -133,9 +138,7 @@
     // Narrow layouts show "Sep 2026" and hide the word "Statement" visually; the
     // link's accessible name stays "YES Statement September 2026".
     var html =
-      '<div class="masthead__bar container' +
-      (YES.config.demo ? ' has-demo' : '') +
-      '">' +
+      '<div class="masthead__bar container">' +
       '<a class="brand" href="#/overview" data-nav="overview" data-fk="brand">' +
       ui.logoHtml({ cls: 'brand__logo' }) +
       '<span class="brand__text"><span class="brand__title">' +
@@ -145,9 +148,6 @@
       '</span><span class="brand__period-short" aria-hidden="true">' +
       esc(YES.fmt.date(YES.data.statement.periodEnd, 'monthYearShort')) +
       '</span></span></a>' +
-      (YES.config.demo
-        ? '<span class="demo-badge" title="' + esc(t('demo.badgeLong')) + '">' + ui.icon('info', { size: 16 }) + '<span>' + esc(t('demo.badge')) + '</span></span>'
-        : '') +
       '<div class="masthead__actions">' +
       '<div class="mast-wide">' +
       ui.langSwitchHtml() +
@@ -227,12 +227,9 @@
 
   /* ------------------------------------------------------ Masthead metrics */
   /*
-   * Under 68em (1088px) the demo badge is a slim band above the brand row. The
-   * masthead sticks with a negative `top` equal to that band (less a 4px
-   * margin above the brand row), so the badge is on the first screen but
-   * scrolls away, and only the brand row (and, from 720px, the section tabs)
-   * stays pinned: under 70px on a phone, where the sections are in the Menu.
-   * On short viewports (landscape phones, 400% zoom) the masthead does not
+   * The masthead sticks at the top: the brand row (and, from 720px, the
+   * section tabs) stays pinned, one row under 60px on a phone, where the
+   * sections are in the Menu. On short viewports (landscape phones, 400% zoom) it does not
    * stick at all. --masthead-h always equals what stays pinned, so
    * scroll-padding keeps focused content clear of it (WCAG 2.4.11).
    */
@@ -240,24 +237,13 @@
   function syncMastheadMetrics() {
     var mast = doc.getElementById('masthead');
     if (!mast) return;
-    var rootStyle = doc.documentElement.style;
-    var mr = mast.getBoundingClientRect();
-    var skip = 0;
-    var badge = mast.querySelector('.demo-badge');
-    var brand = mast.querySelector('.brand');
-    var actions = mast.querySelector('.masthead__actions');
-    if (badge && brand && actions) {
-      var rowTop = Math.min(brand.getBoundingClientRect().top, actions.getBoundingClientRect().top);
-      if (badge.getBoundingClientRect().bottom <= rowTop) skip = Math.max(0, Math.floor(rowTop - mr.top) - 4);
-    }
-    var pinned = Math.ceil(mr.height - skip);
+    var pinned = Math.ceil(mast.getBoundingClientRect().height);
     // Very large text: a pinned area over 30% of the screen would leave too
     // little room to read, so the masthead scrolls with the page instead (as
     // on short viewports). Pinning never changes its height, so this is stable.
     mast.classList.toggle('is-unpinned', pinned > (root.innerHeight || 0) * MAX_PINNED_SHARE);
     var sticky = root.getComputedStyle(mast).position === 'sticky';
-    rootStyle.setProperty('--mast-skip', (sticky ? skip : 0) + 'px');
-    rootStyle.setProperty('--masthead-h', (sticky ? pinned : 0) + 'px');
+    doc.documentElement.style.setProperty('--masthead-h', (sticky ? pinned : 0) + 'px');
   }
   /*
    * Keep the brand row on one line: if the actions would wrap below the brand
@@ -312,8 +298,9 @@
     return !!(b && b.getClientRects().length);
   }
   /* The panel hangs under the header and scrolls inside itself when it is
-     taller than the room left on screen (the header's place changes as the
-     badge band scrolls away, so this follows scrolling while it is open). */
+     taller than the room left on screen. Where the header is not pinned
+     (short viewports, very large text) its place changes as the page
+     scrolls, so this follows scrolling while it is open. */
   function sizeMenu() {
     var mast = doc.getElementById('masthead');
     var panel = doc.getElementById('mast-menu');

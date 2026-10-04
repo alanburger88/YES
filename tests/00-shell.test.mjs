@@ -72,10 +72,27 @@ export default async function (t) {
     }));
   const LIGHT_BG = 'rgb(245, 246, 248)';
   const DARK_BG = 'rgb(14, 17, 22)';
+  // The header carries no "Illustrative demo data" badge or band (product
+  // owner, 2026-10-04). The fictional data stays marked by the footer notice,
+  // the document title, the Illustrative tags and the print/PDF watermark.
+  const headerDemo = () =>
+    state(() => {
+      const m = document.getElementById('masthead');
+      return {
+        badge: m.querySelectorAll('.demo-badge, .has-demo').length,
+        words: /illustrative|ilustrativ|demo/i.test(m.innerText),
+        skip: getComputedStyle(document.documentElement).getPropertyValue('--mast-skip').trim(),
+        top: getComputedStyle(m).top
+      };
+    });
+  const NO_HEADER_DEMO = { badge: 0, words: false, skip: '', top: '0px' };
 
   t.step('boot');
   t.assert(await state(() => YES.integrity.ok), 'statement reconciles');
-  t.assert(await page.locator('.demo-badge').first().isVisible(), 'demo badge is visible');
+  t.eq(await headerDemo(), NO_HEADER_DEMO, 'no demo badge or band in the header; it sticks at the very top');
+  t.assert(await page.locator('#site-footer .footer__demo').isVisible(), 'the footer demo notice is shown');
+  t.assert((await page.locator('#site-footer .footer__demo').innerText()).includes('Showcase statement with illustrative demo data'), 'footer notice wording');
+  t.assert((await page.title()).endsWith('· Illustrative demo'), 'the document title marks the demo: ' + (await page.title()));
   t.eq(await state(() => document.documentElement.lang), 'en', 'html lang');
   t.assert((await page.title()).includes('YES'), 'document title names YES');
   // The device setting is light by default (run with --color-scheme dark to flip it).
@@ -119,23 +136,38 @@ export default async function (t) {
     await t.shot('menu-open');
     await page.keyboard.press('Escape');
   } else {
+    // With no demo badge in the row, every language shows the full names (with
+    // the globe) and "Download or print" from 992px, EN/ES below that, and
+    // "Download" below 880px. The width sweep below checks each width.
     t.eq(await page.locator('.mast-wide [data-lang="es"] .seg__long').isVisible(), true, '1280px: full language names');
     await page.setViewportSize({ width: 1000, height: 900 });
     await page.waitForTimeout(150);
-    t.assert(await page.locator('.mast-wide [data-lang="es"] .seg__short').isVisible(), '1000px: the short code "ES"');
+    t.eq(await page.locator('.mast-wide [data-lang="es"] .seg__long').isVisible(), true, '1000px: full language names (now that the badge is gone)');
+    t.eq((await page.locator('.btn--record .btn__label:not(.btn__label--short)').innerText()).trim(), 'Download or print', '1000px: "Download or print" in full');
+    await page.setViewportSize({ width: 960, height: 900 });
+    await page.waitForTimeout(150);
+    t.assert(await page.locator('.mast-wide [data-lang="es"] .seg__short').isVisible(), '960px: the short code "ES"');
     t.assert(((await page.locator('.mast-wide [data-lang="es"] .seg__long').boundingBox()) || { width: 0 }).width <= 1, 'the full name is visually hidden, not removed');
-    t.eq((await page.locator('.btn--record .btn__label--short').innerText()).trim(), 'Download', '1000px: "Download" shown');
+    t.eq((await page.locator('.btn--record .btn__label:not(.btn__label--short)').innerText()).trim(), 'Download or print', '960px: "Download or print" still in full');
+    await page.setViewportSize({ width: 860, height: 900 });
+    await page.waitForTimeout(150);
+    t.eq((await page.locator('.btn--record .btn__label--short').innerText()).trim(), 'Download', '860px: "Download" shown');
     t.eq(await page.getByRole('button', { name: 'Download or print', exact: true }).count(), 1, 'its name is still "Download or print" (contains the visible word)');
     await page.setViewportSize({ width: 1280, height: 900 });
     // The language switch looks the same in every language at a given width:
-    // Spanish shows the full names and the globe too (the longer Spanish demo
-    // badge moves to the band instead), and keeps "Descargar o imprimir" whole.
+    // Spanish shows the full names and the globe too, and "Descargar o imprimir" whole.
     await setLang('es');
     await page.waitForTimeout(150);
-    t.eq(await page.locator('.mast-wide [data-lang="en"] .seg__long').isVisible(), true, '1280px Spanish: full language names, as in English');
-    t.eq(await page.locator('.mast-wide .seg__icon').isVisible(), true, '1280px Spanish: globe icon, as in English');
-    t.eq(await page.locator('.mast-wide [data-lang="es"] .seg__short').isVisible(), false, '1280px Spanish: no "EN/ES" codes');
-    t.eq(await page.locator('.btn--record .btn__label:not(.btn__label--short)').isVisible(), true, '1280px Spanish: "Descargar o imprimir" in full');
+    t.eq(await headerDemo(), NO_HEADER_DEMO, 'Spanish: no demo badge or band in the header either');
+    for (const w of [1280, 1000]) {
+      await page.setViewportSize({ width: w, height: 900 });
+      await page.waitForTimeout(150);
+      t.eq(await page.locator('.mast-wide [data-lang="en"] .seg__long').isVisible(), true, `${w}px Spanish: full language names, as in English`);
+      t.eq(await page.locator('.mast-wide .seg__icon').isVisible(), true, `${w}px Spanish: globe icon, as in English`);
+      t.eq(await page.locator('.mast-wide [data-lang="es"] .seg__short').isVisible(), false, `${w}px Spanish: no "EN/ES" codes`);
+      t.eq((await page.locator('.btn--record .btn__label:not(.btn__label--short)').innerText()).trim(), 'Descargar o imprimir', `${w}px Spanish: "Descargar o imprimir" in full`);
+    }
+    await page.setViewportSize({ width: 1280, height: 900 });
     await setLang('en');
   }
   await axeBad('first screen');
@@ -222,6 +254,9 @@ export default async function (t) {
   t.eq((await page.locator('#masthead [data-mast-record]').first().getAttribute('aria-label')), 'Descargar o imprimir', 'Download or print translated');
   if (mobile) t.eq((await page.locator('#masthead [data-mast-menu]').innerText()).trim(), 'Menú', 'Menu translated');
   t.eq((await page.locator('.skip-link').textContent()).trim(), 'Ir al estado de cuenta', 'skip link translated');
+  t.eq(await headerDemo(), NO_HEADER_DEMO, 'Spanish: no demo badge or band in the header');
+  t.assert((await page.locator('#site-footer .footer__demo').innerText()).includes('datos ilustrativos de demostración'), 'the footer demo notice, in Spanish');
+  t.assert((await page.title()).endsWith('· Demostración ilustrativa'), 'Spanish document title marks the demo: ' + (await page.title()));
 
   t.step('Spanish formatting');
   const es = await state(() => ({
@@ -342,7 +377,12 @@ export default async function (t) {
   await state(() => document.getElementById('toast').classList.remove('is-visible'));
 
   t.step('masthead: one brand row at every width, both languages, no horizontal scroll');
-  const widths = mobile ? [320, 360, 375, 390, 414, 600, 719] : [720, 768, 832, 900, 1000, 1088, 1280, 1440];
+  const widths = mobile ? [320, 360, 375, 390, 414, 600, 719] : [720, 768, 832, 860, 880, 900, 960, 992, 1000, 1088, 1280, 1440, 1920];
+  // The layout depends on the masthead's width only, never on the language:
+  // full names, globe and "Download or print" from 992px, EN/ES below,
+  // "Download" below 880px and "Ask" below 832px (default text size; the
+  // brand row's own width decides, see 03-shell.css).
+  const layoutFor = (cw) => ({ names: cw >= 992, record: cw >= 880, ask: cw >= 832 });
   for (const lang of ['en', 'es']) {
     await setLang(lang);
     for (const w of widths) {
@@ -353,73 +393,90 @@ export default async function (t) {
         const list = document.querySelector('.nav__list');
         const tabs = getComputedStyle(document.querySelector('#masthead .nav')).display !== 'none';
         const help = document.querySelector('.nav__link[data-nav="help"]').getBoundingClientRect();
-        const badge = document.querySelector('.demo-badge');
-        const b = r('.demo-badge');
         const shown = [...document.querySelectorAll('.masthead__actions > *:not(.mast-wide), .mast-wide > *')].filter((e) => e.getClientRects().length);
+        const wide = (sel) => !!document.querySelector(sel) && document.querySelector(sel).getBoundingClientRect().width > 1;
         return {
           oneRow: r('.masthead__actions').top < r('.brand').bottom - 4 && new Set(shown.map((e) => Math.round(e.getBoundingClientRect().top))).size === 1,
           inside: shown.every((e) => e.getBoundingClientRect().right <= window.innerWidth && e.getBoundingClientRect().left >= 0),
           tabs,
           navFits: !tabs || (list.scrollWidth <= list.clientWidth + 1 && help.right <= window.innerWidth),
-          badgeVisible: b.height > 0 && b.left >= 0 && b.right <= window.innerWidth && badge.scrollWidth <= badge.clientWidth + 1,
+          cw: Math.round(document.getElementById('masthead').getBoundingClientRect().width),
+          noBadge: !document.querySelector('#masthead .demo-badge'),
           noScroll: document.documentElement.scrollWidth <= window.innerWidth,
-          menu: !!document.querySelector('[data-mast-menu]').getClientRects().length
+          menu: !!document.querySelector('[data-mast-menu]').getClientRects().length,
+          layout: { names: wide('.mast-wide [data-lang="es"] .seg__long'), record: wide('.btn--record .btn__label:not(.btn__label--short)'), ask: wide('.btn--ask .btn__label:not(.btn__label--short)') }
         };
       });
       t.assert(m.oneRow && m.inside, `${lang} ${w}px: brand and every control share one row, on screen`);
       t.assert(m.navFits, `${lang} ${w}px: Overview, Transactions, Understand and Help all visible`);
-      t.assert(m.badgeVisible, `${lang} ${w}px: demo badge shown in full`);
+      t.assert(m.noBadge, `${lang} ${w}px: no demo badge in the header`);
       t.assert(m.noScroll, `${lang} ${w}px: no horizontal scroll`);
       t.eq([m.menu, m.tabs], mobile ? [true, false] : [false, true], `${lang} ${w}px: ${mobile ? 'Menu, no tab row' : 'tab row, no Menu'}`);
+      if (!mobile) t.eq(m.layout, layoutFor(m.cw), `${lang} ${w}px: the same labels in every language`);
     }
   }
   if (!mobile) {
-    // The masthead is a size container: the docked assistant narrows it.
-    await setLang('es');
-    for (const w of [1100, 1280, 1440]) {
-      await page.setViewportSize({ width: w, height: 900 });
-      await state(() => document.documentElement.classList.add('assistant-docked'));
-      await page.waitForTimeout(150);
-      const ok = await state(() => {
-        const mast = document.getElementById('masthead').getBoundingClientRect();
-        const shown = [...document.querySelectorAll('.masthead__actions > *:not(.mast-wide), .mast-wide > *')].filter((e) => e.getClientRects().length);
-        return shown.every((e) => e.getBoundingClientRect().right <= mast.right + 0.5) && document.querySelector('.masthead__actions').getBoundingClientRect().top < document.querySelector('.brand').getBoundingClientRect().bottom - 4;
-      });
-      t.assert(ok, `es ${w}px docked: one row inside the narrowed masthead`);
-      await state(() => document.documentElement.classList.remove('assistant-docked'));
+    // The masthead is a size container: the docked assistant (400px) narrows it.
+    for (const lang of ['es', 'en']) {
+      await setLang(lang);
+      for (const w of [1100, 1280, 1366, 1440, 1920]) {
+        await page.setViewportSize({ width: w, height: 900 });
+        await state(() => document.documentElement.classList.add('assistant-docked'));
+        await page.waitForTimeout(150);
+        const d = await state(() => {
+          const mast = document.getElementById('masthead').getBoundingClientRect();
+          const shown = [...document.querySelectorAll('.masthead__actions > *:not(.mast-wide), .mast-wide > *')].filter((e) => e.getClientRects().length);
+          const wide = (sel) => !!document.querySelector(sel) && document.querySelector(sel).getBoundingClientRect().width > 1;
+          return {
+            cw: Math.round(mast.width),
+            ok:
+              shown.every((e) => e.getBoundingClientRect().right <= mast.right + 0.5) &&
+              new Set(shown.map((e) => Math.round(e.getBoundingClientRect().top))).size === 1 &&
+              document.querySelector('.masthead__actions').getBoundingClientRect().top < document.querySelector('.brand').getBoundingClientRect().bottom - 4,
+            menu: !!document.querySelector('[data-mast-menu]').getClientRects().length,
+            layout: { names: wide('.mast-wide [data-lang="es"] .seg__long'), record: wide('.btn--record .btn__label:not(.btn__label--short)'), ask: wide('.btn--ask .btn__label:not(.btn__label--short)') }
+          };
+        });
+        t.assert(d.ok, `${lang} ${w}px docked: one row inside the narrowed masthead`);
+        if (d.cw < 720) t.eq(d.menu, true, `${lang} ${w}px docked (${d.cw}px): the phone layout`);
+        else t.eq(d.layout, layoutFor(d.cw), `${lang} ${w}px docked (${d.cw}px): the labels for that width`);
+        await state(() => document.documentElement.classList.remove('assistant-docked'));
+      }
     }
   }
   await setLang('en');
   if (mobile) {
-    // PRD 4.1: the badge is on the first screen, fully worded; with the sections
-    // in the Menu the masthead is small, and what stays pinned is under 70px
-    // and is exactly what --masthead-h (scroll-padding) reserves.
-    for (const [w, h] of [
-      [320, 640],
-      [360, 640],
-      [390, 844]
-    ]) {
-      await page.setViewportSize({ width: w, height: h });
-      await state(() => window.scrollTo(0, 0));
-      await page.waitForTimeout(150);
-      const first = await state(() => {
-        const badge = document.querySelector('.demo-badge');
-        const b = badge.getBoundingClientRect();
-        return { total: document.getElementById('masthead').getBoundingClientRect().height, top: b.top, bottom: b.bottom, text: badge.innerText.trim() };
-      });
-      t.assert(first.total <= 90, `${w}px: masthead takes at most 90px of the first screen (was 125 with the tab row): ${first.total}`);
-      t.assert(first.top >= 0 && first.bottom <= 32 && first.text === 'Illustrative demo data', `${w}px: demo badge leads the first screen, fully worded: ${JSON.stringify(first)}`);
-      await state(() => window.scrollTo(0, 900));
-      await page.waitForTimeout(150);
-      const pinned = await state(() => ({
-        bottom: document.getElementById('masthead').getBoundingClientRect().bottom,
-        reserved: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--masthead-h')),
-        badgeGone: document.querySelector('.demo-badge').getBoundingClientRect().bottom <= 0
-      }));
-      t.assert(pinned.bottom <= 70, `${w}px: under 70px stays pinned when scrolled (was under 100 with the tab row): ${pinned.bottom}`);
-      t.assert(Math.abs(pinned.bottom - pinned.reserved) <= 1, `${w}px: --masthead-h equals the pinned height: ${JSON.stringify(pinned)}`);
-      t.assert(pinned.badgeGone, `${w}px: the badge band scrolls away with the page`);
+    // With the sections in the Menu and no demo band (removed 2026-10-04), the
+    // phone header is one slim row: under 60px of the first screen (it was 80
+    // with the band and 125 with the tab row). It stays pinned at the very top,
+    // and --masthead-h (scroll-padding) reserves exactly its height.
+    for (const lang of ['en', 'es']) {
+      await setLang(lang);
+      for (const [w, h] of [
+        [320, 640],
+        [360, 640],
+        [390, 844]
+      ]) {
+        await page.setViewportSize({ width: w, height: h });
+        await state(() => window.scrollTo(0, 0));
+        await page.waitForTimeout(150);
+        const first = await state(() => {
+          const r = document.getElementById('masthead').getBoundingClientRect();
+          return { top: r.top, total: r.height };
+        });
+        t.assert(first.top === 0 && first.total <= 60, `${lang} ${w}px: the header takes under 60px of the first screen: ${JSON.stringify(first)}`);
+        await state(() => window.scrollTo(0, 900));
+        await page.waitForTimeout(150);
+        const pinned = await state(() => ({
+          top: document.getElementById('masthead').getBoundingClientRect().top,
+          bottom: document.getElementById('masthead').getBoundingClientRect().bottom,
+          reserved: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--masthead-h'))
+        }));
+        t.assert(pinned.top === 0 && pinned.bottom <= 60 && Math.abs(pinned.bottom - first.total) <= 1, `${lang} ${w}px: the whole header stays pinned when scrolled: ${JSON.stringify(pinned)}`);
+        t.assert(Math.abs(pinned.bottom - pinned.reserved) <= 1, `${lang} ${w}px: --masthead-h equals the pinned height: ${JSON.stringify(pinned)}`);
+      }
     }
+    await setLang('en');
     await state(() => window.scrollTo(0, 0));
     await t.shot('masthead-first-screen');
     // A pinned area over 30% of the screen (very large text) scrolls away instead,
@@ -439,7 +496,7 @@ export default async function (t) {
     await state(() => document.getElementById('tall-mast').remove());
     await page.waitForTimeout(250);
     const again = await pinState();
-    t.assert(again[0] === 'sticky' && parseFloat(again[1]) > 40 && parseFloat(again[1]) <= 70, 'back to normal: pinned again, --masthead-h follows: ' + again);
+    t.assert(again[0] === 'sticky' && parseFloat(again[1]) > 40 && parseFloat(again[1]) <= 60, 'back to normal: pinned again, --masthead-h follows: ' + again);
     await state(() => {
       document.documentElement.style.fontSize = '200%';
     });
@@ -452,9 +509,19 @@ export default async function (t) {
     t.eq(await state(() => getComputedStyle(document.getElementById('masthead')).position), 'relative', 'short viewports: masthead does not stick');
     await page.setViewportSize({ width: 390, height: 844 });
   } else {
+    // Desktop: the brand row and the tabs stay pinned at the very top, and
+    // --masthead-h reserves exactly their height.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await state(() => window.scrollTo(0, 1200));
+    await page.waitForTimeout(150);
+    const pin = await state(() => {
+      const r = document.getElementById('masthead').getBoundingClientRect();
+      return { top: r.top, height: Math.ceil(r.height), reserved: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--masthead-h')) };
+    });
+    t.assert(pin.top === 0 && pin.height <= 110 && Math.abs(pin.height - pin.reserved) <= 1, '1280px: brand row and tabs pinned, --masthead-h equals their height: ' + JSON.stringify(pin));
+    await state(() => window.scrollTo(0, 0));
     // Very large text on a desktop window: the em breakpoints move to the
     // roomier layouts (here the phone Menu) instead of overflowing the tabs.
-    await page.setViewportSize({ width: 1280, height: 900 });
     await state(() => {
       document.documentElement.style.fontSize = '200%';
     });
@@ -464,7 +531,35 @@ export default async function (t) {
       noScroll: document.documentElement.scrollWidth <= innerWidth
     }));
     t.eq(big, { menu: true, noScroll: true }, '200% text at 1280px: the Menu layout, no horizontal scroll');
+    // Large text on a wide screen: the brand row stops at the page's 1120px
+    // column, and the labels follow the room inside it (not the screen's width),
+    // so the row never wraps. Spanish is the longest.
     await state(() => document.documentElement.style.removeProperty('font-size'));
+    await page.waitForTimeout(150);
+    await setLang('es');
+    for (const [fs, w, want] of [
+      ['125%', 1920, { names: false, record: true, ask: true }],
+      ['150%', 1920, { names: false, record: false, ask: false }]
+    ]) {
+      await state((f) => {
+        document.documentElement.style.fontSize = f;
+      }, fs);
+      await page.setViewportSize({ width: w, height: 1000 });
+      await page.waitForTimeout(250);
+      const row = await state(() => {
+        const shown = [...document.querySelectorAll('.masthead__actions > *:not(.mast-wide), .mast-wide > *')].filter((e) => e.getClientRects().length);
+        const wide = (sel) => !!document.querySelector(sel) && document.querySelector(sel).getBoundingClientRect().width > 1;
+        return {
+          oneRow: new Set(shown.map((e) => Math.round(e.getBoundingClientRect().top))).size === 1 && document.querySelector('.masthead__actions').getBoundingClientRect().top < document.querySelector('.brand').getBoundingClientRect().bottom - 4,
+          menu: !!document.querySelector('[data-mast-menu]').getClientRects().length,
+          noScroll: document.documentElement.scrollWidth <= innerWidth,
+          labels: { names: wide('.mast-wide [data-lang="es"] .seg__long'), record: wide('.btn--record .btn__label:not(.btn__label--short)'), ask: wide('.btn--ask .btn__label:not(.btn__label--short)') }
+        };
+      });
+      t.eq(row, { oneRow: true, menu: false, noScroll: true, labels: want }, `es, ${fs} text at ${w}px: one row with the labels that fit`);
+    }
+    await state(() => document.documentElement.style.removeProperty('font-size'));
+    await setLang('en');
     await page.setViewportSize({ width: 1280, height: 900 });
   }
 

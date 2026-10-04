@@ -1,5 +1,8 @@
 // Overview: first screen, balance card, statement details, balance journey,
-// running-balance chart, fees/insight, video placeholder (PRD 4, 5.1, 5.2, 5.7).
+// running-balance chart, fees/insight, and the "Your statement in 60 seconds"
+// player (PRD 4, 5.1, 5.2, 5.7).
+import { fileURLToPath } from 'node:url';
+
 export const meta = { name: 'overview', viewports: ['desktop', 'mobile', 'narrow'] };
 
 const BAD = ['serious', 'critical'];
@@ -12,8 +15,9 @@ async function noHorizontalOverflow(page) {
     const vw = document.documentElement.clientWidth;
     const offenders = [];
     document.querySelectorAll('#view-overview *').forEach((el) => {
-      // SVG internals are clipped by their own viewport; check the <svg> box itself.
-      if (el.closest('.sr-only') || el.ownerSVGElement || !el.getClientRects().length) return;
+      // SVG internals are clipped by their own viewport, and the video's picture
+      // by its stage; check the <svg> and the stage boxes themselves.
+      if (el.closest('.sr-only') || el.ownerSVGElement || el.closest('.vp-stage *') || !el.getClientRects().length) return;
       const r = el.getBoundingClientRect();
       if (r.width && (r.right > vw + 1 || r.left < -1)) offenders.push((el.className && el.className.baseVal === undefined ? el.className : el.tagName) + ' ' + Math.round(r.left) + '→' + Math.round(r.right));
     });
@@ -68,10 +72,10 @@ async function axisCollisions(page) {
   });
 }
 
-/** Poster colours (contrast of its text on its background, background luminance) and its bars. */
-async function posterFacts(page) {
+/** The video stage's colours: its greeting's contrast on the stage colour, and that colour's luminance. */
+async function stageFacts(page) {
   return page.evaluate(() => {
-    const el = document.querySelector('.ov-video__poster');
+    const vp = document.querySelector('.vp');
     const ctx = document.createElement('canvas').getContext('2d');
     const rgb = (c) => {
       ctx.clearRect(0, 0, 1, 1);
@@ -83,14 +87,18 @@ async function posterFacts(page) {
       const f = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
       return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
     };
-    const bg = lum(rgb(getComputedStyle(el).backgroundColor));
-    const ink = lum(rgb(getComputedStyle(el.querySelector('.ov-poster__hello')).fill));
-    return {
-      contrast: Math.round(((Math.max(bg, ink) + 0.05) / (Math.min(bg, ink) + 0.05)) * 10) / 10,
-      bg: Math.round(bg * 100) / 100,
-      bars: el.querySelectorAll('.ov-poster__bar').length,
-      steps: YES.calc.journey().length
+    const probe = document.createElement('span');
+    vp.appendChild(probe);
+    const tok = (name) => {
+      probe.style.color = 'var(' + name + ')';
+      return getComputedStyle(probe).color;
     };
+    const bg = lum(rgb(tok('--vs-bg')));
+    const deep = lum(rgb(tok('--vs-deep')));
+    probe.remove();
+    const ink = lum(rgb(getComputedStyle(vp.querySelector('.vs-greet__hello')).color));
+    const c = (x, y) => Math.round(((Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)) * 10) / 10;
+    return { contrast: Math.min(c(bg, ink), c(deep, ink)), bg: Math.round(bg * 100) / 100 };
   });
 }
 
@@ -208,7 +216,7 @@ async function reflowFacts(page) {
   return page.evaluate(() => {
     const vw = document.documentElement.clientWidth;
     const out = [];
-    const skip = (el) => el.closest('.sr-only') || el.ownerSVGElement || (el.closest('.table-wrap') && !el.classList.contains('table-wrap'));
+    const skip = (el) => el.closest('.sr-only') || el.ownerSVGElement || el.closest('.vp-stage *') || (el.closest('.table-wrap') && !el.classList.contains('table-wrap'));
     document.querySelectorAll('#view-overview *').forEach((el) => {
       if (skip(el) || !el.getClientRects().length) return;
       const r = el.getBoundingClientRect();
@@ -222,14 +230,13 @@ async function reflowFacts(page) {
       const right = [...range.getClientRects()].reduce((m, x) => Math.max(m, x.right), 0);
       if (right > vw + 1) out.push('text "' + n.textContent.trim().slice(0, 30) + '" →' + Math.round(right));
     }
-    // Pairs that must not overlap: a group's label and total; the poster's play control and duration.
+    // Pairs that must not overlap: a group's label and total.
     const hit = (a, b) => a && b && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
     const box = (el) => el && el.getBoundingClientRect();
     const collide = [];
     document.querySelectorAll('.jr-group').forEach((g) => {
       if (hit(box(g.querySelector('.jr-group__label')), box(g.querySelector('.jr-group__value')))) collide.push('group ' + g.dataset.group);
     });
-    if (hit(box(document.querySelector('.ov-video__play')), box(document.querySelector('.ov-video__dur')))) collide.push('poster play/duration');
     // Inline lists clip their items' leading separators; an item must never be clipped itself.
     const clipped = [...document.querySelectorAll('#view-overview .ov-seps')]
       .filter((w) => getComputedStyle(w).display !== 'contents')
@@ -317,9 +324,8 @@ export default async function (t) {
   }));
   if (vp === 'mobile') t.assert(fold.actions <= fold.vh, 'both primary actions are on the first screen of a 390×844 phone (bottom ' + fold.actions + ')');
   if (wide) t.assert(fold.journey + 32 <= fold.vh, 'the balance journey starts on the first screen at 1280×900 (heading at ' + fold.journey + ')');
-  const pf = await posterFacts(page);
-  t.eq(pf.bars, pf.steps, 'poster bars are this statement’s journey steps, not a decorative chart');
-  t.assert(pf.contrast >= 4.5, 'poster text contrast: ' + pf.contrast);
+  const sf = await stageFacts(page);
+  t.assert(sf.contrast >= 4.5, 'video poster text contrast: ' + sf.contrast);
   // No choice yet: the device setting (light, or dark with tests/run.mjs --color-scheme dark).
   t.eq(await page.evaluate(() => [YES.theme.get(), YES.theme.effective() === YES.theme.device()]), [null, true], 'no theme choice yet: follows the device');
   const devicePaint = await paints(page);
@@ -712,92 +718,6 @@ export default async function (t) {
   t.eq(await page.getAttribute('[data-ov-step="deposits"]', 'aria-pressed'), 'true', 'deep link selects a step on load');
   t.eq(await page.locator('#ov-panel-section [data-ov-tx]').count(), 3, 'deep-linked panel rows');
 
-  /* ------------------------------------------------------------ video */
-  t.step('video placeholder');
-  const vcard = norm(await page.locator('.ov-video').innerText());
-  t.assert(vcard.includes('Your statement in 60 seconds') && vcard.includes('1:00') && vcard.includes('storyboard, not a video'), 'video card copy');
-  t.eq(await page.locator('video, [autoplay]').count(), 0, 'no <video> and no autoplay');
-  const play = page.locator('[data-ov-video]');
-  t.assert((await play.getAttribute('aria-label')).startsWith('Play'), 'play control labelled');
-  await play.click();
-  const dlg = page.locator('#video-dialog');
-  t.eq(await dlg.evaluate((d) => d.open), true, 'dialog opens');
-  t.eq(await page.evaluate(() => document.activeElement.id), 'video-dialog-title', 'focus moves to the dialog heading');
-  t.eq(await page.locator('#video-dialog video, #video-dialog [autoplay], #video-dialog iframe').count(), 0, 'no media element in the dialog');
-  const dtxt = norm(await dlg.innerText());
-  t.assert(dtxt.includes('Placeholder') && dtxt.includes('no video in this demo'), 'dialog says it is a placeholder');
-  t.eq(await page.locator('.ov-story__frame').count(), 5, 'five storyboard frames');
-  const frames = await page.$$eval('.ov-story__title', (els) => els.map((e) => e.textContent.trim()));
-  t.eq(frames, ['Personal greeting', 'Opening and closing balance', 'Largest meaningful movement', 'How to inspect a transaction', 'Where to get help'], 'storyboard order');
-  const transcript = norm(await page.locator('.ov-transcript').innerText());
-  t.assert(transcript.includes('Hello, Sam.') && transcript.includes('1,000.00 EXUSD') && transcript.includes('1,147.50 EXUSD') && transcript.includes('+147.50 EXUSD') && transcript.includes('+250.00 EXUSD'), 'transcript figures from the same snapshot');
-  const req = norm(await page.locator('.ov-req').innerText());
-  for (const r of ['approved video asset', 'Captions', 'transcript', 'pause', 'Localized', 'static fallback']) t.assert(req.includes(r), 'production requirement: ' + r);
-  await axeOk(t, '#video-dialog', 'video dialog');
-  await shot(t, 'video-dialog');
-  await page.keyboard.press('Escape');
-  t.eq(await dlg.evaluate((d) => d.open), false, 'Escape closes');
-  t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-fk')), 'ov-video-play', 'focus returns to the play control');
-  await play.click();
-  await page.click('[data-fk="ov-video-done"]');
-  t.eq(await dlg.evaluate((d) => d.open), false, 'Close button closes');
-
-  t.step('poster draws the approved [YES_LOGO] artwork, like the masthead and print header');
-  const posterLogo = () =>
-    page.evaluate(() => {
-      const poster = document.querySelector('.ov-video__poster');
-      const svg = poster.querySelector('.ov-poster__svg');
-      const art = svg.querySelector('foreignObject .yes-logo--art.ov-poster__art--art');
-      const hello = svg.querySelector('.ov-poster__hello').getBoundingClientRect();
-      const r = art && (art.querySelector('svg, img') || art).getBoundingClientRect();
-      // Poster units (viewBox 0 0 320 180) to page pixels.
-      const m = svg.getScreenCTM();
-      return {
-        placeholder: svg.querySelectorAll('.ov-poster__logo, .ov-poster__logotext').length,
-        art: art ? (art.querySelector('img') ? 'img' : art.querySelector('svg') ? 'svg' : 'empty') : null,
-        hidden: art ? art.getAttribute('aria-hidden') === 'true' && !art.hasAttribute('role') : null,
-        // In the placeholder's corner (20, 18), at the lettering height, above the greeting, with its own aspect ratio.
-        box: r && {
-          corner: Math.abs(r.left - (m.a * 20 + m.e)) <= 1 && Math.abs(r.top - (m.d * 18 + m.f)) <= 1,
-          height: Math.round(r.height / m.d),
-          above: r.bottom <= hello.top,
-          ratio: Math.round((r.width / r.height) * 10) / 10
-        },
-        ink: art ? getComputedStyle(art).color === getComputedStyle(svg.querySelector('.ov-poster__hello')).fill : null
-      };
-    });
-  t.eq(await posterLogo(), { placeholder: 2, art: null, hidden: null, box: null, ink: null }, 'without artwork: the poster’s own text placeholder');
-  const before = t.external.length;
-  await page.evaluate(() => {
-    YES.config.slots.YES_LOGO.svg = '<svg viewBox="0 0 120 40" aria-hidden="true" focusable="false"><rect width="120" height="40" rx="8" fill="currentColor"/></svg>';
-    YES.renderAll();
-  });
-  t.eq(
-    await posterLogo(),
-    { placeholder: 0, art: 'svg', hidden: true, box: { corner: true, height: 24, above: true, ratio: 3 }, ink: true },
-    'approved SVG replaces the placeholder: in its corner, 24 units high, 3:1 kept, poster ink for currentColor'
-  );
-  await page.evaluate(() => document.querySelector('.ov-video').scrollIntoView({ block: 'center' }));
-  await shot(t, 'poster-logo-art', { fullPage: false });
-  await page.evaluate(() => {
-    delete YES.config.slots.YES_LOGO.svg;
-    YES.config.slots.YES_LOGO.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 90 30%22%3E%3Crect width=%2290%22 height=%2230%22 fill=%22%23fff%22/%3E%3C/svg%3E';
-    YES.renderAll();
-  });
-  const dataLogo = await posterLogo();
-  t.eq([dataLogo.placeholder, dataLogo.art, dataLogo.box && dataLogo.box.height], [0, 'img', 24], 'a data: image is drawn the same way');
-  await page.evaluate(() => {
-    YES.config.slots.YES_LOGO.src = 'https://cdn.example.com/logo.png';
-    YES.renderAll();
-  });
-  t.eq((await posterLogo()).placeholder, 2, 'an image URL that would fetch is ignored: the placeholder stays');
-  await page.evaluate(() => {
-    delete YES.config.slots.YES_LOGO.src;
-    YES.renderAll();
-  });
-  t.eq(t.external.slice(before).filter((u) => /example\.com/.test(u)), [], 'no request for a logo URL');
-  t.eq((await posterLogo()).placeholder, 2, 'placeholder restored');
-
   /* ------------------------------------------------------------ layout & a11y */
   t.step('no horizontal scroll');
   await page.evaluate(() => YES.overview.selectStep('outgoing'));
@@ -878,8 +798,8 @@ export default async function (t) {
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
   await fresh(t, '#/overview/transfers_out');
   t.eq(await page.evaluate(() => [YES.theme.get(), YES.theme.effective()]), [null, 'light'], 'no choice: follows the light device');
-  const p0 = await posterFacts(page);
-  t.assert(p0.contrast >= 4.5 && p0.bg > 0.05, 'light poster: the brand colour (luminance ' + p0.bg + ') with readable text (' + p0.contrast + ')');
+  const p0 = await stageFacts(page);
+  t.assert(p0.contrast >= 4.5 && p0.bg > 0.05, 'light video stage: the brand colour (luminance ' + p0.bg + ') with readable text (' + p0.contrast + ')');
   const lightPaint = await paints(page);
   t.assert(followsTokens(lightPaint), 'light: card, hero, journey bars, chart line, markers and grid follow the tokens: ' + JSON.stringify(lightPaint));
 
@@ -888,9 +808,9 @@ export default async function (t) {
   await fresh(t, '#/overview/transfers_out');
   t.eq(await page.evaluate(() => [YES.theme.get(), YES.theme.effective()]), [null, 'dark'], 'no choice: follows the dark device');
   await axeOk(t, '#view-overview', 'dark scheme');
-  const pd = await posterFacts(page);
-  t.assert(pd.contrast >= 4.5 && pd.bg < 0.2, 'dark poster stays deep (luminance ' + pd.bg + ') with readable text (' + pd.contrast + ')');
-  t.assert(pd.bg !== p0.bg && pd.contrast !== p0.contrast, `the dark poster differs from the light one (luminance ${pd.bg} vs ${p0.bg}, contrast ${pd.contrast} vs ${p0.contrast})`);
+  const pd = await stageFacts(page);
+  t.assert(pd.contrast >= 4.5 && pd.bg < 0.2, 'dark video stage stays deep (luminance ' + pd.bg + ') with readable text (' + pd.contrast + ')');
+  t.assert(pd.bg !== p0.bg && pd.contrast !== p0.contrast, `the dark stage differs from the light one (luminance ${pd.bg} vs ${p0.bg}, contrast ${pd.contrast} vs ${p0.contrast})`);
   const darkPaint = await paints(page);
   t.assert(followsTokens(darkPaint), 'dark: card, hero, journey bars, chart line, markers and grid follow the tokens: ' + JSON.stringify(darkPaint));
   t.assert(['card', 'hero', 'bar', 'line', 'marker'].every((k) => darkPaint[k][0] !== lightPaint[k][0]), 'and they are the dark colours, not the light ones');
@@ -900,18 +820,18 @@ export default async function (t) {
     await shot(t, 'dark-why');
   }
 
-  t.step('light choice on a dark device: the light poster, journey and chart, live');
+  t.step('light choice on a dark device: the light video stage, journey and chart, live');
   const chartEl = await page.evaluate(() => (window.__chart = document.querySelector('.ov-chart__svg')) && true);
   await page.evaluate(() => YES.theme.set('light'));
   t.eq(await page.evaluate(() => [YES.theme.effective(), document.documentElement.getAttribute('data-theme')]), ['light', 'light'], 'light chosen on a dark device');
-  const lp = await posterFacts(page);
-  t.eq([lp.bg, lp.contrast], [p0.bg, p0.contrast], 'the poster is the light one (as on a light device), not the dark one');
+  const lp = await stageFacts(page);
+  t.eq([lp.bg, lp.contrast], [p0.bg, p0.contrast], 'the video stage is the light one (as on a light device), not the dark one');
   t.eq(await paints(page), lightPaint, 'every overview colour is the light one');
   t.assert(chartEl && (await page.evaluate(() => document.querySelector('.ov-chart__svg') === window.__chart)), 'the chart recolours through its tokens, without being redrawn');
   await axeOk(t, '#view-overview', 'light choice on a dark device');
   await shot(t, 'light-choice-dark-device', { fullPage: false });
 
-  t.step('dark choice on a light device (the masthead toggle): dark live, after a reload and in the video dialog');
+  t.step('dark choice on a light device (the masthead toggle): dark live, after a reload and in the video');
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
   if (await phoneMenu(page)) {
     await page.click('#masthead [data-mast-menu]');
@@ -921,22 +841,20 @@ export default async function (t) {
     await page.click('#masthead .mast-wide [data-theme-toggle]');
   }
   t.eq(await page.evaluate(() => [YES.theme.get(), YES.theme.effective()]), ['dark', 'dark'], 'the toggle records a dark choice');
-  const dl = await posterFacts(page);
-  t.eq([dl.bg, dl.contrast], [pd.bg, pd.contrast], 'the poster is the dark one, as on a dark device');
+  const dl = await stageFacts(page);
+  t.eq([dl.bg, dl.contrast], [pd.bg, pd.contrast], 'the video stage is the dark one, as on a dark device');
   t.eq(await paints(page), darkPaint, 'every overview colour is the dark one, as on a dark device');
   await fresh(t, '#/overview/transfers_out');
   t.eq(await page.evaluate(() => YES.theme.effective()), 'dark', 'the choice survives a reload');
   t.eq(await paints(page), darkPaint, 'and the overview is dark from the first paint after it');
-  await page.click('[data-ov-video]');
-  t.eq(await page.locator('#video-dialog').evaluate((d) => d.open), true, 'video dialog open in dark');
-  await axeOk(t, '#video-dialog', 'video dialog, dark choice');
-  await shot(t, 'dark-video-dialog', { fullPage: false });
-  await page.keyboard.press('Escape');
+  await page.evaluate(() => YES.overview.video.seek(22.5));
+  await page.evaluate(() => document.querySelector('.ov-video').scrollIntoView({ block: 'center' }));
+  await axeOk(t, '.ov-video', 'video card, dark choice');
+  await shot(t, 'dark-video', { fullPage: false });
 
   t.step('print is always light, even with a dark choice on a dark device');
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark', media: 'print' });
-  const printPoster = await posterFacts(page);
-  t.eq([printPoster.bg, printPoster.contrast], [p0.bg, p0.contrast], 'print: the light poster');
+  t.eq(await page.evaluate(() => document.querySelector('.vp').getClientRects().length), 0, 'print: the player is not printed (the statement of record is)');
   // 90-print.css sets its own paper ink and surfaces; the data marks keep the light tokens.
   const printPaint = await paints(page);
   const marks = (p) => ['bar', 'line', 'marker', 'grid'].map((k) => p[k][0]);
@@ -1116,4 +1034,688 @@ export default async function (t) {
     await page.waitForFunction(() => !document.getElementById('ov-panel').parentElement.classList.contains('jr'));
     t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-fk')), 'ov-panel-clear', 'and when it moves back below the waterfall');
   }
+
+  /* ------------------------------------------------------------ video */
+  // Last: it installs a page clock and a voice stub for the rest of the page's life.
+  await videoSuite(t);
+}
+
+/* ====================================================================== */
+/* "Your statement in 60 seconds": the animated, narrated player          */
+/* ====================================================================== */
+const SCREENS = fileURLToPath(new URL('../test-results/screens/', import.meta.url));
+
+/**
+ * Device voice stub (speechSynthesis): records what is spoken, in which
+ * language and voice, and every cancel; an utterance ends 40 ms after it
+ * starts. sessionStorage 'ovtest.tts' picks 'voices' (en-US and es-ES, local),
+ * 'remote' (network voices only) or 'none' (the device has no voice). Full
+ * screen requests are recorded.
+ */
+const TTS_STUB = `(() => {
+  const mode = sessionStorage.getItem('ovtest.tts');
+  if (!mode) return;
+  window.__tts = { spoken: [], cancels: 0 };
+  const voices = mode === 'none' ? [] : mode === 'remote' ? [
+    { name: 'Stub Online English', lang: 'en-US', localService: false, default: true, voiceURI: 'stub-online-en' },
+    { name: 'Stub Online Español', lang: 'es-ES', localService: false, default: false, voiceURI: 'stub-online-es' }
+  ] : [
+    { name: 'Stub English (remote)', lang: 'en-GB', localService: false, default: false, voiceURI: 'stub-en-gb' },
+    { name: 'Stub English', lang: 'en-US', localService: true, default: true, voiceURI: 'stub-en' },
+    { name: 'Stub Español', lang: 'es-ES', localService: true, default: false, voiceURI: 'stub-es' }
+  ];
+  class Utterance {
+    constructor(text) { this.text = text; this.lang = ''; this.voice = null; this.rate = 1; this.pitch = 1; this.volume = 1; this.onend = null; this.onerror = null; }
+  }
+  const synth = {
+    speaking: false, pending: false, paused: false,
+    getVoices: () => voices.slice(),
+    speak(u) {
+      __tts.spoken.push({ text: u.text, lang: u.lang, voice: u.voice ? u.voice.name : null });
+      synth.speaking = true;
+      setTimeout(() => { synth.speaking = false; if (u.onend) u.onend({}); }, 40);
+    },
+    cancel() { __tts.cancels++; synth.speaking = false; },
+    pause() {}, resume() {}, addEventListener() {}, removeEventListener() {}
+  };
+  Object.defineProperty(window, 'SpeechSynthesisUtterance', { value: Utterance, configurable: true, writable: true });
+  Object.defineProperty(window, 'speechSynthesis', { value: synth, configurable: true });
+  window.__fs = [];
+  Element.prototype.requestFullscreen = function () { window.__fs.push(String(this.className)); return Promise.resolve(); };
+  Object.defineProperty(Document.prototype, 'fullscreenEnabled', { get: () => true, configurable: true });
+})();`;
+
+/** Spoken words in a sentence, numbers read in full ("1147.5" → one thousand one hundred forty-seven point five). */
+function spokenWords(say) {
+  let n = 0;
+  for (const tok of say.split(/\s+/).filter(Boolean)) {
+    const m = tok.match(/^(\d+)(?:[.,](\d+))?/);
+    if (!m) {
+      n += 1;
+      continue;
+    }
+    const int = m[1];
+    const dec = m[2] || '';
+    if (int.length === 4 && /^(19|20)/.test(int) && !dec) {
+      n += 3;
+      continue;
+    }
+    const v = +int;
+    let w = (v >= 1000 ? 2 : 0) + (Math.floor(v / 100) % 10 ? 2 : 0) + (v % 100 ? 2 : 0) || 1;
+    if (dec) w += 1 + dec.length;
+    n += w;
+  }
+  return n;
+}
+
+const vstate = (page) => page.evaluate(() => YES.overview.video.state());
+const said = (page) => page.evaluate(() => window.__tts.spoken.map((x) => x.text));
+const cancels = (page) => page.evaluate(() => window.__tts.cancels);
+const caption = (page) =>
+  page.evaluate(() => {
+    const cc = document.querySelector('[data-vp-cc]');
+    return cc && !cc.hidden && cc.getClientRects().length ? cc.textContent.replace(/ /g, ' ') : null;
+  });
+const runFor = (page, ms) => page.clock.runFor(ms);
+/** Stop the page clock a moment from now (time is then advanced only by runFor). */
+async function holdClock(page, ahead = 300) {
+  for (const ms of [ahead, ahead + 1000, ahead + 3000]) {
+    try {
+      await page.clock.pauseAt(await page.evaluate(() => Date.now()) + ms);
+      break;
+    } catch (e) {
+      if (!/past/.test(String(e && e.message))) throw e;
+    }
+  }
+  // After a long task in the page (an axe scan) the pause can take effect a
+  // little after pauseAt() returns, while the clock still runs: wait until the
+  // page clock really stands still, so nothing moves between two steps.
+  let prev = await page.evaluate(() => Date.now());
+  for (let i = 0; i < 60; i++) {
+    await page.waitForTimeout(50);
+    const cur = await page.evaluate(() => Date.now());
+    if (cur === prev) return;
+    prev = cur;
+  }
+}
+/** axe-core needs real timers: let the page clock run for the scan, then hold it again. */
+async function axeLive(t, sel, label) {
+  await t.page.clock.resume();
+  try {
+    await axeOk(t, sel, label);
+  } finally {
+    await holdClock(t.page);
+  }
+}
+
+/** Language and section changes without page.waitForFunction (the page clock is paused). */
+async function langNow(page, lang) {
+  if (await phoneMenu(page)) {
+    await page.click('#masthead [data-mast-menu]');
+    await page.click(`#mast-menu [data-lang="${lang}"]`);
+    await page.keyboard.press('Escape');
+  } else await page.click(`#masthead .mast-wide [data-lang="${lang}"]`);
+  return page.evaluate(() => YES.i18n.lang);
+}
+async function viewNow(page, view) {
+  if (await phoneMenu(page)) {
+    await page.click('#masthead [data-mast-menu]');
+    await page.click(`#mast-menu [data-nav="${view}"]`);
+  } else await page.click(`.nav__link[data-nav="${view}"]`);
+  return page.evaluate(() => YES.state.view);
+}
+
+/** One frame of the picture, for review. */
+async function frameShot(t, name) {
+  await t.page.locator('.vp').screenshot({ path: SCREENS + `overview-${t.viewport}-video-${name}.png` });
+}
+/** The chapters' frames: greeting, balance, largest movement, the detail of a transaction, help. */
+const CHAPTER_FRAMES = [5, 23, 33.5, 44.4, 53.5];
+async function chapterShots(t, tag) {
+  if (t.viewport === 'narrow') return;
+  for (let i = 0; i < CHAPTER_FRAMES.length; i++) {
+    await t.page.evaluate((s) => YES.overview.video.seek(s), CHAPTER_FRAMES[i]);
+    await frameShot(t, `${tag}-ch${i + 1}`);
+  }
+}
+
+async function videoSuite(t) {
+  const { page } = t;
+  const wide = t.viewport === 'desktop';
+  await page.emulateMedia({ reducedMotion: 'no-preference', colorScheme: 'light', forcedColors: 'none', media: 'screen' });
+  await page.evaluate(() => {
+    YES.theme.set(null);
+    sessionStorage.setItem('yes.lang', 'en');
+    sessionStorage.setItem('ovtest.tts', 'voices');
+  });
+  await page.addInitScript(TTS_STUB);
+  await page.clock.install();
+  await fresh(t, '#/overview');
+  await page.locator('.ov-video').scrollIntoViewIfNeeded();
+  await holdClock(page, 500);
+
+  /* -------------------------------------------------- the card and poster */
+  t.step('video: a player in the card, never playing on its own');
+  t.eq(await page.locator('#view-overview video, #view-overview [autoplay], #view-overview iframe').count(), 0, 'no media file, iframe or autoplay');
+  await runFor(page, 5000);
+  let st = await vstate(page);
+  t.eq([st.playing, st.started, st.t, st.duration], [false, false, 0, 60], 'five seconds after load it is still the poster');
+  t.eq(await said(page), [], 'nothing is spoken before Play');
+  t.eq(await page.locator('.vp-bar').isVisible(), false, 'the poster has no control bar, only Play');
+  const card = norm(await page.locator('.ov-video').innerText());
+  for (const s of ['Your statement in 60 seconds', 'Duration 1:00', 'it never plays on its own', 'Illustrative', 'built from this statement’s sample figures', 'device’s built-in voice'])
+    t.assert(card.includes(s), 'card says: ' + s);
+  t.eq(await page.locator('.ov-video .tag--illustrative').count(), 1, 'the card keeps an Illustrative tag');
+  t.eq(await page.locator('[data-vp-note]').isVisible(), false, 'a voice is available: no voiceover note');
+  t.eq(
+    await page.evaluate(() => {
+      const p = document.querySelector('[data-vp-player]');
+      return [p.getAttribute('role'), p.getAttribute('aria-label'), p.querySelector('.vp-stage').getAttribute('aria-hidden'), document.querySelector('.vp-big').getAttribute('aria-label')];
+    }),
+    ['region', 'Video player: Your statement in 60 seconds', 'true', 'Play video: Your statement in 60 seconds (1:00)'],
+    'a labelled region; the picture is hidden from assistive technology; a named Play'
+  );
+  const chapters = await page.$$eval('[data-vp-ch]', (bs) => bs.map((b) => [b.querySelector('.ov-vchap__name').textContent, b.querySelector('.ov-vchap__time').textContent]));
+  t.eq(
+    chapters,
+    [
+      ['Personal greeting', '0:00'],
+      ['Opening and closing balance', '0:06'],
+      ['Largest meaningful movement', '0:24'],
+      ['How to inspect a transaction', '0:35'],
+      ['Where to get help', '0:50']
+    ],
+    'five chapters, in storyboard order, with their times'
+  );
+  const cues = await page.evaluate(() => YES.overview.video.cues());
+  t.eq(await page.locator('[data-vp-cue]').count(), cues.length, 'the transcript has every caption cue');
+  t.eq(norm(await page.locator('[data-vp-cue="0"]').textContent()), '0:00Hello, Sam.', 'transcript lines carry their time');
+  const clear = await page.evaluate(() => {
+    const b = document.querySelector('.vp-big').getBoundingClientRect();
+    return [...document.querySelectorAll('.vs-greet__hello, .vs-greet__sub, .vs-greet__agenda')]
+      .filter((e) => {
+        const r = e.getBoundingClientRect();
+        return r.left < b.right && b.left < r.right && r.top < b.bottom && b.top < r.bottom;
+      })
+      .map((e) => e.className);
+  });
+  t.eq(clear, [], 'the big Play covers none of the greeting');
+  await t.shot('video-poster');
+
+  t.step('video: every caption window holds its sentence at about 2.5 words a second, in English and Spanish');
+  const tight = (list) => list.filter((c) => spokenWords(c.say) / 2.5 > c.end - c.at + 1e-6).map((c) => c.id + ' ' + c.say);
+  t.eq(tight(cues), [], 'English cues fit their windows');
+  t.eq(cues.filter((c) => /EXUSD/.test(c.say)).map((c) => c.id), [], 'the voice never spells the symbol');
+  t.eq(
+    cues.map((c) => c.end > c.at && c.end <= 60),
+    cues.map(() => true),
+    'cue windows are ordered and inside the video'
+  );
+
+  t.step('video: every figure from the same snapshot');
+  const fig = await page.evaluate(() => {
+    const a = (m, s) => YES.fmt.amount(m, { sign: s || 'auto' });
+    const sx = YES.data.statement;
+    const g = YES.calc.groups();
+    const big = YES.calc.largest();
+    return { opening: a(sx.opening), closing: a(sx.closing), inc: a(Math.abs(g.incoming.total)), out: a(Math.abs(g.outgoing.total)), big: a(big.amount, 'always'), bigDate: YES.fmt.date(big.postedAt, 'long'), period: YES.fmt.range(sx.periodStart, sx.periodEnd) };
+  });
+  const byId = Object.fromEntries(cues.map((c) => [c.id, c]));
+  t.eq([norm(fig.opening), norm(fig.inc), norm(fig.out), norm(fig.closing), norm(fig.big)], ['1,000.00 EXUSD', '700.00 EXUSD', '552.50 EXUSD', '1,147.50 EXUSD', '+250.00 EXUSD'], 'YES.calc figures');
+  t.eq(
+    ['hello', 'period', 'opening', 'incoming', 'outgoing', 'closing', 'largest', 'what'].map((k) => norm(byId[k].text)),
+    [
+      'Hello, Sam.',
+      'This is your YES statement for ' + norm(fig.period) + '.',
+      'You started the period with ' + norm(fig.opening) + '.',
+      'Incoming activity added ' + norm(fig.inc) + '.',
+      'Outgoing activity and fees took away ' + norm(fig.out) + '.',
+      'You closed the period with ' + norm(fig.closing) + '.',
+      'Your largest single movement was ' + norm(fig.big) + '.',
+      'Deposit from linked bank account, posted on ' + fig.bigDate + '.'
+    ],
+    'captions: greeting, period, opening → incoming → outgoing → closing, the largest movement (calc.largest)'
+  );
+  t.eq(
+    ['period', 'opening', 'outgoing', 'closing', 'largest'].map((k) => byId[k].say),
+    [
+      'This is your YES statement for September 2026.',
+      'You started the period with 1000 tokens.',
+      'Outgoing activity and fees took away 552.5.',
+      'You closed the period with 1147.5 tokens.',
+      'Your largest single movement added 250 tokens.'
+    ],
+    'the voice reads figures naturally ("tokens", no grouping or trailing zeros)'
+  );
+  await page.evaluate(() => YES.overview.video.seek(23));
+  const bal = norm(await page.locator('.vs-bal__card').innerText());
+  t.assert(['1,000.00', '+700.00', '−552.50', '1,147.50 EXUSD', '+147.50 EXUSD'].every((x) => bal.includes(x)), 'the balance chapter draws the same figures: ' + bal);
+  await page.evaluate(() => YES.overview.video.seek(33.5));
+  const big = norm(await page.locator('.vs-big__tx').innerText());
+  t.assert(big.includes('+250.00') && big.includes('Deposit from linked bank account') && big.includes('Sep 1, 2026') && big.includes('REF-D7K2-9QW4'), 'the largest movement card: ' + big);
+  const panelOpacity = (sec) =>
+    page.evaluate((x) => {
+      YES.overview.video.seek(x);
+      return +getComputedStyle(document.querySelector('.vs-app__panel')).opacity;
+    }, sec);
+  t.eq([await panelOpacity(42), await panelOpacity(44.4)], [1, 0], 'the step’s list fades out under the transaction detail (no text shows through it)');
+  await page.evaluate(() => YES.overview.video.seek(44.4));
+  const sheet = norm(await page.locator('.vs-sheet').innerText());
+  t.assert(sheet.includes('Deposit by debit card') && sheet.includes('+100.00 EXUSD') && sheet.includes('REF-C6V3-1KE7') && sheet.includes('−0.50 EXUSD') && sheet.includes('Explain with AI') && sheet.includes('Ask about this transaction'), 'the walkthrough opens a real transaction with its fee: ' + sheet);
+  await page.evaluate(() => YES.overview.video.seek(0));
+  t.eq(await said(page), [], 'seeking while paused speaks nothing');
+
+  /* -------------------------------------------------------------- play */
+  t.step('video: Play starts the picture and the voice');
+  await page.evaluate(() => YES.overview.video.pause());
+  await page.clock.resume();
+  await fresh(t, '#/overview'); // back to the poster
+  await holdClock(page, 500);
+  await page.locator('.vp-big').click();
+  st = await vstate(page);
+  t.eq([st.playing, st.started, st.cue], [true, true, 0], 'playing from the start');
+  t.eq(await page.evaluate(() => window.__tts.spoken[0]), { text: 'Hello, Sam.', lang: 'en-US', voice: 'Stub English' }, 'the greeting is spoken at once, with the first name, in a local en-US voice');
+  t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-fk')), 'vp-toggle', 'focus moves from the big Play to Pause');
+  t.eq(await page.getAttribute('[data-fk="vp-toggle"]', 'aria-label'), 'Pause', 'the bar button pauses');
+  // Keyboard order follows the bar as it is seen: on a wide player left to right
+  // (Play, Mute, the slider, CC, Full screen); on a narrow one the slider row sits above.
+  const barOrder = await page.evaluate(() => [...document.querySelectorAll('.vp-bar [data-fk]')].map((e) => [e.getAttribute('data-fk'), e.getBoundingClientRect().left]));
+  t.eq(barOrder.map((x) => x[0]), ['vp-toggle', 'vp-mute', 'vp-seek', 'vp-cc', 'vp-fs'], 'bar controls in reading order');
+  if (wide) t.assert(barOrder.every((x, i) => i === 0 || x[1] > barOrder[i - 1][1]), 'on a wide player the Tab order runs left to right: ' + JSON.stringify(barOrder));
+  t.eq(await page.getAttribute('[data-fk="vp-cc"]', 'aria-pressed'), 'true', 'captions are on by default');
+  t.eq(await caption(page), 'Hello, Sam.', 'the caption shows the cue');
+  await runFor(page, 2500);
+  st = await vstate(page);
+  t.assert(Math.abs(st.t - 2.5) < 0.1, 'the playhead follows the clock (2.5 s): ' + st.t);
+  t.eq((await said(page))[1], 'This is your YES statement for September 2026.', 'the next cue is spoken when the playhead reaches it');
+  t.eq(await caption(page), 'This is your YES statement for ' + norm(fig.period) + '.', 'its caption');
+  t.eq([await page.getAttribute('[data-vp-cue="1"]', 'aria-current'), await page.getAttribute('[data-vp-ch="0"]', 'aria-current')], ['true', 'true'], 'the transcript line and the chapter are marked current');
+  t.eq(norm(await page.locator('[data-vp-now]').textContent()), '0:02', 'elapsed time');
+  if (wide) await t.shot('video-playing');
+
+  t.step('video: chapters seek and play');
+  const chs = await page.evaluate(() => YES.overview.video.chapters());
+  for (let i = 1; i < chs.length; i++) {
+    await page.click(`[data-vp-ch="${i}"]`);
+    st = await vstate(page);
+    const first = cues.find((c) => c.at === chs[i].at);
+    t.eq([st.t, st.playing, st.chapter], [chs[i].at, true, i], `chapter ${i + 1} plays from ${chs[i].at} s`);
+    t.eq((await said(page)).slice(-1)[0], first && first.say, `chapter ${i + 1}: its first sentence is spoken`);
+    t.eq(await page.getAttribute(`[data-vp-ch="${i}"]`, 'aria-current'), 'true', `chapter ${i + 1} marked current`);
+  }
+
+  t.step('video: Pause stops the voice and the picture');
+  await page.click('[data-vp-ch="1"]');
+  let c0 = await cancels(page);
+  let n0 = (await said(page)).length;
+  await page.click('[data-fk="vp-toggle"]');
+  st = await vstate(page);
+  t.assert(!st.playing && (await cancels(page)) > c0, 'paused, and speechSynthesis.cancel() called');
+  await runFor(page, 4000);
+  t.eq([(await vstate(page)).t, (await said(page)).length], [st.t, n0], 'nothing moves or speaks while paused');
+  t.eq(await page.getAttribute('[data-fk="vp-toggle"]', 'aria-label'), 'Play', 'the button plays again');
+  t.eq(await caption(page), norm(byId.opening.text), 'the paused frame keeps its caption');
+
+  t.step('video: a resume reads the cue only from its first 40%');
+  await page.evaluate(() => YES.overview.video.seek(13.6)); // outgoing: 13.1–18.2
+  n0 = (await said(page)).length;
+  await page.click('[data-fk="vp-toggle"]');
+  t.eq((await said(page)).slice(n0), [byId.outgoing.say], 'resumed early in a cue: it is read');
+  await page.click('[data-fk="vp-toggle"]');
+  await page.evaluate(() => YES.overview.video.seek(16.5)); // past 40%
+  n0 = (await said(page)).length;
+  await page.click('[data-fk="vp-toggle"]');
+  t.eq((await said(page)).length, n0, 'resumed late in a cue: the voice waits for the next one');
+  await runFor(page, 2000);
+  t.eq((await said(page)).slice(n0), [byId.closing.say], '…and reads the next cue when it starts');
+  await page.click('[data-fk="vp-toggle"]');
+
+  t.step('video: the seek slider by keyboard');
+  const range = page.locator('[data-vp-range]');
+  await range.focus();
+  const at = async () => [Math.round((await vstate(page)).t * 10) / 10, await range.getAttribute('aria-valuetext')];
+  await page.keyboard.press('Home');
+  t.eq(await at(), [0, '0:00 of 1:00, chapter 1: Personal greeting'], 'Home');
+  await page.keyboard.press('ArrowRight');
+  t.eq(await at(), [5, '0:05 of 1:00, chapter 1: Personal greeting'], 'ArrowRight +5 s');
+  await page.keyboard.press('PageUp');
+  t.eq(await at(), [6.6, '0:06 of 1:00, chapter 2: Opening and closing balance'], 'PageUp: next chapter');
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowRight');
+  t.eq(await at(), [16.6, '0:16 of 1:00, chapter 2: Opening and closing balance'], 'ArrowUp / ArrowRight +5 s');
+  await page.keyboard.press('PageDown');
+  t.eq(await at(), [6.6, '0:06 of 1:00, chapter 2: Opening and closing balance'], 'PageDown: start of this chapter');
+  await page.keyboard.press('PageDown');
+  t.eq(await at(), [0, '0:00 of 1:00, chapter 1: Personal greeting'], 'PageDown at a chapter start: the previous chapter');
+  await page.keyboard.press('PageUp');
+  await page.keyboard.press('PageUp');
+  t.eq(await at(), [24.5, '0:24 of 1:00, chapter 3: Largest meaningful movement'], 'PageUp twice');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowDown');
+  t.eq(await at(), [14.5, '0:14 of 1:00, chapter 2: Opening and closing balance'], 'ArrowLeft / ArrowDown −5 s');
+  await page.keyboard.press('End');
+  st = await vstate(page);
+  t.eq([st.t, st.ended, await range.getAttribute('aria-valuetext')], [60, true, '1:00 of 1:00, chapter 5: Where to get help'], 'End: the end');
+  t.eq([await page.getAttribute('.vp-big', 'aria-label'), await page.getAttribute('[data-fk="vp-toggle"]', 'aria-label')], ['Replay video: Your statement in 60 seconds', 'Replay'], 'at the end: Replay');
+  t.eq(await page.locator('.vp-big').isVisible(), true, 'the big Replay shows on the last frame');
+  t.eq(await caption(page), null, 'no caption on the last frame');
+  await page.keyboard.press('Home');
+  t.eq((await vstate(page)).ended, false, 'Home leaves the end');
+
+  t.step('video: playing to the end, then Replay');
+  await page.evaluate(() => YES.overview.video.seek(58, { play: true }));
+  await runFor(page, 2500);
+  st = await vstate(page);
+  t.eq([st.playing, st.ended, st.t], [false, true, 60], 'it stops at 1:00');
+  await page.locator('.vp-big').click();
+  st = await vstate(page);
+  t.eq([st.playing, st.t], [true, 0], 'Replay plays from the start');
+  t.eq((await said(page)).slice(-1)[0], 'Hello, Sam.', 'and greets again');
+
+  t.step('video: captions, mute and full screen');
+  await page.click('[data-vp-ch="1"]');
+  await page.click('[data-fk="vp-cc"]');
+  t.eq([await page.getAttribute('[data-fk="vp-cc"]', 'aria-pressed'), await caption(page)], ['false', null], 'CC off hides the captions');
+  await page.keyboard.press('c');
+  t.eq([await page.getAttribute('[data-fk="vp-cc"]', 'aria-pressed'), await caption(page)], ['true', norm(byId.opening.text)], 'C turns them back on');
+  c0 = await cancels(page);
+  await page.click('[data-fk="vp-mute"]');
+  t.eq(await page.getAttribute('[data-fk="vp-mute"]', 'aria-pressed'), 'true', 'Mute is pressed');
+  t.assert((await cancels(page)) > c0, 'muting stops the voice at once');
+  n0 = (await said(page)).length;
+  await runFor(page, 5300); // through the start of "incoming" (10.5 s), past its first 40%
+  t.eq((await said(page)).length, n0, 'muted: no cue is spoken');
+  t.assert((await vstate(page)).playing, 'muted, it keeps playing');
+  await page.keyboard.press('m');
+  t.eq(await page.getAttribute('[data-fk="vp-mute"]', 'aria-pressed'), 'false', 'M unmutes');
+  t.eq((await said(page)).length, n0, 'unmuting late in a cue waits for the next one');
+  await runFor(page, 1500); // into "outgoing" (13.1 s)
+  t.eq((await said(page)).slice(n0), [byId.outgoing.say], 'unmuted, the next cue is spoken');
+  await page.click('[data-fk="vp-fs"]');
+  await page.keyboard.press('f');
+  const fsCalls = await page.evaluate(() => window.__fs);
+  t.assert(fsCalls.length === 2 && fsCalls.every((c) => /(^| )vp( |$)/.test(c)), 'the full-screen button and F ask for full screen on the player: ' + JSON.stringify(fsCalls));
+  t.eq(await page.getAttribute('[data-fk="vp-fs"]', 'aria-label'), 'Full screen', 'full screen button named');
+
+  t.step('video: player shortcuts');
+  await page.focus('[data-fk="vp-toggle"]');
+  let t0 = (await vstate(page)).t;
+  await page.keyboard.press('k');
+  t.eq((await vstate(page)).playing, false, 'K pauses');
+  await page.keyboard.press('l');
+  t.eq(Math.round(((await vstate(page)).t - t0) * 10) / 10, 10, 'L: +10 s');
+  await page.keyboard.press('j');
+  await page.keyboard.press('ArrowRight');
+  t.eq(Math.round(((await vstate(page)).t - t0) * 10) / 10, 5, 'J: −10 s, ArrowRight: +5 s');
+  await page.keyboard.press('Space');
+  t.eq((await vstate(page)).playing, true, 'Space on the focused Play button plays (once)');
+  await page.keyboard.press('K');
+  t.eq((await vstate(page)).playing, false, 'K again pauses');
+
+  if (wide) {
+    t.step('video: the bar fades while playing untouched, and stays for the keyboard');
+    await page.evaluate(() => document.activeElement.blur()); // no keyboard focus left in the player
+    await page.click('[data-fk="vp-toggle"]');
+    const box = await page.locator('.vp-stage').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 3);
+    await runFor(page, 3500);
+    await page.waitForTimeout(300); // the bar's own fade
+    t.eq(await page.evaluate(() => [document.querySelector('.vp').classList.contains('is-idle'), getComputedStyle(document.querySelector('.vp-bar')).opacity]), [true, '0'], 'idle while playing: the bar fades');
+    await page.mouse.move(box.x + box.width / 2 + 20, box.y + box.height / 3 + 10);
+    await page.waitForTimeout(300);
+    t.eq(await page.evaluate(() => getComputedStyle(document.querySelector('.vp-bar')).opacity), '1', 'a pointer move brings it back');
+    await page.keyboard.press('Tab'); // keyboard focus inside the player
+    await runFor(page, 3500);
+    await page.waitForTimeout(300);
+    t.eq(await page.evaluate(() => getComputedStyle(document.querySelector('.vp-bar')).opacity), '1', 'with keyboard focus in the player, it stays');
+    const capLow = await page.evaluate(() => document.querySelector('.vp-cc').getBoundingClientRect().bottom <= document.querySelector('[data-fk="vp-toggle"]').getBoundingClientRect().top + 1);
+    t.assert(capLow, 'captions sit above the shown bar’s controls');
+    await page.click('[data-fk="vp-toggle"]');
+  }
+
+  /* --------------------------------------------- frames, light, English */
+  await chapterShots(t, 'en-light');
+
+  // Scans happen on frames that stay still for a few seconds (the balance
+  // chapter once built, the detail of a transaction): the clock runs meanwhile.
+  t.step('video: axe, paused and playing (light)');
+  await page.evaluate(() => YES.overview.video.seek(20.4));
+  await axeLive(t, '.ov-video', 'video paused, light');
+  await page.evaluate(() => YES.overview.video.seek(20.4, { play: true }));
+  await axeLive(t, '.ov-video', 'video playing, light');
+
+  t.step('video: switching to Spanish while playing pauses, keeps the place and re-renders in Spanish');
+  await page.evaluate(() => YES.overview.video.seek(19.2));
+  st = await vstate(page);
+  t.eq(st.playing, true, 'playing before the switch');
+  c0 = await cancels(page);
+  t.eq(await langNow(page, 'es'), 'es', 'Spanish');
+  const es = await vstate(page);
+  // (Playwright's clicks on the phone's Menu advance the held page clock by a frame or two before the switch.)
+  t.assert(!es.playing && Math.abs(es.t - st.t) < 0.1 && (await cancels(page)) > c0, `paused at the same place (${st.t} → ${es.t}) and the voice stopped`);
+  t.eq(await caption(page), 'Cerraste el período con 1.147,50 EXUSD.', 'the caption is in Spanish, with Spanish figures');
+  t.eq(norm(await page.locator('[data-vp-cue="5"] .ov-vtr__text').textContent()), 'Cerraste el período con 1.147,50 EXUSD.', 'the transcript is in Spanish');
+  t.eq(await page.$$eval('[data-vp-ch] .ov-vchap__name', (els) => els.map((e) => e.textContent)), ['Saludo personal', 'Saldo inicial y final', 'El movimiento más relevante', 'Cómo revisar un movimiento', 'Dónde obtener ayuda'], 'chapters in Spanish');
+  t.eq([await page.getAttribute('[data-fk="vp-toggle"]', 'aria-label'), await page.getAttribute('[data-vp-range]', 'aria-valuetext')], ['Reproducir', '0:19 de 1:00, capítulo 2: Saldo inicial y final'], 'controls in Spanish');
+  t.eq(norm(await page.locator('.vs-bal__card .vs-row--closing').innerText()).replace(/\s+/g, ' ').trim(), 'Saldo final 1.147,50 EXUSD', 'the picture is in Spanish');
+  const esCues = await page.evaluate(() => YES.overview.video.cues());
+  t.eq(tight(esCues), [], 'Spanish cues fit their windows');
+  t.eq(esCues.filter((c) => /EXUSD/.test(c.say)).map((c) => c.id), [], 'the Spanish voice never spells the symbol');
+  n0 = (await said(page)).length;
+  await page.click('[data-fk="vp-toggle"]');
+  t.eq(await page.evaluate((n) => window.__tts.spoken.slice(n), n0), [{ text: 'Cerraste el período con 1147,5 unidades de token.', lang: 'es-ES', voice: 'Stub Español' }], 'Play resumes in a Spanish voice');
+  await page.click('[data-fk="vp-toggle"]');
+  const esClear = await page.evaluate(() => {
+    YES.overview.video.seek(0);
+    const b = document.querySelector('.vp-big');
+    return b.getClientRects().length === 0;
+  });
+  t.assert(esClear, 'once started, the big Play stays away until the end');
+  await chapterShots(t, 'es-light');
+
+  t.step('video: dark scheme (Spanish, then English)');
+  await page.evaluate(() => YES.theme.set('dark'));
+  await chapterShots(t, 'es-dark');
+  await page.evaluate(() => YES.overview.video.seek(44.4));
+  await axeLive(t, '.ov-video', 'video paused, dark');
+  t.eq(await langNow(page, 'en'), 'en', 'English again');
+  await chapterShots(t, 'en-dark');
+  await page.evaluate(() => YES.overview.video.seek(20.4, { play: true }));
+  await axeLive(t, '.ov-video', 'video playing, dark');
+  const ds = await stageFacts(page);
+  t.assert(ds.contrast >= 4.5 && ds.bg < 0.2, 'dark stage: deep, with readable text (' + ds.bg + ', ' + ds.contrast + ')');
+  await page.evaluate(() => YES.theme.set(null));
+  t.eq((await vstate(page)).playing, true, 'a theme switch does not interrupt playback');
+
+  t.step('video: leaving the Overview, or hiding the page, pauses');
+  st = await vstate(page);
+  c0 = await cancels(page);
+  t.eq(await viewNow(page, 'transactions'), 'transactions', 'to Transactions');
+  t.assert(!(await vstate(page)).playing && (await cancels(page)) > c0, 'leaving the Overview pauses and silences');
+  t.eq(await viewNow(page, 'overview'), 'overview', 'back');
+  t.assert(Math.abs((await vstate(page)).t - st.t) < 0.1, 'the playhead is kept');
+  await page.evaluate(() => YES.overview.video.play());
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  t.eq((await vstate(page)).playing, false, 'a hidden page pauses');
+  await page.evaluate(() => delete document.hidden);
+  await page.evaluate(() => YES.overview.video.play());
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  t.eq((await vstate(page)).playing, false, 'leaving the page pauses');
+
+  t.step('video: reduced motion: fades and cuts, no movement');
+  const frame = () =>
+    page.evaluate(() => {
+      const out = {};
+      YES.overview.video.seek(6.95);
+      out.card = document.querySelector('.vs-bal__card').style.transform;
+      YES.overview.video.seek(7.5);
+      out.bar = document.querySelector('.vs-bar').style.getPropertyValue('--p');
+      YES.overview.video.seek(35.0 + 1.3); // the pointer half-way to the journey step
+      const p = document.querySelector('.vs-pointer');
+      out.ptr = [p.style.left, p.style.top];
+      return out;
+    });
+  const moving = await frame();
+  t.assert(/translate/.test(moving.card) && +moving.bar > 0 && +moving.bar < 1 && moving.ptr[0] !== '72%', 'with motion: entrances move, bars grow, the pointer glides: ' + JSON.stringify(moving));
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const still = await frame();
+  t.eq([still.card, still.bar, still.ptr], ['', '1', ['72%', '82%']], 'reduced motion: no movement, bars appear whole, the pointer cuts');
+  await page.evaluate(() => YES.overview.video.seek(10, { play: true }));
+  await runFor(page, 1000);
+  st = await vstate(page);
+  t.assert(st.playing && Math.abs(st.t - 11) < 0.1, 'reduced motion still plays: ' + st.t);
+  await page.evaluate(() => YES.overview.video.pause());
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+
+  t.step('video: no sideways scroll, 44 px controls');
+  await page.evaluate(() => {
+    document.querySelector('.ov-vtr').open = true;
+    YES.overview.video.seek(30);
+  });
+  const ov = await noHorizontalOverflow(page);
+  t.eq([ov.scroll, ov.offenders], [true, []], 'the player, chapters and open transcript fit the width');
+  const small = await page.$$eval('.ov-video button', (els) =>
+    els
+      .filter((e) => e.getClientRects().length)
+      .map((e) => [e.getAttribute('data-fk'), Math.round(e.getBoundingClientRect().height), Math.round(e.getBoundingClientRect().width)])
+      .filter((x) => x[1] < 44 || x[2] < 44)
+  );
+  t.eq(small, [], 'every player, chapter and transcript control is at least 44 px');
+  await page.click('[data-vp-cue="6"]');
+  t.eq([(await vstate(page)).t, (await vstate(page)).playing], [byId.largest.at, true], 'a transcript line plays from its time');
+  await page.evaluate(() => YES.overview.video.pause());
+  await t.shot('video-transcript', { fullPage: false });
+
+  /* ---------------------------------------------------- the logo slot */
+  t.step('video: the [YES_LOGO] slot in the picture');
+  const logos = () =>
+    page.evaluate(() => {
+      const stage = document.querySelector('.vp-stage');
+      const greet = stage.querySelector('.vs-greet__logo .vs-logo');
+      const art = greet.querySelector('svg, img');
+      const r = art && art.getBoundingClientRect();
+      return {
+        placeholders: stage.querySelectorAll('.vs-logo.yes-logo--placeholder').length,
+        art: stage.querySelectorAll('.vs-logo.yes-logo--art').length,
+        hidden: [...stage.querySelectorAll('.vs-logo')].every((l) => l.getAttribute('aria-hidden') === 'true' && !l.hasAttribute('role')),
+        kind: art ? art.tagName.toLowerCase() : null,
+        height: r ? Math.round((r.height / stage.clientWidth) * 1000) / 10 : null,
+        ratio: r ? Math.round((r.width / r.height) * 10) / 10 : null,
+        ink: greet.classList.contains('yes-logo--art') ? getComputedStyle(greet).color === getComputedStyle(stage.querySelector('.vs-greet__hello')).color : null
+      };
+    });
+  t.eq(await logos(), { placeholders: 3, art: 0, hidden: true, kind: null, height: null, ratio: null, ink: null }, 'without artwork: the text placeholder (greeting, corner, closing card)');
+  const before = t.external.length;
+  await page.evaluate(() => {
+    YES.config.slots.YES_LOGO.svg = '<svg viewBox="0 0 120 40" aria-hidden="true" focusable="false"><rect width="120" height="40" rx="8" fill="currentColor"/></svg>';
+    YES.renderAll();
+    YES.overview.video.seek(5);
+  });
+  t.eq(await logos(), { placeholders: 0, art: 3, hidden: true, kind: 'svg', height: 4.8, ratio: 3, ink: true }, 'approved SVG: in every place, 4.8% of the picture high, 3:1 kept, in the stage ink');
+  if (t.viewport !== 'narrow') await frameShot(t, 'logo-art');
+  await page.evaluate(() => {
+    delete YES.config.slots.YES_LOGO.svg;
+    YES.config.slots.YES_LOGO.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 90 30%22%3E%3Crect width=%2290%22 height=%2230%22 fill=%22%23fff%22/%3E%3C/svg%3E';
+    YES.renderAll();
+  });
+  const dataLogo = await logos();
+  t.eq([dataLogo.art, dataLogo.kind, dataLogo.height], [3, 'img', 4.8], 'a data: image is drawn the same way');
+  await page.evaluate(() => {
+    YES.config.slots.YES_LOGO.src = 'https://cdn.example.com/logo.png';
+    YES.renderAll();
+  });
+  t.eq((await logos()).placeholders, 3, 'an image URL that would fetch is ignored: the placeholder stays');
+  await page.evaluate(() => {
+    delete YES.config.slots.YES_LOGO.src;
+    YES.renderAll();
+  });
+  t.eq(t.external.slice(before).filter((u) => /example\.com/.test(u)), [], 'no request for a logo URL');
+
+  /* ------------------------------------------- an approved recording */
+  t.step('video: an approved recording plays instead of the device voice, in step with the picture');
+  await page.evaluate(() => {
+    // A silent 61-second WAV (8 kHz, 8-bit mono), packaged as a data: URI.
+    const sr = 8000;
+    const n = sr * 61;
+    const buf = new Uint8Array(44 + n);
+    const dv = new DataView(buf.buffer);
+    const w = (o, s) => {
+      for (let i = 0; i < s.length; i++) buf[o + i] = s.charCodeAt(i);
+    };
+    w(0, 'RIFF');
+    dv.setUint32(4, 36 + n, true);
+    w(8, 'WAVE');
+    w(12, 'fmt ');
+    dv.setUint32(16, 16, true);
+    dv.setUint16(20, 1, true);
+    dv.setUint16(22, 1, true);
+    dv.setUint32(24, sr, true);
+    dv.setUint32(28, sr, true);
+    dv.setUint16(32, 1, true);
+    dv.setUint16(34, 8, true);
+    w(36, 'data');
+    dv.setUint32(40, n, true);
+    buf.fill(128, 44);
+    let bin = '';
+    for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+    YES.config.slots.VIDEO_VOICEOVER.en = 'data:audio/wav;base64,' + btoa(bin);
+    YES.renderAll();
+  });
+  t.eq(await page.locator('.ov-video audio[data-vp-audio]').count(), 1, 'one <audio> element for the recording');
+  t.eq(await page.evaluate(() => [YES.overview.video.state().mode, document.querySelector('audio[data-vp-audio]').preload]), ['recorded', 'auto'], 'recorded mode, preloaded');
+  t.assert(norm(await page.locator('.ov-video__honest').innerText()).includes('narrated by the approved recording'), 'the card says the narration is the approved recording');
+  n0 = (await said(page)).length;
+  await page.evaluate(() => YES.overview.video.seek(12, { play: true }));
+  await page.waitForTimeout(400); // the media element starts on its own clock
+  const audio = () => page.evaluate(() => ({ paused: document.querySelector('audio[data-vp-audio]').paused, time: document.querySelector('audio[data-vp-audio]').currentTime, muted: document.querySelector('audio[data-vp-audio]').muted, mode: YES.overview.video.state().mode }));
+  let a = await audio();
+  t.assert(!a.paused && a.mode === 'recorded' && Math.abs(a.time - 12) < 1, 'the recording plays from the playhead: ' + JSON.stringify(a));
+  await page.evaluate(() => YES.overview.video.seek(30));
+  a = await audio();
+  t.assert(Math.abs(a.time - 30) < 0.35, 'a seek moves the recording with it (currentTime ' + a.time + ')');
+  t.eq((await said(page)).length, n0, 'the device voice is not used');
+  await page.click('[data-fk="vp-mute"]');
+  t.eq((await audio()).muted, true, 'Mute mutes the recording');
+  await page.click('[data-fk="vp-mute"]');
+  await page.evaluate(() => YES.overview.video.pause());
+  t.eq((await audio()).paused, true, 'Pause pauses the recording');
+  await page.evaluate(() => {
+    YES.config.slots.VIDEO_VOICEOVER.en = null;
+    YES.renderAll();
+  });
+  t.eq(await page.locator('.ov-video audio').count(), 0, 'no recording: no <audio>');
+
+  /* ------------------------------------------- no voice on the device */
+  t.step('video: no voice for the language: it plays silently, captions on, mute off, and says so');
+  await page.clock.resume();
+  await page.evaluate(() => sessionStorage.setItem('ovtest.tts', 'none'));
+  await fresh(t, '#/overview');
+  await holdClock(page, 2000); // past the voices' grace period
+  t.eq(await page.evaluate(() => YES.overview.video.state().mode), 'none', 'no voice');
+  t.eq(norm(await page.locator('[data-vp-note]').innerText()), 'Voiceover isn’t available in this language on this device — captions are on.', 'the note');
+  t.eq(await page.locator('[data-vp-note]').isVisible(), true, 'the note is shown');
+  t.eq(norm(await page.locator('[data-vp-honest]').innerText()), 'An animated walkthrough built from this statement’s sample figures, with captions.', 'the card no longer promises a voice');
+  await page.locator('.vp-big').click();
+  t.eq([await page.getAttribute('[data-fk="vp-cc"]', 'aria-pressed'), await page.locator('[data-fk="vp-mute"]').isDisabled()], ['true', true], 'captions on, mute disabled');
+  await runFor(page, 3000);
+  st = await vstate(page);
+  t.assert(st.playing && Math.abs(st.t - 3) < 0.1, 'it plays silently: ' + st.t);
+  t.eq(await said(page), [], 'nothing is spoken');
+  t.eq(await caption(page), 'This is your YES statement for ' + norm(fig.period) + '.', 'captions carry the narration');
+  await page.evaluate(() => YES.overview.video.pause());
+  await axeLive(t, '.ov-video', 'video without a voice');
+  if (t.viewport !== 'narrow') await frameShot(t, 'no-voice');
+  await page.clock.resume();
+
+  t.step('video: network voices only: never used (they would send the statement’s figures off the device)');
+  await page.evaluate(() => sessionStorage.setItem('ovtest.tts', 'remote'));
+  await fresh(t, '#/overview');
+  t.eq(await page.evaluate(() => YES.overview.video.state().mode), 'none', 'only online voices: treated as no voice');
+  t.eq(await page.locator('[data-vp-note]').isVisible(), true, 'the no-voice note is shown');
+  await page.locator('.vp-big').click();
+  t.eq(await said(page), [], 'nothing is sent to an online voice');
+  await page.evaluate(() => YES.overview.video.pause());
 }

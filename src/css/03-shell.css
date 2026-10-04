@@ -1,31 +1,34 @@
 /* Shell: masthead, navigation, phone menu, views, footer, withheld state. */
 /*
- * The masthead is a size container: its layout follows the space it actually
- * has, so the docked assistant (which narrows #app) needs no special case.
- * Breakpoints are in em (16px at the default text size), so very large text
- * moves to the roomier layouts instead of overflowing:
- *   ≥ 68em (1088px)  one row: brand · demo badge · language · light/dark ·
- *                    Download or print · Ask YES, then the section tabs.
- *                    Languages other than English (longer) put the demo
- *                    badge in the band described below, so the language
- *                    switch (full names, as in English) and "Descargar o
- *                    imprimir" stay whole.
- *   < 68em           the demo badge becomes a slim full-width band above the
- *                    brand row; the band scrolls away (negative sticky top,
- *                    set from 05-shell.js) and only the brand row and the
- *                    tabs stay pinned. Compact language switch (EN/ES; the
- *                    names stay in the accessibility tree) and "Download"
- *                    (the button's name stays "Download or print").
- *   < 52em (832px)   Ask YES shows its short word ("Ask" / "Pregunta").
- *   < 45em (720px)   phone: logo · short period · Ask · Menu. The sections,
- *                    Download or print, the language switch and the
- *                    light/dark toggle move into the Menu's dropdown panel.
- *                    The band and the brand row take about 80px of the first
- *                    screen and under 70px stays pinned.
+ * The masthead is a size container (mast): its layout follows the space it
+ * actually has, so the docked assistant (which narrows #app) needs no special
+ * case. Its brand row is one too (mastrow): the labels follow the room inside
+ * the row, which stops at the page's 1120px column, so very large text on a
+ * wide screen still gets the shorter labels it needs. Breakpoints are in em
+ * (16px at the default text size), so very large text moves to the roomier
+ * layouts instead of overflowing. Every language gets the same layout at a
+ * given width (Spanish, the longest, sets the thresholds). Widths below are
+ * the masthead's at the default text size (the row has 24px gutters):
+ *   ≥ 992px    one row: brand · language switch (globe, "English | Español")
+ *              · light/dark · Download or print · Ask YES, then the section
+ *              tabs. Spanish needs about 950px here.
+ *   < 992px    compact language switch (EN/ES; the names stay in the
+ *              accessibility tree): row under 59em.
+ *   < 880px    "Download" / "Descargar" (the button's name stays "Download
+ *              or print"): row under 52em.
+ *   < 832px    Ask YES shows its short word ("Ask" / "Pregunta"): row under
+ *              49em.
+ *   < 720px    phone (masthead under 45em): logo · short period · Ask · Menu.
+ *              The sections, Download or print, the language switch and the
+ *              light/dark toggle move into the Menu's dropdown panel. The
+ *              header is under 60px tall and stays pinned.
+ * There is no demo badge in the header (product owner, 2026-10-04): the
+ * footer notice, the print/PDF watermark and the Illustrative tags mark the
+ * fictional data.
  */
 .masthead {
   position: sticky;
-  top: calc(-1 * var(--mast-skip, 0px));
+  top: 0;
   z-index: 100;
   container: mast / inline-size;
   background: color-mix(in srgb, var(--surface) 94%, transparent);
@@ -47,6 +50,7 @@
   }
 }
 .masthead__bar {
+  container: mastrow / inline-size;
   display: flex;
   align-items: center;
   gap: var(--s2) var(--s3);
@@ -179,7 +183,7 @@
   display: none;
 }
 
-@container mast (width < 68em) {
+@container mastrow (width < 59em) {
   /* Compact language switch: "EN"/"ES" shown, "English"/"Español" kept as each
      button's accessible name (visually hidden, never display:none). */
   .mast-wide .seg--lang .seg__long {
@@ -200,6 +204,8 @@
   .mast-wide .seg--lang .seg__icon {
     display: none;
   }
+}
+@container mastrow (width < 52em) {
   /* "Download" stays visible; the button's name is still "Download or print". */
   .btn--record .btn__label {
     display: none;
@@ -207,53 +213,8 @@
   .btn--record .btn__label--short {
     display: inline;
   }
-
-  /* Demo badge: a slim, full-width band above the brand row, fully worded. It
-     is the first thing on the screen and scrolls away with the page. */
-  .masthead__bar.has-demo {
-    padding-top: 0;
-    row-gap: 6px;
-  }
-  .demo-badge {
-    order: -1;
-    flex: 0 0 calc(100% + 2 * var(--gutter));
-    margin-inline: calc(-1 * var(--gutter));
-    justify-content: center;
-    padding: 2px var(--gutter);
-    border-width: 0 0 1px;
-    border-radius: 0;
-    line-height: 1.5;
-    text-align: center;
-    white-space: normal;
-  }
 }
-/* Other languages run longer than English (Spanish needs about 200px more for
-   the same row). The language switch looks the same in every language at a
-   given width (full names here, EN/ES below 68em); instead the longer demo
-   badge moves out of the row. */
-@container mast (width >= 68em) {
-  /* The longer demo badge moves to the slim band above the brand row (as below
-     68em), so the row keeps the full "Descargar o imprimir" label. */
-  html:not([lang|='en']) .masthead__bar.has-demo {
-    padding-top: 0;
-    row-gap: 6px;
-  }
-  html:not([lang|='en']) .demo-badge {
-    order: -1;
-    /* Full bleed across the masthead even where the bar is narrower than the
-       screen: 100cqw is the masthead's own width (also correct when docked). */
-    flex: 0 0 100cqw;
-    margin-inline: calc(50% - 50cqw);
-    justify-content: center;
-    padding: 2px var(--gutter);
-    border-width: 0 0 1px;
-    border-radius: 0;
-    line-height: 1.5;
-    text-align: center;
-    white-space: normal;
-  }
-}
-@container mast (width < 52em) {
+@container mastrow (width < 49em) {
   /* Ask YES keeps a visible word ("Ask" / "Pregunta"), contained in its name. */
   .btn--ask {
     gap: 4px;
@@ -271,11 +232,7 @@
   .masthead__bar {
     min-height: 0;
     gap: var(--s2);
-    padding-block: var(--s2) 6px;
-  }
-  .masthead__bar.has-demo {
-    row-gap: 6px;
-    padding-block: 0 6px;
+    padding-block: 6px;
   }
   .brand {
     gap: var(--s2);

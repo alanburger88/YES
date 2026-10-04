@@ -5,6 +5,8 @@ A YES-branded, mobile-first statement that tells the account story instead of pr
 **Deliverable:** [`dist/yes-statement.html`](dist/yes-statement.html), one self-contained HTML file. It includes the styles, logic, English and Spanish copy, accessible graphics and fictional statement data. Open it straight from disk with no server and no network connection.
 
 > **Illustrative demo data.** The customer, account, amounts, references, blockchain and reserve details are all invented. Nothing you do in the file is sent anywhere by the statement itself. When you are online, the page also loads the third-party UserWay accessibility widget (see below).
+>
+> The page header no longer shows an "Illustrative demo data" badge (product owner decision, 2026-10-04; see [Demo labels](#demo-labels)). The footer notice, the document title, the print and PDF watermarks and the "Illustrative" tags still mark the fictional data.
 
 ## Try it
 
@@ -25,13 +27,13 @@ To see the reconciliation guard at work, open `dist/yes-statement.html#/overview
 
 | PRD area | Where |
 | --- | --- |
-| 5.1 Header and brand system | Masthead (logo slot, period, demo badge, language switch, light/dark toggle, **Download or print**, Ask YES). On phones it keeps the logo, period, Ask YES and a **Menu** whose dropdown holds the four sections, Download or print, the language switch and the light/dark toggle. Statement details panel, replacement slots in `src/js/00-config.js` |
+| 5.1 Header and brand system | Masthead (logo slot, period, language switch, light/dark toggle, **Download or print**, Ask YES), one row at every width. On phones it keeps the logo, period, Ask YES and a **Menu** whose dropdown holds the four sections, Download or print, the language switch and the light/dark toggle. Statement details panel, replacement slots in `src/js/00-config.js` |
 | 5.2 Interactive balance journey (signature) | Overview: bridge from opening to closing balance, selectable steps that list their contributing transactions, an equation and table equivalent, and a running-balance chart with a text alternative |
 | 5.3 Transaction explorer and query | Transactions: search with highlighting, combined filters, sorting with an explicit date basis, table and mobile cards, detail dialog, CSV export (complete and current view), print |
 | 5.4 Transaction inquiry | Multi-step demo inquiry started from a transaction: validation, review, a confirmation that nothing was sent, and the draft is kept |
 | 5.5 AI assistant drawer | Ask YES drawer (docked on desktop, sheet on mobile) with deterministic, statement-grounded demo explanations, supporting rows, feedback and a route to a person |
 | 5.6 Stablecoin understanding and transparency | Understand: seven explanations, statement vs live balance, an illustrative on-chain reference, an illustrative reserve panel |
-| 5.7 Personalized video | “Your statement in 60 seconds” placeholder card and storyboard. It never autoplays. |
+| 5.7 Personalized video | “Your statement in 60 seconds”: an animated player drawn in the page that follows the storyboard, with play/pause, narration, captions and a transcript. Its figures come from the statement. It never autoplays. |
 | 5.8 Language, accessibility, comfort | Full EN/ES with one language switch, in the header. Locale formatting, WCAG 2.2 AA patterns and reduced motion. A light/dark mode starts from the device setting and remembers the visitor's choice in this browser. Print and PDF always stay light. UserWay integration point, launcher bottom left |
 | 5.9 Help, feedback, statement record | Help: contact placeholders, session-only feedback, **Download or print** (print the statement of record, download it as a PDF, export CSV, record facts), integrity checks, accessibility status, about this demo |
 | 6 Data and reconciliation rules | `src/js/01-data.js` (integer minor units) and `src/js/02-calc.js`. The release gate runs in the browser and also in `build.mjs`, which refuses to build a statement that doesn't reconcile. |
@@ -44,6 +46,19 @@ To see the reconciliation guard at work, open `dist/yes-statement.html#/overview
 - One deposit was started in the previous period and posted in this one. It shows how the posted-date basis works.
 - Fees are separate, linked ledger lines.
 - Exactly one transaction carries the sample on-chain reference. It is labelled *Illustrative reference — no live blockchain verification* and doesn't link to any explorer.
+
+## Demo labels
+
+PRD §4.1 asked for a visible **Illustrative demo data** badge on the first screen. On 2026-10-04 the product owner removed it from the header: both the inline badge (English, wide screens) and the slim full-width band (Spanish and narrower screens). This frees room in the header's single row. The full **Download or print** label now shows from 880px wide and the full language names from 992px, the same in every language (both used to need 1088px). On phones the header is one row under 60px tall, all of it pinned.
+
+The fictional data is still marked:
+
+- the demo notice in the footer
+- the document title (“… · Illustrative demo”)
+- the *ILLUSTRATIVE DEMO DATA* line shown when JavaScript is off
+- the watermark on the printed statement of record and on every PDF page
+- the *Illustrative* tags on the fictional rate, the blockchain reference, the reserve panel and the transaction detail
+- the demo tags inside sections, such as Help's
 
 ## Download or print, PDF and light/dark
 
@@ -58,7 +73,7 @@ To see the reconciliation guard at work, open `dist/yes-statement.html#/overview
 | UserWay accessibility widget | Loads once, online only, with account **B3W9A2mgGs** (`YES.config.userway`). The launcher sits in the bottom-left corner (`position: 5`, UserWay's `data-position`), clear of the Ask YES drawer's close button. If it can't load, the page says so and keeps working. If the host viewer already provides UserWay, the file doesn't add a second launcher. |
 | Governed AI | Not connected. Explanations are computed locally and labelled *Demo explanation*. |
 | Inquiry or case management | Not connected. It is a complete local mock. |
-| Personalized video | Placeholder and storyboard only |
+| Personalized video | The player runs offline: it draws the animation in the page and narrates with an approved recorded voiceover if one is configured, otherwise with the device's built-in voice. An approved video asset or rendering service is a Phase B connection. |
 | Feedback and analytics | Feedback stays in session memory only. There is no analytics. |
 | Reserve and blockchain evidence | Illustrative layout only. Nothing is asserted. |
 | Live balance | Not connected. A separate area marks where it would go. |
@@ -67,7 +82,8 @@ To see the reconciliation guard at work, open `dist/yes-statement.html#/overview
 
 All brand, legal, support and integration values live in `src/js/00-config.js`:
 
-- **Brand and legal slots:** `YES_LOGO`, `YES_PRIMARY`, `YES_ACCENT`, `YES_FONT`, `PRODUCT_NAME`, `ISSUER_OR_PARTNER`, `VIDEO_POSTER` and `DISCLOSURES`. For the logo, set `YES_LOGO.svg` to approved SVG markup, or `YES_LOGO.src` to a `data:` image. Until then, a text placeholder is shown. The shared helper `YES.ui.logoHtml()` renders the slot.
+- **Brand and legal slots:** `YES_LOGO`, `YES_PRIMARY`, `YES_ACCENT`, `YES_FONT`, `PRODUCT_NAME`, `ISSUER_OR_PARTNER`, `VIDEO_POSTER`, `VIDEO_VOICEOVER` and `DISCLOSURES`. For the logo, set `YES_LOGO.svg` to approved SVG markup, or `YES_LOGO.src` to a `data:` image. Until then, a text placeholder is shown. The shared helper `YES.ui.logoHtml()` renders the slot.
+- **Video voiceover:** `VIDEO_VOICEOVER = { en, es }` holds the approved recorded narration for “Your statement in 60 seconds”, one per language, as `data:` audio URIs (for example `data:audio/mpeg;base64,…`), so the file still fetches nothing. When the current language has one, the player plays it in step with the animation. Otherwise (`null`, the default) it narrates with the device's built-in voice (Web Speech API). Captions and the transcript are available either way.
 - **Support destinations:** fictional placeholders for now.
 - **Feature flags**
 - **Locale tags:** Spanish defaults to `es-ES` formatting. Change it to `es-US` or `es-MX` for audiences in the Americas.

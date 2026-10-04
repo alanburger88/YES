@@ -202,6 +202,8 @@
 }
 
 /* ------------------------------------------------------- Badges and tags */
+/* "Illustrative demo data" tag for module sections (e.g. Help). The header
+   itself shows no demo badge (product owner, 2026-10-04). */
 .demo-badge {
   display: inline-flex;
   align-items: center;

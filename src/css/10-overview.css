@@ -1,6 +1,7 @@
 /*
  * Overview: first screen, balance card, statement details, balance journey,
- * running-balance chart, fees, insight and the video placeholder.
+ * running-balance chart, fees, insight and the "Your statement in 60 seconds"
+ * player (an animated, narrated walkthrough drawn on a 16:9 stage).
  * Colours come from tokens only; chart marks use --in / --out / --total and
  * text always stays in ink tokens.
  */
@@ -8,9 +9,12 @@
 /* A word too long for its line (a heading, "(America/New_York)") breaks
    rather than scroll the page sideways with very large text (200%). Words
    that fit are never split, and min-content sizes are unchanged. */
-#overview-root,
-.ov-vdlg {
+#overview-root {
   overflow-wrap: break-word;
+}
+/* The video's picture is laid out like a frame of film: nothing breaks inside words. */
+#overview-root .vp-stage {
+  overflow-wrap: normal;
 }
 
 /* ------------------------------------------------------------ Heading */
@@ -1792,159 +1796,55 @@ button.jr-step:hover {
   padding-inline: var(--s3);
 }
 
-/* ------------------------------------------------- Video placeholder */
+/* ------------------------------------- Your statement in 60 seconds */
+/* The card lays out for its own width: the player beside its description and
+   chapters when there is room, stacked (the player edge to edge) otherwise. */
 .ov-video {
   margin-top: var(--s10);
+  container: ov-video / inline-size;
+}
+.ov-video__grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--s5);
-  align-items: center;
+}
+@container ov-video (min-width: 48rem) {
+  .ov-video__grid {
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+    grid-template-areas:
+      'media body'
+      'tr body';
+    grid-template-rows: auto 1fr;
+    gap: var(--s5) var(--s6);
+    align-items: start;
+  }
+  .ov-video__media {
+    grid-area: media;
+  }
+  .ov-video__body {
+    grid-area: body;
+  }
+  .ov-vtr {
+    grid-area: tr;
+  }
+}
+@container ov-video (max-width: 47.99rem) {
+  .ov-video__media {
+    margin: calc(-1 * var(--s5)) calc(-1 * var(--s5)) 0;
+  }
+  .ov-video .vp {
+    border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
+  }
 }
 @media (min-width: 720px) {
-  .ov-video {
-    grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
-    gap: var(--s6);
+  @container ov-video (max-width: 47.99rem) {
+    .ov-video__media {
+      margin: calc(-1 * var(--s6)) calc(-1 * var(--s6)) 0;
+    }
   }
 }
 .ov-video__media {
-  container: ov-media / inline-size;
   min-width: 0;
-}
-.ov-video__poster {
-  /* Deep in both schemes: in dark mode the brand primary is a light tint, and a
-     bright poster would outshine the closing balance. */
-  --poster-bg: var(--primary);
-  --poster-ink: var(--on-primary);
-  position: relative;
-  aspect-ratio: 16 / 9;
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: var(--poster-bg);
-}
-/* Dark scheme: the two entry points of 00-tokens.css (the device setting unless
-   the visitor chose light; the visitor's dark choice on any device). Screen
-   only, so print keeps the light poster. */
-@media screen and (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .ov-video__poster {
-    --poster-bg: color-mix(in srgb, var(--primary) 26%, var(--surface));
-    --poster-ink: var(--ink);
-  }
-}
-@media screen {
-  :root[data-theme='dark'] .ov-video__poster {
-    --poster-bg: color-mix(in srgb, var(--primary) 26%, var(--surface));
-    --poster-ink: var(--ink);
-  }
-}
-.ov-poster__svg,
-.ov-poster__img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.ov-poster__bg {
-  fill: var(--poster-bg);
-}
-.ov-poster__glow {
-  fill: var(--poster-ink);
-  opacity: 0.08;
-}
-.ov-poster__logo {
-  fill: var(--poster-ink);
-}
-.ov-poster__logotext {
-  fill: var(--poster-bg);
-  font-family: var(--yes-font);
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-}
-/* Approved [YES_LOGO] artwork (ui.logoHtml in a foreignObject): left-aligned at
-   the lettering height, scaled with the poster; a currentColor mark takes the
-   poster ink so it stays legible in both schemes. */
-.ov-poster__artbox {
-  overflow: hidden;
-}
-.ov-poster__art {
-  display: flex;
-  justify-content: flex-start;
-  color: var(--poster-ink);
-}
-.ov-poster__hello {
-  fill: var(--poster-ink);
-  font-family: var(--yes-font);
-  font-size: 21px;
-  font-weight: 700;
-}
-.ov-poster__sub {
-  fill: var(--poster-ink);
-  opacity: 0.88;
-  font-family: var(--yes-font);
-  font-size: 12px;
-}
-.ov-poster__bar {
-  fill: var(--poster-ink);
-  opacity: 0.3;
-}
-.ov-poster__bar--total {
-  opacity: 0.55;
-}
-.ov-poster__base {
-  stroke: var(--poster-ink);
-  stroke-width: 1;
-  opacity: 0.4;
-}
-.ov-video__play {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s2);
-  min-height: 44px;
-  padding: 0 var(--s4) 0 6px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--ink);
-  font-weight: 650;
-  font-size: var(--fs-sm);
-  box-shadow: var(--shadow-2);
-  transition: transform var(--dur) var(--ease);
-}
-.ov-video__play:hover {
-  transform: translateY(-1px);
-}
-.ov-video__play:focus-visible {
-  outline: none;
-  box-shadow: var(--shadow-2), var(--focus-ring);
-}
-.ov-video__playicon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--primary);
-  color: var(--on-primary);
-}
-.ov-video__playicon .icon {
-  fill: currentColor;
-  margin-left: 2px;
-}
-.ov-video__dur {
-  position: absolute;
-  right: 12px;
-  bottom: 18px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 78%, transparent);
-  color: var(--surface);
-  font-size: var(--fs-xs);
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
 }
 .ov-video__title {
   margin-bottom: var(--s2);
@@ -1971,149 +1871,1308 @@ button.jr-step:hover {
 .ov-video__meta .icon {
   color: var(--muted);
 }
-.ov-video__ph {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s1) var(--s2);
+.ov-video__honest {
   margin: 0;
   font-size: var(--fs-xs);
   color: var(--ink-2);
 }
-.ov-video__ph .tag {
+.ov-video__honest .tag {
   max-width: 100%;
+  margin-right: var(--s1);
   white-space: normal;
+  vertical-align: 1px;
+}
+.ov-video__voice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  margin: var(--s3) 0 0;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--radius-sm);
+  background: var(--info-wash);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+}
+.ov-video__voice .icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--info);
+}
+.ov-video [hidden] {
+  display: none !important;
 }
 
-/* A poster narrow for the text size (200% text; at 100% the narrowest poster
-   is ~15.4rem): the play control and the duration sit below the artwork, on
-   the poster colour, instead of colliding on it. */
-@container ov-media (max-width: 15rem) {
-  .ov-video__poster {
-    aspect-ratio: auto;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--s2);
-    padding-bottom: var(--s3);
-  }
-  .ov-poster__svg,
-  .ov-poster__img {
-    flex: 1 1 100%;
-    height: auto;
-    aspect-ratio: 16 / 9;
-  }
-  .ov-video__play {
-    position: static;
-    max-width: calc(100% - 2 * var(--s3));
-    margin-left: var(--s3);
-    text-align: left;
-  }
-  .ov-video__dur {
-    position: static;
-    margin: 0 var(--s3) 0 auto;
-  }
+/* Chapters: buttons that play from each chapter; the current one is marked
+   by its filled number and weight as well as its wash. */
+.ov-vchap__title {
+  margin: var(--s5) 0 var(--s2);
+  font-size: var(--fs-base);
 }
-
-/* Video storyboard dialog */
-.ov-vdlg:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: -4px;
-}
-@media (min-width: 720px) {
-  dialog.dlg--video {
-    width: min(760px, calc(100vw - 32px));
-  }
-}
-.ov-vdlg__h {
-  font-size: var(--fs-md);
-  margin: var(--s5) 0 var(--s3);
-}
-.ov-story {
+.ov-vchap {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: var(--s2);
+  gap: 2px;
 }
-.ov-story__frame {
+.ov-vchap__btn {
+  width: 100%;
+  min-height: 44px;
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
-  gap: var(--s3);
-  align-items: start;
-  padding: var(--s3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-}
-.ov-story__thumb {
-  position: relative;
-  display: flex;
+  grid-template-columns: 1.75rem minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: center;
-  aspect-ratio: 16 / 9;
+  gap: var(--s2);
+  padding: 6px var(--s2);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.ov-vchap__btn:hover {
+  background: var(--surface-2);
+}
+.ov-vchap__btn:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
+}
+.ov-vchap__btn[aria-current='true'] {
   background: var(--primary-wash);
-  color: var(--primary-ink);
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--line));
+  font-weight: 650;
 }
-.ov-story__n {
-  position: absolute;
-  left: 6px;
-  top: 3px;
+.ov-vchap__n {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   font-size: var(--fs-xs);
-  font-weight: 750;
+  font-weight: 700;
 }
-.ov-story__time {
-  margin: 0;
-  font-size: var(--fs-xs);
+.ov-vchap__btn[aria-current='true'] .ov-vchap__n {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+.ov-vchap__time {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+  font-weight: 500;
 }
-.ov-story__title {
-  margin: 2px 0 4px;
-  font-size: var(--fs-base);
+
+/* Transcript: every cue, each line plays from its time; the line being
+   spoken carries a bar as well as a wash. */
+/* Very large text: the summary's word may break rather than run off a phone. */
+.ov-vtr > summary > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
-.ov-story__screen {
-  margin: 0;
+.ov-vtr__note {
+  margin: 0 0 var(--s2);
+}
+.ov-vtr__ch {
+  margin: var(--s4) 0 var(--s1);
   font-size: var(--fs-sm);
-  color: var(--ink-2);
-}
-.ov-story__label {
-  font-weight: 650;
   color: var(--ink);
 }
-.ov-vdlg__note {
-  margin: var(--s2) 0 0;
-  font-size: var(--fs-xs);
-  color: var(--muted);
+.ov-vtr__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
-.ov-transcript p {
+.ov-vtr__line {
+  width: 100%;
+  min-height: 44px;
   display: grid;
   grid-template-columns: 2.75rem minmax(0, 1fr);
   gap: var(--s2);
-  margin-bottom: var(--s2);
+  align-items: baseline;
+  padding: 10px var(--s2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
   font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
 }
-.ov-transcript__time {
+.ov-vtr__line:hover {
+  background: var(--surface-2);
+}
+.ov-vtr__line:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
+}
+.ov-vtr__line.is-current {
+  background: var(--primary-wash);
+  box-shadow: inset 3px 0 0 var(--primary);
+  color: var(--ink);
+}
+.ov-vtr__line.is-current:focus-visible {
+  box-shadow: inset 3px 0 0 var(--primary), var(--focus-ring);
+}
+.ov-vtr__time {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.ov-req {
+
+/* ------------------------------------------------------------ Player */
+/* Stage colours: deep in both schemes, like a poster (in dark mode the brand
+   primary is a light tint, which would outshine the closing balance). The
+   cards inside use the page's own surfaces and ink. */
+.vp {
+  --vs-bg: var(--primary);
+  --vs-deep: color-mix(in srgb, var(--primary) 58%, var(--ink));
+  --vs-ink: var(--on-primary);
+  --vs-card: var(--surface);
+  --vs-cc-bg: color-mix(in srgb, var(--ink) 86%, transparent);
+  --vs-cc-ink: var(--surface);
+  --vp-bar-h: 52px;
+  position: relative;
+  container: vp / inline-size;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--vs-deep);
+  isolation: isolate;
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .vp {
+    --vs-bg: color-mix(in srgb, var(--primary) 24%, var(--surface));
+    --vs-deep: var(--bg);
+    --vs-ink: var(--ink);
+    --vs-card: var(--surface-2);
+    --vs-cc-bg: color-mix(in srgb, var(--bg) 90%, transparent);
+    --vs-cc-ink: var(--ink);
+  }
+}
+@media screen {
+  :root[data-theme='dark'] .vp {
+    --vs-bg: color-mix(in srgb, var(--primary) 24%, var(--surface));
+    --vs-deep: var(--bg);
+    --vs-ink: var(--ink);
+    --vs-card: var(--surface-2);
+    --vs-cc-bg: color-mix(in srgb, var(--bg) 90%, transparent);
+    --vs-cc-ink: var(--ink);
+  }
+}
+.vp-screen {
+  position: relative;
+}
+.vp-stage {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  container-type: inline-size;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 92% -8%, color-mix(in srgb, var(--vs-ink) 9%, transparent) 0 30%, transparent 30.2%),
+    radial-gradient(circle at -6% 112%, color-mix(in srgb, var(--vs-ink) 6%, transparent) 0 24%, transparent 24.2%),
+    linear-gradient(160deg, var(--vs-bg), color-mix(in srgb, var(--vs-bg) 70%, var(--vs-deep)));
+  color: var(--vs-ink);
+  font-family: var(--yes-font);
+  line-height: 1.3;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.vp-posterimg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.vp.is-started .vp-posterimg {
+  display: none;
+}
+
+/* Big centred Play (and Replay at the end). */
+.vp-big {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: clamp(48px, 10cqw, 96px);
+  height: clamp(48px, 10cqw, 96px);
+  margin: calc(clamp(48px, 10cqw, 96px) / -2) 0 0 calc(clamp(48px, 10cqw, 96px) / -2);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--primary-ink);
+  box-shadow: var(--shadow-3);
+  cursor: pointer;
+  transition: transform var(--dur) var(--ease);
+}
+.vp-big:hover {
+  transform: scale(1.04);
+}
+.vp-big:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--shadow-3), 0 0 0 3px var(--surface), 0 0 0 6px var(--focus);
+}
+.vp-big .icon {
+  width: 42%;
+  height: 42%;
+}
+.vp-big .vp-i-play {
+  fill: currentColor;
+  margin-left: 8%;
+}
+.vp-big .vp-i-replay,
+.vp.is-ended .vp-big .vp-i-play {
+  display: none;
+}
+.vp.is-ended .vp-big .vp-i-replay {
+  display: block;
+}
+.vp.is-started:not(.is-ended) .vp-big {
+  display: none;
+}
+.vp-dur {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--vs-cc-bg);
+  color: var(--vs-cc-ink);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.vp.is-started .vp-dur {
+  display: none;
+}
+
+/* Captions: above the control bar, high contrast, scaling with the stage. */
+.vp-cc {
+  position: absolute;
+  left: 5cqw;
+  right: 5cqw;
+  bottom: 3cqw;
+  z-index: 4;
+  text-align: center;
+  pointer-events: none;
+  /* Grows with the reader's text size, but never past a twentieth of the picture's width. */
+  font-size: clamp(min(0.8125rem, 5cqw), 2.5cqw, 2.25rem);
+  line-height: 1.5;
+}
+.vp-cc__t {
+  padding: 0.18em 0.6em;
+  border-radius: 0.3em;
+  background: var(--vs-cc-bg);
+  color: var(--vs-cc-ink);
+  font-weight: 550;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* Control bar: below the picture on narrow players, over it on wide ones
+   (and in full screen), where it fades away while playing untouched. */
+.vp-bar {
+  display: none;
+}
+.vp.is-started .vp-bar {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'seek seek seek seek seek seek'
+    'toggle mute time . cc fs';
+  align-items: center;
+  column-gap: 2px;
+  padding: 0 6px 4px;
+  background: var(--vs-deep);
+  color: var(--vs-ink);
+}
+@container vp (min-width: 36rem) {
+  .vp.is-started .vp-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    grid-template-areas: 'toggle mute time seek cc fs';
+    column-gap: 4px;
+    padding: 18px 10px 4px;
+    background: linear-gradient(to top, color-mix(in srgb, var(--vs-deep) 88%, transparent) 0, color-mix(in srgb, var(--vs-deep) 70%, transparent) 55%, transparent);
+    transition: opacity 200ms var(--ease);
+  }
+  .vp.is-idle:not(:has(:focus-visible)) .vp-bar {
+    opacity: 0;
+  }
+  .vp.is-idle:not(:has(:focus-visible)) .vp-stage {
+    cursor: none;
+  }
+  .vp.is-started:not(.is-idle) .vp-cc,
+  .vp.is-started:has(:focus-visible) .vp-cc {
+    bottom: calc(var(--vp-bar-h) + 1.5cqw);
+  }
+}
+.vp-btn {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--vs-ink);
+  cursor: pointer;
+}
+.vp-btn--toggle {
+  grid-area: toggle;
+}
+.vp-btn--mute {
+  grid-area: mute;
+}
+.vp-btn--cc {
+  grid-area: cc;
+}
+.vp-btn--fs {
+  grid-area: fs;
+}
+.vp-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--vs-ink) 14%, transparent);
+}
+.vp-btn:focus-visible {
+  outline: 2px solid var(--vs-ink);
+  outline-offset: -3px;
+}
+.vp-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.vp-btn .icon {
+  width: 22px;
+  height: 22px;
+}
+.vp-i-play,
+.vp-i-pause {
+  fill: currentColor;
+}
+.vp-btn .vp-i-pause,
+.vp-btn .vp-i-replay,
+.vp-btn .vp-i-off,
+.vp-btn .vp-i-fsx,
+.vp.is-playing .vp-btn .vp-i-play,
+.vp.is-ended .vp-btn .vp-i-play,
+.vp.is-fs .vp-btn .vp-i-fs {
+  display: none;
+}
+.vp.is-playing .vp-btn .vp-i-pause,
+.vp.is-ended .vp-btn .vp-i-replay,
+.vp.is-fs .vp-btn .vp-i-fsx {
+  display: block;
+}
+.vp-btn[aria-pressed='true'] .vp-i-on {
+  display: none;
+}
+.vp-btn[aria-pressed='true'] .vp-i-off {
+  display: block;
+}
+/* Captions on: an underline under the CC mark, not colour alone. */
+.vp-btn--cc[aria-pressed='true']::after {
+  content: '';
+  position: absolute;
+  left: 11px;
+  right: 11px;
+  bottom: 7px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+}
+.vp-btn--cc[aria-pressed='false'] .icon {
+  opacity: 0.75;
+}
+.vp-time {
+  grid-area: time;
+  padding: 0 6px;
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.vp-seek {
+  --pct: 0%;
+  grid-area: seek;
+  position: relative;
+  min-width: 0;
+  height: 32px;
+}
+.vp-track {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--vs-ink) 34%, transparent);
+}
+.vp-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--pct);
+  border-radius: inherit;
+  background: var(--vs-ink);
+}
+/* Chapter starts: small gaps in the track. */
+.vp-marks span {
+  position: absolute;
+  top: -1px;
+  width: 3px;
+  height: 6px;
+  margin-left: -1.5px;
+  background: var(--vs-deep);
+}
+.vp-range {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+.vp-range::-webkit-slider-runnable-track {
+  height: 32px;
+  background: transparent;
+}
+.vp-range::-moz-range-track {
+  height: 32px;
+  background: transparent;
+}
+.vp-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--vs-ink);
+  box-shadow: 0 0 0 2px var(--vs-deep);
+}
+.vp-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--vs-ink);
+  box-shadow: 0 0 0 2px var(--vs-deep);
+}
+.vp-range:focus-visible {
+  outline: 2px solid transparent;
+}
+.vp-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--vs-deep), 0 0 0 5px var(--vs-ink);
+}
+.vp-range:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px var(--vs-deep), 0 0 0 5px var(--vs-ink);
+}
+
+/* Full screen: the picture letterboxed in the middle, the bar over it. */
+.vp.is-fs {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-radius: 0;
+}
+.vp.is-fs .vp-screen {
+  width: min(100%, calc(100vh * 16 / 9));
+  margin: 0 auto;
+}
+
+/* ------------------------------------------------------------- Stage */
+/* Everything inside is sized in cqw (stage widths), so the picture scales as
+   one, inline and in full screen. Each animated property is written by the
+   script from the playhead (drawFrame), never by CSS transitions. */
+.vs-scene,
+.vs-chrome {
+  /* Nothing in the picture follows the page's text size (it is a frame of film;
+     the captions, controls and transcript do follow it). */
+  font-size: 2cqw;
+}
+.vs-scene {
+  position: absolute;
+  inset: 0;
+}
+.vs-n {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 3.3cqw;
+  height: 3.3cqw;
+  border-radius: 50%;
+  background: var(--primary-wash);
+  color: var(--primary-ink);
+  font-size: 1.65cqw;
+  font-weight: 750;
+  letter-spacing: 0;
+}
+.vs-eyebrow {
+  position: absolute;
+  left: 5cqw;
+  top: 3.2cqw;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 1.2cqw;
+  font-size: 1.75cqw;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.vs-eyebrow .vs-n {
+  width: 3cqw;
+  height: 3cqw;
+  background: var(--vs-ink);
+  color: var(--vs-bg);
+  font-size: 1.55cqw;
+}
+.vs-logo {
+  --logo-h: 3.4cqw;
+}
+.vs-logo.yes-logo--placeholder {
+  background: var(--vs-ink);
+  color: var(--vs-bg);
+  outline: 0.15cqw dashed color-mix(in srgb, var(--vs-ink) 55%, transparent);
+  outline-offset: 0.35cqw;
+}
+.vs-logo.yes-logo--art {
+  color: var(--vs-ink);
+}
+.vs-chrome {
+  position: absolute;
+  right: 5cqw;
+  top: 2.9cqw;
+  display: flex;
+}
+.vs-card {
+  position: absolute;
+  padding: 2.3cqw 2.6cqw;
+  border-radius: 1.5cqw;
+  background: var(--vs-card);
+  color: var(--ink);
+  box-shadow: 0 0.6cqw 2.6cqw color-mix(in srgb, var(--vs-deep) 50%, transparent);
+}
+.vs-label {
+  margin: 0 0 1.2cqw;
+  font-size: 1.6cqw;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.vs-dir {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 3cqw;
+  height: 3cqw;
+  border-radius: 50%;
+}
+.vs-dir .icon {
+  width: 1.9cqw;
+  height: 1.9cqw;
+}
+.vs-dir--in {
+  background: var(--in-wash);
+  color: var(--in);
+}
+.vs-dir--out {
+  background: var(--out-wash);
+  color: var(--out);
+}
+.vs-dir--total {
+  background: var(--surface-3);
+  color: var(--ink-2);
+}
+
+/* 1. Greeting */
+.vs-greet__logo {
+  position: absolute;
+  left: 5.5cqw;
+  top: 7cqw;
+  display: flex;
+}
+.vs-greet__logo .vs-logo {
+  --logo-h: 4.8cqw;
+}
+.vs-greet__text {
+  position: absolute;
+  left: 5.5cqw;
+  top: 14.5cqw;
+  width: 34.5cqw;
+}
+.vs-greet__hello {
+  margin: 0;
+  font-size: 5.8cqw;
+  text-wrap: balance;
+  font-weight: 750;
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+}
+.vs-greet__sub {
+  margin: 1.8cqw 0 0;
+  font-size: 2.3cqw;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--vs-ink) 90%, transparent);
+}
+.vs-greet__agenda {
+  right: 5cqw;
+  top: 9cqw;
+  width: 34cqw;
+  padding: 2.6cqw 2.8cqw;
+}
+.vs-agenda {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: var(--s2);
-  font-size: var(--fs-sm);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.4cqw;
 }
-.ov-req li {
+.vs-agenda li {
   display: flex;
-  gap: var(--s2);
-  align-items: flex-start;
+  align-items: center;
+  gap: 1.4cqw;
+  font-size: 2.15cqw;
+  font-weight: 600;
+  line-height: 1.25;
 }
-.ov-req .icon {
-  margin-top: 2px;
+
+/* 2. Opening and closing balance */
+.vs-bal__card {
+  left: 5cqw;
+  right: 5cqw;
+  top: 8.4cqw;
+  height: 32cqw;
+  display: grid;
+  grid-template-columns: minmax(0, 52fr) minmax(0, 48fr);
+  gap: 3.4cqw;
+  padding: 2.4cqw 3cqw;
+}
+.vs-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.6cqw;
+}
+.vs-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.2cqw;
+  padding: 0.75cqw 1.1cqw;
+  border-radius: 1cqw;
+  font-size: 1.85cqw;
+  line-height: 1.2;
+  background: color-mix(in srgb, var(--primary-wash) calc(var(--hl, 0) * 100%), transparent);
+  box-shadow: inset 0 0 0 0.16cqw color-mix(in srgb, var(--primary) calc(var(--hl, 0) * 55%), transparent);
+}
+.vs-row__label {
+  color: var(--ink-2);
+}
+.vs-row__val {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.vs-row--closing {
+  margin-top: 0.5cqw;
+  font-size: 2.2cqw;
+}
+.vs-row--closing .vs-row__label {
+  color: var(--ink);
+  font-weight: 700;
+}
+.vs-net {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.9cqw;
+  margin: 1.1cqw 0 0 1.1cqw;
+  padding: 0.6cqw 1.4cqw;
+  border-radius: 99cqw;
+  background: var(--surface-2);
+  border: 0.15cqw solid var(--line);
+  font-size: 1.75cqw;
+  color: var(--ink-2);
+}
+.vs-net .icon {
+  width: 2cqw;
+  height: 2cqw;
   color: var(--ok);
+}
+.vs-net strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.vs-bal__chart {
+  position: relative;
+}
+.vs-plot {
+  position: absolute;
+  inset: 1cqw 0 0.6cqw;
+}
+.vs-plot__base {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-top: 0.2cqw solid var(--axis);
+}
+.vs-bar {
+  position: absolute;
+  width: 15%;
+  border-radius: 0.5cqw;
+  transform: scaleY(var(--p, 1));
+  transform-origin: 50% 100%;
+  box-shadow: 0 0 0 calc(var(--hl, 0) * 0.35cqw) var(--vs-card), 0 0 0 calc(var(--hl, 0) * 0.6cqw) color-mix(in srgb, var(--ink) 45%, transparent);
+}
+.vs-bar--down {
+  transform-origin: 50% 0;
+}
+.vs-bar--total {
+  background: var(--total);
+}
+.vs-bar--in {
+  background: var(--in);
+}
+.vs-bar--out {
+  background: var(--out);
+}
+.vs-bar__v {
+  position: absolute;
+  width: 23%;
+  margin-bottom: 0.8cqw;
+  text-align: center;
+  font-size: 1.7cqw;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.vs-link {
+  position: absolute;
+  height: 0;
+  border-top: 0.2cqw dashed var(--line-strong);
+}
+
+/* 3. Largest movement */
+.vs-big__chart {
+  left: 5cqw;
+  top: 8.4cqw;
+  width: 44cqw;
+  height: 32cqw;
+  display: flex;
+  flex-direction: column;
+}
+.vs-mvplot {
+  position: relative;
+  flex: 1;
+  margin: 0.6cqw 0 1cqw;
+}
+.vs-mvplot__base {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 0.2cqw solid var(--axis);
+}
+.vs-mv {
+  position: absolute;
+  border-radius: 0.3cqw;
+  transform: scaleY(var(--p, 1));
+}
+.vs-mv--in {
+  background: var(--in);
+  transform-origin: 50% 100%;
+}
+.vs-mv--out {
+  background: var(--out);
+  transform-origin: 50% 0;
+}
+.vs-mv.is-max {
+  box-shadow: 0 0 0 calc(var(--hl, 0) * 0.35cqw) var(--vs-card), 0 0 0 calc(var(--hl, 0) * 0.7cqw) var(--ink);
+}
+.vs-flag {
+  position: absolute;
+  padding: 0.35cqw 1cqw;
+  border-radius: 0.7cqw;
+  background: var(--ink);
+  color: var(--vs-card);
+  font-size: 1.7cqw;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.vs-axis {
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  font-size: 1.6cqw;
+  color: var(--muted);
+}
+.vs-big__tx {
+  left: 51.5cqw;
+  top: 8.4cqw;
+  width: 43.5cqw;
+  height: 32cqw;
+}
+.vs-big__head {
+  display: flex;
+  align-items: center;
+  gap: 1.4cqw;
+}
+.vs-big__head .vs-label {
+  margin: 0;
+}
+.vs-ico {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 5cqw;
+  height: 5cqw;
+  border-radius: 50%;
+}
+.vs-ico .icon {
+  width: 2.7cqw;
+  height: 2.7cqw;
+}
+.vs-ico--in {
+  background: var(--in-wash);
+  color: var(--in);
+}
+.vs-ico--out {
+  background: var(--out-wash);
+  color: var(--out);
+}
+.vs-ico--ai {
+  background: var(--ai-wash);
+  color: var(--ai);
+}
+.vs-ico--help {
+  background: var(--primary-wash);
+  color: var(--primary-ink);
+}
+.vs-big__amt {
+  margin: 1.4cqw 0 0.4cqw;
+  font-size: 4.6cqw;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.vs-big__amt span {
+  font-size: 2.3cqw;
+  font-weight: 650;
+  color: var(--ink-2);
+  letter-spacing: 0;
+}
+.vs-big__desc {
+  margin: 0 0 1.6cqw;
+  font-size: 2.15cqw;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.vs-kv {
+  display: grid;
+  gap: 0.3cqw;
+  margin: 0;
+  font-size: 1.75cqw;
+}
+.vs-kv__row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 1.6cqw;
+  padding: 0.55cqw 1cqw;
+  margin: 0 -1cqw;
+  border-radius: 0.8cqw;
+  background: color-mix(in srgb, var(--primary-wash) calc(var(--hl, 0) * 100%), transparent);
+}
+.vs-kv__row > :first-child {
+  margin: 0;
+  color: var(--muted);
+}
+.vs-kv__row > :last-child {
+  margin: 0;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.vs-big__none {
+  left: 5cqw;
+  right: 5cqw;
+  top: 14cqw;
+  font-size: 3cqw;
+  font-weight: 650;
+  text-align: center;
+}
+
+/* 4. How to inspect a transaction: a simulated walk through the real screens */
+.vs-app {
+  left: 5cqw;
+  right: 5cqw;
+  top: 8.4cqw;
+  height: 32cqw;
+  padding: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 45% 55%;
+}
+.vs-app__journey,
+.vs-app__panel {
+  min-width: 0;
+}
+.vs-app__journey {
+  padding: 2.2cqw 2.2cqw;
+  border-right: 0.15cqw solid var(--line);
+}
+.vs-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.7cqw;
+}
+.vs-step {
+  display: flex;
+  align-items: center;
+  gap: 1cqw;
+  padding: 0.6cqw 1cqw;
+  border-radius: 0.9cqw;
+  font-size: 1.7cqw;
+  border: 0.15cqw solid color-mix(in srgb, var(--primary) calc(var(--hl, 0) * 100%), var(--line));
+  background: color-mix(in srgb, var(--primary-wash) calc(var(--hl, 0) * 100%), var(--vs-card));
+}
+.vs-step .vs-dir {
+  width: 2.6cqw;
+  height: 2.6cqw;
+}
+.vs-step .vs-dir .icon {
+  width: 1.6cqw;
+  height: 1.6cqw;
+}
+.vs-step__label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vs-step__val {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.vs-step__check {
+  display: inline-grid;
+  place-items: center;
+  width: 2.2cqw;
+  height: 2.2cqw;
+  margin-left: -0.2cqw;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--on-primary);
+  opacity: var(--hl, 0);
+}
+.vs-step__check .icon {
+  width: 1.5cqw;
+  height: 1.5cqw;
+}
+.vs-app__panel {
+  position: relative;
+  padding: 2.2cqw 2.4cqw;
+}
+.vs-hint {
+  position: absolute;
+  inset: 2.2cqw 2.4cqw;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 2cqw;
+  border: 0.2cqw dashed var(--line-strong);
+  border-radius: 1cqw;
+  color: var(--muted);
+  font-size: 1.85cqw;
+  text-align: center;
+}
+.vs-trows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.7cqw;
+}
+.vs-trow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.2cqw;
+  padding: 0.85cqw 1.1cqw;
+  border-radius: 0.9cqw;
+  border: 0.15cqw solid color-mix(in srgb, var(--primary) calc(var(--hl, 0) * 100%), var(--line));
+  background: color-mix(in srgb, var(--primary-wash) calc(var(--hl, 0) * 100%), var(--vs-card));
+  font-size: 1.7cqw;
+}
+.vs-trow__date {
+  color: var(--muted);
+  white-space: nowrap;
+}
+.vs-trow__desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vs-trow__amt {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.vs-sum {
+  display: flex;
+  align-items: center;
+  gap: 1cqw;
+  margin: 1.2cqw 0 0;
+  padding: 1cqw 1.1cqw;
+  border-radius: 0.9cqw;
+  font-size: 1.75cqw;
+  background: color-mix(in srgb, var(--ok-wash) calc(var(--hl, 0) * 100%), transparent);
+}
+.vs-sum .icon {
+  width: 2.2cqw;
+  height: 2.2cqw;
+  color: var(--ok);
+}
+.vs-sum span {
+  flex: 1;
+  color: var(--ink-2);
+}
+.vs-sum strong {
+  font-variant-numeric: tabular-nums;
+}
+.vs-sheet {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 55%;
+  padding: 2.2cqw 2.4cqw;
+  background: var(--vs-card);
+  border-left: 0.15cqw solid var(--line);
+  box-shadow: -1cqw 0 2.4cqw color-mix(in srgb, var(--vs-deep) 22%, transparent);
+}
+.vs-sheet__title {
+  margin: 0;
+  font-size: 2cqw;
+  font-weight: 700;
+}
+.vs-sheet__amt {
+  display: flex;
+  align-items: center;
+  gap: 1.4cqw;
+  margin: 0.5cqw 0 1cqw;
+  font-size: 3cqw;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.vs-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5cqw;
+  padding: 0.25cqw 0.9cqw;
+  border-radius: 99cqw;
+  background: var(--ok-wash);
+  color: var(--ink);
+  font-size: 1.5cqw;
+  font-weight: 650;
+}
+.vs-status .icon {
+  width: 1.7cqw;
+  height: 1.7cqw;
+  color: var(--ok);
+}
+.vs-kv--grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5cqw 1.6cqw;
+  font-size: 1.6cqw;
+}
+.vs-kv--grid .vs-kv__row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.15cqw;
+  padding: 0.5cqw 1cqw;
+}
+.vs-kv--grid .vs-kv__row > :first-child {
+  font-size: 1.4cqw;
+}
+.vs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1cqw;
+  margin-top: 1.4cqw;
+}
+.vs-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7cqw;
+  padding: 0.75cqw 1.4cqw;
+  border-radius: 99cqw;
+  border: 0.15cqw solid var(--line-strong);
+  background: var(--vs-card);
+  color: var(--ink);
+  font-size: 1.55cqw;
+  font-weight: 650;
+  white-space: nowrap;
+  box-shadow: 0 0 0 calc(var(--hl, 0) * 0.45cqw) color-mix(in srgb, var(--focus) 60%, transparent);
+}
+.vs-btn .icon {
+  width: 1.8cqw;
+  height: 1.8cqw;
+}
+.vs-btn--ai {
+  border-color: color-mix(in srgb, var(--ai) 45%, var(--line));
+  background: var(--ai-wash);
+}
+.vs-btn--ai .icon {
+  color: var(--ai);
+}
+/* The pointer: a touch mark that reads on the cards and on the stage. */
+.vs-pointer {
+  position: absolute;
+  left: 72%;
+  top: 82%;
+  z-index: 3;
+  width: 3.2cqw;
+  height: 3.2cqw;
+  margin: -1.6cqw 0 0 -1.6cqw;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--vs-deep) 42%, transparent);
+  border: 0.32cqw solid var(--vs-ink);
+  box-shadow: 0 0.3cqw 1.2cqw color-mix(in srgb, var(--vs-deep) 45%, transparent);
+  pointer-events: none;
+}
+.vs-pointer::after {
+  content: '';
+  position: absolute;
+  inset: -0.4cqw;
+  border-radius: 50%;
+  border: 0.3cqw solid var(--vs-ink);
+  opacity: var(--press, 0);
+  transform: scale(calc(1 + var(--press, 0) * 0.8));
+}
+
+/* 5. Where to get help */
+.vs-help__cards {
+  position: absolute;
+  inset: 0;
+}
+.vs-help__ask,
+.vs-help__help {
+  top: 8.4cqw;
+  width: 43cqw;
+  height: 30cqw;
+  box-shadow:
+    0 0.6cqw 2.6cqw color-mix(in srgb, var(--vs-deep) 50%, transparent),
+    0 0 0 calc(var(--hl, 0) * 0.5cqw) var(--vs-ink);
+}
+.vs-help__ask {
+  left: 5cqw;
+}
+.vs-help__help {
+  left: 52cqw;
+}
+.vs-help__t {
+  margin: 1.4cqw 0 0.6cqw;
+  font-size: 2.8cqw;
+  font-weight: 750;
+}
+.vs-help__p {
+  margin: 0 0 1.6cqw;
+  font-size: 1.9cqw;
+  color: var(--ink-2);
+  line-height: 1.35;
+}
+.vs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8cqw;
+  padding: 0.8cqw 1.4cqw;
+  border-radius: 99cqw;
+  background: var(--ai-wash);
+  border: 0.15cqw solid color-mix(in srgb, var(--ai) 40%, var(--line));
+  font-size: 1.75cqw;
+  font-weight: 600;
+}
+.vs-chip .icon {
+  width: 1.9cqw;
+  height: 1.9cqw;
+  color: var(--ai);
+}
+.vs-contact {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1cqw;
+  font-size: 1.85cqw;
+}
+.vs-contact li {
+  display: flex;
+  align-items: center;
+  gap: 1cqw;
+}
+.vs-contact .icon {
+  width: 2.1cqw;
+  height: 2.1cqw;
+  color: var(--muted);
+}
+.vs-end {
+  position: absolute;
+  left: 8cqw;
+  right: 8cqw;
+  top: 7.5cqw;
+  display: grid;
+  justify-items: center;
+  gap: 1.6cqw;
+  text-align: center;
+}
+.vs-end .vs-logo {
+  --logo-h: 6cqw;
+}
+.vs-end__bye {
+  margin: 0.6cqw 0 0;
+  font-size: 5.6cqw;
+  font-weight: 750;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.vs-end__sig {
+  margin: 0;
+  font-size: 2.3cqw;
+  color: color-mix(in srgb, var(--vs-ink) 90%, transparent);
+}
+.vs-end__demo {
+  margin: 0.4cqw 0 0;
+  padding: 0.4cqw 1.3cqw;
+  border-radius: 99cqw;
+  border: 0.15cqw solid color-mix(in srgb, var(--vs-ink) 50%, transparent);
+  font-size: 1.55cqw;
+  font-weight: 650;
 }
 
 /* Motion is optional: nothing here may move under reduced motion. */
@@ -2124,8 +3183,16 @@ button.jr-step:hover {
   }
   .ov-mk,
   .jr-bar,
-  .ov-video__play {
+  .vp-big,
+  .vp-bar {
     transition: none;
+  }
+  .vp-big:hover {
+    transform: none;
+  }
+  /* The walkthrough's pointer press: a ring that appears, without growing. */
+  .vs-pointer::after {
+    transform: none;
   }
 }
 
@@ -2180,8 +3247,33 @@ button.jr-step:hover {
   .ov-chart__svg .c-line {
     forced-color-adjust: none;
   }
-  .ov-video__poster {
+  /* The video keeps its own colours (like a picture) and is framed; the
+     control bar follows the system colours. */
+  .vp-stage {
     forced-color-adjust: none;
+  }
+  .vp {
     border: 1px solid CanvasText;
+  }
+  .vp-track {
+    background: GrayText;
+  }
+  .vp-fill,
+  .vp-btn--cc[aria-pressed='true']::after {
+    background: Highlight;
+  }
+  .vp-marks span {
+    background: Canvas;
+  }
+  .vp-range::-webkit-slider-thumb {
+    background: Highlight;
+    box-shadow: none;
+  }
+  .vp-range:focus-visible::-webkit-slider-thumb {
+    outline: 2px solid CanvasText;
+  }
+  .ov-vchap__btn[aria-current='true'],
+  .ov-vtr__line.is-current {
+    outline: 2px solid Highlight;
   }
 }

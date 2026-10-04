@@ -12,8 +12,9 @@
   YES.version = '1.0.0-showcase';
 
   YES.config = {
-    /* Showcase mode: shows the "Illustrative demo data" badge, print watermark,
-       local-only inquiry/AI/feedback behaviour and demo labels everywhere. */
+    /* Showcase mode: shows the footer demo notice, the print and PDF
+       watermark, local-only inquiry/AI/feedback behaviour and the Illustrative
+       labels. (The header's demo badge was removed on 2026-10-04.) */
     demo: true,
 
     /* Brand replacement slots (PRD 5.1). Values are placeholders, not YES assets. */

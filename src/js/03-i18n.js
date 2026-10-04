@@ -308,6 +308,9 @@
       'brand.logoPlaceholder': 'Logo placeholder',
       'brand.statement': 'Statement',
 
+      // Demo labels for the modules (Help's section tag, the transaction
+      // detail's tag, the print and PDF record). The header has no demo badge
+      // since 2026-10-04; the footer notice uses 'footer.demo'.
       'demo.badge': 'Illustrative demo data',
       'demo.badgeLong': 'Illustrative demo data — fictional customer, amounts and references',
       'demo.watermark': 'ILLUSTRATIVE DEMO DATA',
