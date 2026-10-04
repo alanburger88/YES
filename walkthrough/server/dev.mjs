@@ -161,9 +161,11 @@ export async function startServer({
   const api = createApi({ store: st, env, features: readFeatures(), logger });
 
   const server = http.createServer(async (req, res) => {
+    let isApi = false;
     try {
       const pathname = new URL(req.url, 'http://x').pathname;
-      if (pathname === '/api' || pathname.startsWith('/api/')) return await sendApi(api, req, res);
+      isApi = pathname === '/api' || pathname.startsWith('/api/');
+      if (isApi) return await sendApi(api, req, res);
       if (req.method !== 'GET' && req.method !== 'HEAD') {
         res.writeHead(405, { ...SECURITY_HEADERS, Allow: 'GET, HEAD' });
         return res.end();
@@ -171,7 +173,12 @@ export async function startServer({
       return await sendStatic(rootDir, req, res, pathname);
     } catch (e) {
       logger.error('[dev] ' + (e && e.stack ? e.stack : e));
-      if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+      if (isApi) {
+        // Like every API response: JSON error with the API headers.
+        if (!res.headersSent) res.writeHead(500, { ...SECURITY_HEADERS, ...API_HEADERS, 'Content-Type': 'application/json; charset=utf-8' });
+        return res.end(JSON.stringify({ error: { code: 'server_error', message: 'Something went wrong on our side. Please try again.' } }));
+      }
+      if (!res.headersSent) res.writeHead(500, { ...SECURITY_HEADERS, 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Server error');
     }
   });

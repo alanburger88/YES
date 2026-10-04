@@ -70,7 +70,12 @@
  *       driver first saw it (later changes the visitor makes are followed).
  *     - lang: 'en' | 'es'. By default it is captured when the driver first sees
  *       the frame, and follows language changes the visitor makes in the
- *       statement, except during a step whose setup set the language.
+ *       statement, except during a step whose setup set the language. It is
+ *       never captured from the frame while a step's language is in force:
+ *       a { lang } action marks that in sessionStorage (infoslips.wt.stepLang,
+ *       cleared when reset() restores the baseline), so a frame reloaded on the
+ *       Language step (its yes.lang says 'es', G13) can't make Spanish the
+ *       baseline. The tour also passes { lang: 'en' } before its first step.
  *     baseline(win, { … }) is accepted too; the baseline is shared.
  *   WT.driver.check(win, { top = true }) → { ok, problems[] }   the clean-state check reset() uses
  *   WT.driver.selectors(win, step) → string[]   the target list in use
@@ -115,6 +120,7 @@
 
   var base = { lang: null, theme: null };
   var states = new WeakMap();
+  var STEP_LANG_KEY = 'infoslips.wt.stepLang'; // a step's { lang } is in force (read by 40-tour.js too)
 
   /* ------------------------------------------------------------------ */
   /* Small utilities (parent timers only)                                */
@@ -183,6 +189,22 @@
   function errText(e) {
     return String((e && e.message) || e);
   }
+  /** sessionStorage is shared with the same-origin frame; it may throw (private mode, blocked storage). */
+  function stepLangMark(on) {
+    try {
+      if (on) host.sessionStorage.setItem(STEP_LANG_KEY, '1');
+      else host.sessionStorage.removeItem(STEP_LANG_KEY);
+    } catch (e) {
+      /* storage unavailable: the in-memory flag still applies */
+    }
+  }
+  function stepLangMarked() {
+    try {
+      return !!host.sessionStorage.getItem(STEP_LANG_KEY);
+    } catch (e) {
+      return false;
+    }
+  }
 
   /* ------------------------------------------------------------------ */
   /* Per-window state and baseline tracking                              */
@@ -202,10 +224,11 @@
     var st = S(win);
     if (st.Y === y) return y;
     st.Y = y;
-    if (!base.lang && y.i18n && y.i18n.lang) base.lang = y.i18n.lang;
+    // Never take the baseline from a frame that shows a step's language (a reload on the Language step).
+    if (!base.lang && y.i18n && y.i18n.lang && !st.stepLang && !stepLangMarked()) base.lang = y.i18n.lang;
     if (!st.theme && y.theme && y.theme.effective) st.theme = y.theme.effective();
     y.on('lang', function () {
-      if (Y(win) !== y || st.driving || st.stepLang) return;
+      if (Y(win) !== y || st.driving || st.stepLang || stepLangMarked()) return;
       base.lang = y.i18n.lang; // the visitor chose a language: keep it
     });
     y.on('theme', function () {
@@ -591,6 +614,7 @@
         var langs = (y.config && y.config.languages) || ['en', 'es'];
         var lang = a.lang === 'opposite' ? opposite(baseLang(win), langs) : a.lang;
         st.stepLang = true;
+        stepLangMark(true);
         if (y.i18n.lang !== lang) {
           st.driving++;
           try {
@@ -777,6 +801,7 @@
       st.driving--;
     }
     st.stepLang = false;
+    stepLangMark(false);
     st.stepTheme = false;
     // 12. Drop a sub-route (#/help/record, #/understand/token_units …) with replace: no history entry
     var cur = y.nav && y.nav.current();

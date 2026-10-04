@@ -192,7 +192,7 @@
   --switch-knob: #0f172a;
   --notice-bg: #334155;
   --notice-text: #cbd5e1;
-  --error-text: #80d100; /* Acorn: 9.38:1 on Slate 1, 5.44:1 on Slate 2 (Lime only in a band) */
+  --error-text: #80d100; /* Acorn: 9.38:1 on Slate 1, 5.44:1 on Slate 2 (White in a band) */
   --selection-bg: #80d100; /* Slate 1 text on it: 9.38:1 */
   --skeleton: #334155;
   --table-head-bg: #334155;
@@ -289,10 +289,11 @@
  *
  * Lime is the brand's one-or-two-per-view highlight, so in dark mode it is
  * kept only for the focus ring (--focus), the tour spotlight outline and tag
- * (--spot), and links and error text inside a Dark Green band, where Acorn
- * is under 4.5:1. Everything else on dark uses Green on Slate 1 (eyebrows,
- * decorative icons: 6.48:1) or Acorn (links everywhere, accent ink on Slate 2
- * cards 5.44:1, current/selected lines --current, errors, text selection).
+ * (--spot), and links inside a Dark Green band, where Acorn is under 4.5:1
+ * (error text in a band is White, 8.21:1). Everything else on dark uses Green
+ * on Slate 1 (eyebrows, decorative icons: 6.48:1) or Acorn (links everywhere,
+ * accent ink on Slate 2 cards 5.44:1, current/selected lines --current,
+ * errors, text selection).
  */
 .wt-band,
 .wt-notice,
@@ -324,7 +325,7 @@
   --link: #dbe64c; /* Lime: 6.04:1 on Dark Green (Acorn is only 4.32:1) */
   --link-hover: #ffffff;
   --highlight: #80d100; /* icons and bars only (4.32:1); text in a band uses --heading, --body or --link */
-  --error-text: #dbe64c; /* 6.04:1; Acorn would be 4.32:1 */
+  --error-text: #ffffff; /* 8.21:1, with the icon and bold label (Acorn is 4.32:1; Lime is kept for links here) */
   --border: #277656;
   --focus: #dbe64c;
 }
@@ -352,7 +353,7 @@
     --link: #dbe64c;
     --link-hover: #ffffff;
     --highlight: #80d100;
-    --error-text: #dbe64c;
+    --error-text: #ffffff;
     --border: #277656;
     --focus: #dbe64c;
   }

@@ -263,16 +263,19 @@ window.__frameWin = function () { return document.getElementById('wt-frame').con
           win.YES.setLang('es'); // the visitor switches during a step that did not set a language
           out.afterVisitor = (await WT.driver.reset(win)).problems.length === 0 && win.YES.i18n.lang;
           await WT.driver.apply(win, WT.steps.language);
+          // A step's language is marked in sessionStorage, so a reload on this step can't become the baseline.
+          out.marked = sessionStorage.getItem('infoslips.wt.stepLang');
           win.YES.setLang('en'); // explored during the language step: not the visitor's baseline
           await WT.driver.reset(win);
           out.afterLanguageStep = win.YES.i18n.lang;
+          out.cleared = sessionStorage.getItem('infoslips.wt.stepLang');
           win.YES.setLang('en'); // the visitor goes back to English between steps
           await WT.driver.reset(win);
           out.final = win.YES.i18n.lang;
           out.baseline = WT.driver.baseline().lang;
           return out;
         });
-        assert.deepEqual(lang, { afterVisitor: 'es', afterLanguageStep: 'es', final: 'en', baseline: 'en' }, 'baseline language tracking');
+        assert.deepEqual(lang, { afterVisitor: 'es', marked: '1', afterLanguageStep: 'es', cleared: null, final: 'en', baseline: 'en' }, 'baseline language tracking');
 
         // A newer reset aborts a running apply; never trigger print.
         const misc = await page.evaluate(async () => {

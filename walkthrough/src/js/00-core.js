@@ -812,7 +812,13 @@
       var done = function () {
         newIdentity();
       };
-      return WT.answers.flush().then(done, done);
+      // A save already in flight resolves first; changes queued meanwhile get one more flush.
+      return WT.answers
+        .flush()
+        .then(function (ok) {
+          return ok !== false && pendingCount() ? WT.answers.flush() : ok;
+        })
+        .then(done, done);
     },
     /**
      * "Remove my answers from the results": stops saving (timers cancelled, an
@@ -1230,6 +1236,10 @@
     var h = WT.storage.get(HOLD_KEY, null);
     return !!(h && rec && h.secret === rec.secret && h.until > Date.now());
   }
+  /** True when this browser's identity is no longer the one a save was made for (a new reviewer started). */
+  function identityChanged(secret) {
+    return loadReviewer().secret !== secret;
+  }
 
   function scheduleSave(ms) {
     clearTimeout(saveTimer);
@@ -1537,6 +1547,7 @@
     ).then(function (oks) {
       if (keepaliveSent && keepaliveSent.promise === promise) keepaliveSent = null;
       var ok = oks.every(Boolean);
+      if (identityChanged(snap.secret)) return ok;
       afterSave(report.last, snap.secret);
       if (ok && !inFlight && !pendingCount()) {
         saveState.savedAt = new Date().toISOString();
@@ -1672,6 +1683,10 @@
       }, Promise.resolve());
       inFlight = chain.then(
         function () {
+          // A new reviewer started (here or in another tab) while this save was
+          // in flight: its status is already neutral, so this old save must not
+          // report "Saved" for the new identity.
+          if (identityChanged(snap.secret)) return true;
           afterSave(report.last, snap.secret);
           retryDelay = 0;
           clearTimeout(retryTimer);
@@ -1682,6 +1697,7 @@
           return true;
         },
         function (e) {
+          if (identityChanged(snap.secret)) return false; // the old queue is gone: nothing to report or retry
           afterSave(report.last, snap.secret); // earlier requests may have landed
           var status = (e && e.status) || 0;
           var retry = retryable(status);

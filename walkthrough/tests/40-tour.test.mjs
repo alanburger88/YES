@@ -17,14 +17,16 @@ export const meta = { timeout: 900000 };
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 };
 const TABLET = { width: 900, height: 1100, isMobile: true, hasTouch: true };
-const BRAND_COMPACT = 'YES branding is a placeholder and will be updated.';
+const BRAND_COMPACT = 'YES branding is a placeholder. Judge the features, not the look.';
 
 /**
  * In the page: where the overlay drew the outline, and where it should be,
  * computed independently from the statement's DOM: the first visible match of
- * the step's selectors, padded by 8px, mapped through the frame's position and
- * clamped to what the frame shows (below the statement's sticky masthead for
- * targets in the page flow, inside any clipping scroll box, 2px in from the edge).
+ * the step's selectors, mapped through the frame's position and scale ("View
+ * as" shows the frame at its device's logical width, scaled down to fit),
+ * padded by 8px and clamped to what the frame shows (below the statement's
+ * sticky masthead for targets in the page flow, inside any clipping scroll box,
+ * 2px in from the edge).
  */
 function geometry() {
   const fr = document.getElementById('wt-frame');
@@ -83,14 +85,17 @@ function geometry() {
   }
   if (!pinned) v.t = Math.max(v.t, window.WT.driver.topInset(w));
   const r = el.getBoundingClientRect();
-  out.target = { l: r.left + fRect.left, t: r.top + fRect.top, r: r.right + fRect.left, b: r.bottom + fRect.top };
+  const s = fRect.width / (fr.offsetWidth || fRect.width) || 1; // the frame's CSS scale
+  out.scale = s;
+  out.target = { l: fRect.left + r.left * s, t: fRect.top + r.top * s, r: fRect.left + r.right * s, b: fRect.top + r.bottom * s };
   out.expected = {
-    l: Math.max(r.left - 8, v.l + 2) + fRect.left,
-    t: Math.max(r.top - 8, v.t + 2) + fRect.top,
-    r: Math.min(r.right + 8, v.r - 2) + fRect.left,
-    b: Math.min(r.bottom + 8, v.b - 2) + fRect.top
+    l: fRect.left + Math.max(r.left * s - 8, v.l * s + 2),
+    t: fRect.top + Math.max(r.top * s - 8, v.t * s + 2),
+    r: fRect.left + Math.min(r.right * s + 8, v.r * s - 2),
+    b: fRect.top + Math.min(r.bottom * s + 8, v.b * s - 2)
   };
   out.visibleH = Math.min(r.bottom, v.b) - Math.max(r.top, v.t);
+  out.inView = (r.top >= v.t - 1 && r.bottom <= v.b + 1) || r.height > v.b - v.t;
   return out;
 }
 
@@ -123,6 +128,39 @@ export default async function (ctx) {
     await page.waitForFunction(() => !document.getElementById('wt-tour-overlay').hasAttribute('data-anim'), null, { timeout: 5000 });
     await sleep(120);
   }
+  /** Run action(), then wait for the step to be set up again (data-activated is cleared, then set). */
+  async function reactivated(page, id, action) {
+    await page.evaluate(() => {
+      const r = document.querySelector('.wt-tour');
+      window.__act = [];
+      if (window.__actMo) window.__actMo.disconnect();
+      window.__actMo = new MutationObserver(() => window.__act.push(r.getAttribute('data-activated')));
+      window.__actMo.observe(r, { attributes: true, attributeFilter: ['data-activated'] });
+    });
+    await action();
+    await page.waitForFunction(
+      (i) => {
+        const k = window.__act.indexOf(null);
+        return k !== -1 && window.__act.slice(k).includes(i);
+      },
+      id,
+      { timeout: 20000 }
+    );
+    await activated(page, id);
+  }
+  /** Record WT.announce messages in window.__said. */
+  const recordAnnounce = (page) =>
+    page.evaluate(() => {
+      window.__said = [];
+      if (window.__sayHooked) return;
+      window.__sayHooked = true;
+      const say = window.WT.announce;
+      window.WT.announce = function (msg) {
+        window.__said.push(String(msg));
+        return say.apply(this, arguments);
+      };
+    });
+  const said = (page) => page.evaluate(() => window.__said.slice());
   async function openTour(opts, hash) {
     const P = await openPage(ctx, opts);
     await gotoApp(P.page, base, hash);
@@ -153,20 +191,52 @@ export default async function (ctx) {
       assert.equal(await page.locator('.wt-tour__progress').getAttribute('aria-labelledby'), 'tour-count');
       assert.ok((await page.locator('.wt-tour__section').innerText()).trim().length > 2, 'section label');
       const text = await page.locator('.wt-tour__content').innerText();
-      for (const h of ['WHAT IT IS', 'VALUE FOR YES', 'VALUE FOR YOUR CUSTOMERS', 'TRY IT']) assert.ok(text.toUpperCase().includes(h), 'panel has ' + h);
+      for (const h of ['WHAT IT IS', 'TRY IT']) assert.ok(text.toUpperCase().includes(h), 'panel has ' + h);
+      const more = await page.locator('.wt-tour__more').innerText();
+      for (const h of ['WHY IT MATTERS FOR YES AND CUSTOMERS', 'VALUE FOR YES', 'VALUE FOR YOUR CUSTOMERS']) assert.ok(more.toUpperCase().includes(h), 'panel has ' + h);
       assert.equal(await page.locator('[data-act="datareq"]').innerText(), 'View data requirements');
+      // Panel order: header, What it is, Try it, Your view, "Why it matters" (open at 1024px and up), View data requirements
+      const order = await page.evaluate(() => {
+        const q = (s) => document.querySelector(s);
+        const list = [q('.wt-tour__head'), q('#tour-what-h'), q('.wt-tour__try'), q('#tour-view'), q('details.wt-tour__why'), q('[data-act="datareq"]')];
+        return { missing: list.map((e, i) => (e ? -1 : i)).filter((i) => i >= 0), ok: list.every((e, i) => !i || (e && list[i - 1] && list[i - 1].compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING)), open: q('details.wt-tour__why').open };
+      });
+      assert.deepEqual(order.missing, [], 'panel parts');
+      assert.ok(order.ok, 'panel order: header, What it is, Try it, Your view, Why it matters, View data requirements');
+      assert.equal(order.open, true, '"Why it matters" is open at 1280px');
+      // The h1 is described by "Step k of N"; a hidden line names the highlighted part
+      assert.equal(await page.locator('#tour-title').getAttribute('aria-describedby'), 'tour-count');
+      assert.equal((await page.locator('#tour-where').textContent()).trim(), `In the statement, this part is highlighted: 3 · ${f.title}.`);
+      assert.ok(await page.locator('[data-act="goto"]').isVisible(), 'Go to the highlighted part');
+      // Keyboard hints: the arrows are named by hidden text, not aria-label
+      assert.equal(await page.locator('.wt-tour__keys [aria-label]').count(), 0);
+      assert.match(await page.locator('.wt-tour__keys').textContent(), /Right arrow.*Left arrow/);
       const notice = page.locator('#view-tour [data-brand-notice="compact"]');
       assert.equal(await notice.count(), 1, 'compact branding notice');
       assert.equal((await notice.innerText()).trim(), BRAND_COMPACT);
       assert.ok(await notice.isVisible());
+      // Open the statement in a new tab: a real link that follows the frame
+      const nt = page.getByRole('link', { name: 'Open the statement in a new tab' });
+      assert.equal(await nt.count(), 1);
+      assert.equal(await nt.getAttribute('target'), '_blank');
+      assert.match(await nt.getAttribute('rel'), /noopener/);
+      const frameHash = await page.evaluate(() => document.getElementById('wt-frame').contentWindow.location.hash);
+      assert.equal(await nt.getAttribute('href'), 'statement/index.html' + frameHash, 'href follows the frame');
+      // View as: real radios, Desktop by default at 1280px
+      for (const name of ['Mobile', 'Tablet', 'Desktop']) assert.equal(await page.getByRole('radio', { name }).count(), 1, name + ' radio');
+      assert.ok(await page.getByRole('radio', { name: 'Desktop' }).isChecked());
+      assert.equal(await page.getByRole('radiogroup', { name: 'View as' }).count(), 1);
       // Your view
       assert.equal(await page.locator('input[name="tour-vote"]').count(), 2);
       assert.equal(await page.locator('input[name="tour-priority"]').count(), 3);
       assert.match(await page.locator('#view-tour').innerText(), /Include in the production statement\?/);
       assert.match(await page.locator('#view-tour').innerText(), /Priority if included/);
+      assert.equal((await page.locator('label[for="tour-reason"]').innerText()).trim(), 'Why include or exclude it? (optional)');
       assert.equal(await page.locator('#tour-reason').getAttribute('maxlength'), '500');
       assert.equal(await page.locator('#tour-comment').getAttribute('maxlength'), '2000');
-      assert.equal(await page.locator('.wt-tour__status').getAttribute('role'), 'status');
+      // The visual save line is not a live region (WT.announce speaks what matters)
+      assert.equal(await page.locator('.wt-tour__status').getAttribute('role'), null);
+      assert.equal(await page.locator('.wt-tour__status').getAttribute('aria-live'), null);
       // Frame
       const frame = page.locator('#wt-frame');
       assert.equal(await frame.getAttribute('title'), 'YES statement (interactive demo)');
@@ -297,6 +367,7 @@ export default async function (ctx) {
       const dlg = page.locator('#tour-steps');
       await dlg.waitFor({ state: 'visible' });
       assert.equal((await dlg.locator('.wt-dialog__title').innerText()).trim(), 'All steps');
+      assert.equal((await dlg.locator('[data-brand-notice="compact"]').innerText()).trim(), BRAND_COMPACT, 'branding notice in All steps');
       const items = await dlg.locator('.wt-steplist__item').evaluateAll((list) =>
         list.map((a) => ({
           id: a.getAttribute('data-goto'),
@@ -591,7 +662,7 @@ export default async function (ctx) {
       await page.locator('#tour-reason').fill('Not needed at launch.');
       await until(async () => (await statusOf(page)).state === 'error', 8000, 'offline error status');
       const s = await statusOf(page);
-      assert.equal(s.text, 'Not saved yet — we’ll retry');
+      assert.equal(s.text, 'Not saved yet: you’re offline. We’ll save when you’re back.');
       assert.ok(s.retry, 'Retry button shown');
       const queued = await page.evaluate((i) => JSON.parse(localStorage.getItem('infoslips.wt.pending') || 'null'), id);
       assert.ok(queued && queued.answers[id] && queued.answers[id].vote === 'exclude', 'answer queued locally');
@@ -846,7 +917,14 @@ export default async function (ctx) {
       await activated(T.page, first);
       const pw = await T.page.evaluate(() => document.querySelector('.wt-tour__panel').getBoundingClientRect().width);
       assert.ok(Math.abs(pw - 340) <= 1, 'tablet panel is 340px: ' + pw);
-      assert.equal(await T.page.evaluate(() => window.WT.driver.isPhone(document.getElementById('wt-frame').contentWindow)), true, 'mid-width frame uses the phone layout (G9)');
+      // 720–1023px: Tablet by default, the frame 820px wide (the statement's wide layout), scaled to fit
+      const tv = await T.page.evaluate(() => ({ dev: window.WT.tour.device(), iw: document.getElementById('wt-frame').contentWindow.innerWidth, s: window.WT.tour.scale() }));
+      assert.equal(tv.dev, 'tablet');
+      assert.equal(tv.iw, 820);
+      assert.ok(tv.s < 1, 'scaled: ' + tv.s);
+      // Narrow bar: the branding notice takes the place of the "Click around freely" hint
+      assert.ok(await T.page.locator('.wt-tour__bar [data-brand-notice="compact"]').isVisible());
+      assert.ok(await T.page.locator('.wt-tour__bar-hint').isHidden());
       assertNoErrors(T.errors, assert, T.external);
     } finally {
       await T.close();
@@ -969,6 +1047,348 @@ export default async function (ctx) {
       });
       await dlg.waitFor({ state: 'hidden' });
       assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  await step('View as: Mobile, Tablet and Desktop at 1280×800 and 390×844 (frame width, outline through the scale for journey, detail, theme and language); announced; saved across a reload', async () => {
+    const VIEWS = [
+      ['mobile', 390, 'Showing the statement as on a phone'],
+      ['tablet', 820, 'Showing the statement as on a tablet'],
+      ['desktop', 1280, 'Showing the statement as on a desktop']
+    ];
+    const list = ['journey', 'detail', 'theme', 'language'].filter(has);
+    for (const [vp, label, def] of [[DESKTOP, 'desktop', 'desktop'], [PHONE, 'phone', 'mobile']]) {
+      const start = list[0] || first;
+      const P = await openTour({ viewport: vp }, '#/tour/' + start);
+      const { page } = P;
+      const problems = [];
+      try {
+        await activated(page, start);
+        assert.equal(await page.evaluate(() => window.WT.tour.device()), def, label + ': default view');
+        await recordAnnounce(page);
+        let cur = start;
+        for (const [dev, width, say] of VIEWS) {
+          if ((await page.evaluate(() => window.WT.tour.device())) !== dev) {
+            await reactivated(page, cur, () => page.locator(`input[name="tour-device"][value="${dev}"]`).check());
+            assert.ok((await said(page)).includes(say), `${label}: announced "${say}"`);
+          }
+          for (const id of list) {
+            if (id !== cur) {
+              await page.evaluate((x) => window.WT.go('/tour/' + x), id);
+              await activated(page, id);
+              cur = id;
+            }
+            const info = await page.evaluate(() => ({ iw: document.getElementById('wt-frame').contentWindow.innerWidth, s: window.WT.tour.scale(), dev: window.WT.tour.device() }));
+            if (info.iw !== width) problems.push(`${dev} ${id}: frame innerWidth ${info.iw}, expected ${width}`);
+            let g = await page.evaluate(geometry);
+            if (g.state === 'shown' && g.ringOpacity < 0.99) {
+              await sleep(300);
+              g = await page.evaluate(geometry);
+            }
+            if (Math.abs(g.scale - info.s) > 0.01) problems.push(`${dev} ${id}: frame drawn at scale ${g.scale}, tour says ${info.s}`);
+            if (g.state === 'shown') {
+              for (const k of ['l', 't', 'r', 'b']) if (Math.abs(g.ring[k] - g.expected[k]) > 3) problems.push(`${dev} ${id}: outline ${k} ${g.ring[k].toFixed(1)} ≠ ${g.expected[k].toFixed(1)} (scale ${g.scale.toFixed(3)})`);
+              if (g.ring.l < g.frame.l - 0.5 || g.ring.r > g.frame.r + 0.5 || g.ring.t < g.frame.t - 0.5 || g.ring.b > g.frame.b + 0.5) problems.push(`${dev} ${id}: outline outside the frame`);
+            } else if (g.state !== 'offscreen' || !g.edge) problems.push(`${dev} ${id}: overlay ${g.state}`);
+          }
+          if (dev !== 'desktop') {
+            const chrome = await page.evaluate(() => document.querySelector('.wt-tour').getAttribute('data-chrome'));
+            if (label === 'desktop' && chrome !== 'on') problems.push(`${dev}: no device outline at 1280px`);
+          }
+          await shot(page, `tour-view-${label}-${dev}`);
+        }
+        // Saved across a reload (and wins over the width default)
+        await reactivated(page, cur, () => page.locator('input[name="tour-device"][value="tablet"]').check());
+        assert.equal(await page.evaluate(() => localStorage.getItem('infoslips.wt.device')), 'tablet');
+        await page.reload();
+        await page.waitForFunction(() => document.documentElement.getAttribute('data-wt-ready') === '1');
+        await activated(page, cur);
+        assert.equal(await page.evaluate(() => window.WT.tour.device()), 'tablet', label + ': the choice survives a reload');
+        assert.ok(await page.locator('input[name="tour-device"][value="tablet"]').isChecked());
+        assert.equal(await page.evaluate(() => document.getElementById('wt-frame').contentWindow.innerWidth), 820);
+        assertNoErrors(P.errors, assert, P.external);
+      } finally {
+        await P.close();
+      }
+      if (problems.length) log(label + ': ' + problems.join('\n      '));
+      assert.deepEqual(problems, [], label + ' view problems');
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  await step('400% zoom (320×256) and 640×400 at DPR 2: the page scrolls, the statement is about 70vh, the panel and navigation flow; no sideways scroll', async () => {
+    for (const [viewport, name] of [[{ width: 320, height: 256 }, 'z320'], [{ width: 640, height: 400, deviceScaleFactor: 2 }, 'z640']]) {
+      const P = await openTour({ viewport }, '#/tour/' + ids[2]);
+      const { page } = P;
+      try {
+        await activated(page, ids[2]);
+        const L = await page.evaluate(() => {
+          const se = document.scrollingElement;
+          const st = document.querySelector('.wt-tour__stage').getBoundingClientRect();
+          const nav = document.querySelector('.wt-tour__nav');
+          return { sw: se.scrollWidth, cw: se.clientWidth, sh: se.scrollHeight, ih: innerHeight, stage: st.height, navPos: getComputedStyle(nav).position, navTop: nav.getBoundingClientRect().top + scrollY };
+        });
+        assert.ok(L.sw <= L.cw, `${name}: no sideways scroll (${L.sw} > ${L.cw})`);
+        assert.ok(L.sh > L.ih + 200, `${name}: the page scrolls (${L.sh})`);
+        assert.ok(Math.abs(L.stage - Math.max(150, 0.7 * L.ih)) <= 2, `${name}: statement ~70vh: ${L.stage}`);
+        assert.ok(L.navPos !== 'sticky' && L.navPos !== 'fixed', `${name}: navigation flows (${L.navPos})`);
+        const g = await page.evaluate(geometry);
+        assert.ok(g.state === 'shown' || g.state === 'offscreen', `${name}: overlay ${g.state}`);
+        if (g.state === 'shown') for (const k of ['l', 't', 'r', 'b']) assert.ok(Math.abs(g.ring[k] - g.expected[k]) <= 3, `${name}: outline ${k} ${g.ring[k]} ≠ ${g.expected[k]}`);
+        await shot(page, `tour-zoom-${name}`);
+        // The navigation is reachable at the end of the page and still works
+        await page.locator('[data-act="next"]').scrollIntoViewIfNeeded();
+        assert.ok(await page.locator('[data-act="next"]').isVisible());
+        await page.click('[data-act="next"]');
+        await activated(page, ids[3]);
+        assertNoErrors(P.errors, assert, P.external);
+      } finally {
+        await P.close();
+      }
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  await step('state chip, priority legend, Go to the highlighted part, announcements (no live status line)', async () => {
+    const id = ids[4];
+    const P = await openTour({ viewport: DESKTOP }, '#/tour/' + id);
+    const { page } = P;
+    try {
+      await activated(page, id);
+      await recordAnnounce(page);
+      const chip = page.locator('[data-act="goform"]');
+      const chipText = async () => (await chip.textContent()).replace(/\s+/g, ' ').trim();
+      assert.equal(await chipText(), 'Your view: Not answered yet · Give your view');
+      // The chip scrolls to the form and focuses the vote
+      await page.evaluate(() => (document.querySelector('.wt-tour__scroll').scrollTop = 0));
+      await chip.click();
+      await sleep(600);
+      assert.equal((await focused(page)).fk, 'tour-vote-include', 'chip focuses the vote');
+      const inView = await page.evaluate(() => {
+        const v = document.getElementById('tour-view').getBoundingClientRect();
+        const sc = document.querySelector('.wt-tour__scroll').getBoundingClientRect();
+        return v.top >= sc.top - 1 && v.top < sc.bottom - 100;
+      });
+      assert.ok(inView, 'the form is scrolled into view');
+      await page.locator('input[name="tour-vote"][value="include"]').check();
+      await page.locator('input[name="tour-priority"][value="high"]').check();
+      await until(async () => (await chipText()) === 'Your view: Included · High priority', 3000, 'chip Included');
+      await until(async () => (await said(page)).includes('Saved'), 8000, '"Saved" announced after a choice');
+      await page.locator('input[name="tour-vote"][value="exclude"]').check();
+      await until(async () => (await chipText()) === 'Your view: Excluded · High priority', 3000, 'chip Excluded');
+      assert.equal((await page.locator('#tour-priority legend').innerText()).trim(), 'Priority if YES did include it (optional)');
+      await page.locator('input[name="tour-vote"][value="include"]').check();
+      assert.equal((await page.locator('#tour-priority legend').innerText()).trim(), 'Priority if included');
+      // Typing announces nothing until the field is left; then "Saved"
+      await until(async () => (await statusOf(page)).state === 'saved', 8000, 'saved');
+      await page.evaluate(() => (window.__said = []));
+      await page.locator('#tour-reason').fill('Because.');
+      await sleep(1500);
+      assert.deepEqual(await said(page), [], 'nothing announced while typing');
+      await page.locator('#tour-comment').focus();
+      await until(async () => (await said(page)).includes('Saved'), 8000, '"Saved" after leaving the field');
+
+      // Go to the highlighted part: scrolls the statement to it and focuses it (tabindex=-1 when needed)
+      await page.evaluate(() => document.getElementById('wt-frame').contentWindow.scrollTo(0, 99999));
+      await page.click('[data-act="goto"]');
+      await until(() => page.evaluate(() => {
+        const t = window.WT.tour.target();
+        return document.activeElement === document.getElementById('wt-frame') && t && t.ownerDocument.activeElement === t;
+      }), 6000, 'focus on the target in the statement');
+      const t = await page.evaluate(() => {
+        const el = window.WT.tour.target();
+        el.setAttribute('data-test-target', '1');
+        return { tab: el.getAttribute('tabindex'), state: document.getElementById('wt-tour-overlay').dataset.state };
+      });
+      assert.equal(t.state, 'shown', 'the target is back in view');
+      assert.ok(t.tab === null || t.tab === '-1');
+      await page.locator('#tour-title').focus();
+      await page.click('[data-act="next"]');
+      await activated(page, ids[5]);
+      const left = await page.evaluate(() => {
+        const el = document.getElementById('wt-frame').contentDocument.querySelector('[data-test-target]');
+        return el ? el.getAttribute('tabindex') : 'gone';
+      });
+      assert.ok(left === null || left === 'gone' || t.tab === null, 'tabindex=-1 removed on step change: ' + left);
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  await step('a save that fails for good never promises a retry; Finish waits for the save (3 s at most)', async () => {
+    const P = await openTour({ viewport: DESKTOP }, '#/tour/' + ids[6]);
+    const { page } = P;
+    try {
+      await activated(page, ids[6]);
+      await recordAnnounce(page);
+      await page.route('**/api/me', (route) =>
+        route.request().method() === 'PUT'
+          ? route.fulfill({ status: 422, contentType: 'application/json', body: '{"error":{"code":"invalid","message":"Invalid"}}' })
+          : route.fallback()
+      );
+      await page.locator('input[name="tour-vote"][value="include"]').check();
+      await until(async () => (await statusOf(page)).state === 'error', 8000, 'error status');
+      const st = await statusOf(page);
+      assert.ok(st.retry, 'Retry shown');
+      const msgs = (await said(page)).join(' | ');
+      assert.match(msgs, /isn’t saved/, 'the failure is announced: ' + msgs);
+      const willRetry = await page.evaluate(() => window.WT.answers.status().willRetry);
+      if (willRetry !== true) {
+        assert.doesNotMatch(st.text + ' ' + msgs, /automatically|shortly|we’ll try again|we’ll retry/i, 'no promise of an automatic retry');
+      }
+      await page.unroute('**/api/me');
+      // Finish while the save hangs: "Saving your answers…", then the results within about 3 s
+      await page.route('**/api/me', (route) => (route.request().method() === 'PUT' ? undefined : route.fallback()));
+      await page.evaluate((x) => window.WT.go('/tour/' + x), ids[N - 1]);
+      await activated(page, ids[N - 1]);
+      await page.locator('input[name="tour-vote"][value="exclude"]').check();
+      const t0 = Date.now();
+      await page.click('[data-act="next"]');
+      assert.equal((await page.locator('[data-act="next"]').innerText()).trim(), 'Saving your answers…');
+      assert.equal(await page.locator('[data-act="next"]').getAttribute('aria-busy'), 'true');
+      await page.waitForFunction(() => window.WT.route().view === 'results', null, { timeout: 6000 });
+      const dt = Date.now() - t0;
+      assert.ok(dt >= 2500 && dt < 5000, 'left after the 3-second guard: ' + dt);
+    } finally {
+      await P.close();
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  if (has('language')) {
+    await step('language baseline: a reload on the Language step does not make Spanish the baseline', async () => {
+      const P = await openTour({ viewport: DESKTOP }, '#/tour/language');
+      const { page } = P;
+      const lang = () => page.evaluate(() => document.getElementById('wt-frame').contentWindow.YES.i18n.lang);
+      try {
+        await activated(page, 'language');
+        assert.equal(await lang(), 'es');
+        await page.reload();
+        await page.waitForFunction(() => document.documentElement.getAttribute('data-wt-ready') === '1');
+        await activated(page, 'language');
+        assert.equal(await lang(), 'es', 'the step shows Spanish again');
+        await page.evaluate((x) => window.WT.go('/tour/' + x), first);
+        await activated(page, first);
+        assert.equal(await lang(), 'en', 'step 1 is in English');
+        assert.equal(await page.evaluate(() => sessionStorage.getItem('infoslips.wt.stepLang')), null);
+        assertNoErrors(P.errors, assert, P.external);
+      } finally {
+        await P.close();
+      }
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  await step('after a resize settles, a target that was in view is brought back (also from under the statement’s masthead at 1600×1000)', async () => {
+    const id = has('fees') ? 'fees' : ids[5];
+    const P = await openTour({ viewport: { width: 1280, height: 900 } }, '#/tour/' + id);
+    const { page } = P;
+    try {
+      await activated(page, id);
+      for (const [w, h] of [[800, 900], [1280, 900], [1600, 1000], [1540, 900]]) {
+        await page.setViewportSize({ width: w, height: h });
+        await sleep(900);
+        await page.waitForFunction((i) => document.querySelector('.wt-tour').getAttribute('data-activated') === i, id, { timeout: 20000 });
+        await until(async () => {
+          const g = await page.evaluate(geometry);
+          return g.state === 'shown' && g.inView;
+        }, 6000, `${id} back in view at ${w}×${h}`);
+      }
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  await step('Walkthrough in the masthead on a step keeps the step and its title; #/tour resolves without an extra history entry', async () => {
+    const id = ids[5];
+    const P = await openTour({ viewport: DESKTOP, storage: reviewerStorage({ lastStep: id }) }, '#/start');
+    const { page } = P;
+    try {
+      const len0 = await page.evaluate(() => history.length);
+      await page.click('#wt-mast a[data-nav="tour"]');
+      await activated(page, id);
+      assert.equal(await page.evaluate(() => location.hash), '#/tour/' + id);
+      assert.equal(await page.evaluate(() => history.length), len0 + 1, '#/tour was replaced by #/tour/<id>');
+      const title = await page.title();
+      assert.match(title, /^Step 6: /);
+      await page.click('#wt-mast a[data-nav="tour"]');
+      await sleep(400);
+      assert.equal(await page.evaluate(() => location.hash), '#/tour/' + id);
+      assert.equal(await page.title(), title, 'title kept');
+      assert.equal(await page.evaluate(() => history.length), len0 + 1, 'no new history entry');
+      await page.goBack();
+      await page.waitForFunction(() => window.WT.route().view === 'start');
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  await step('two tabs: a change from the other tab updates the form but never the field being typed in', async () => {
+    const id = ids[7];
+    const A = await openTour({ viewport: DESKTOP }, '#/tour/' + id);
+    try {
+      await activated(A.page, id);
+      const B = await A.context.newPage();
+      await B.goto(base + '/#/tour/' + id);
+      await B.waitForFunction((i) => document.querySelector('.wt-tour') && document.querySelector('.wt-tour').getAttribute('data-activated') === i, id, { timeout: 25000 });
+      await A.page.locator('#tour-comment').click();
+      await A.page.keyboard.type('Typing in A');
+      await B.locator('input[name="tour-vote"][value="include"]').check();
+      await B.locator('#tour-comment').fill('Written in B');
+      await until(() => A.page.locator('input[name="tour-vote"][value="include"]').isChecked(), 6000, 'A shows B’s vote');
+      await sleep(500);
+      assert.equal(await A.page.locator('#tour-comment').inputValue(), 'Typing in A', 'the focused field is left alone');
+      assert.equal((await focused(A.page)).id, 'tour-comment', 'focus stays in the field');
+      await A.page.keyboard.type('!');
+      assert.equal(await A.page.locator('#tour-comment').inputValue(), 'Typing in A!');
+      await B.close();
+      assertNoErrors(A.errors, assert, A.external);
+    } finally {
+      await A.close();
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  await step('390px with text spacing (WCAG 1.4.12): the bar wraps and nothing is cut off', async () => {
+    const P = await openTour({ viewport: PHONE }, '#/tour/' + first);
+    const { page } = P;
+    try {
+      await activated(page, first);
+      await page.evaluate(() => {
+        const sheet = [...document.styleSheets].find((x) => {
+          try {
+            return x.cssRules && x.href;
+          } catch (e) {
+            return false;
+          }
+        });
+        sheet.insertRule('* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; }', sheet.cssRules.length);
+        sheet.insertRule('p { margin-bottom: 2em !important; }', sheet.cssRules.length);
+      });
+      await sleep(600);
+      const r = await page.evaluate(() => {
+        const tools = document.querySelector('.wt-tour__tools').getBoundingClientRect();
+        const out = [];
+        for (const el of document.querySelectorAll('.wt-tour__tools > *, .wt-tour__dim .wt-switch__label, .wt-tour__brand')) {
+          const b = el.getBoundingClientRect();
+          if (b.width <= 1) continue; // visually hidden labels
+          if (b.right > tools.right + 1 || b.left < tools.left - 1) out.push(el.className + ' outside the bar');
+          if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'visible') out.push(el.className + ' cut off');
+        }
+        return { out, sw: document.scrollingElement.scrollWidth };
+      });
+      assert.deepEqual(r.out, [], 'bar controls');
+      assert.ok(r.sw <= 390, 'no sideways scroll: ' + r.sw);
+      await shot(page, 'tour-phone-text-spacing');
     } finally {
       await P.close();
     }

@@ -337,7 +337,8 @@ export default async function (ctx) {
       // One rule everywhere (WT.results.wanted, also the Data page): more include than exclude votes.
       assert.equal(await kpi('majority'), String(rows.filter((r) => r.include > r.exclude).length));
       assert.equal(text(await P.page.locator('[data-kpi="majority"] .wt-kpi__label').innerText()).toLowerCase(), 'features most reviewers want');
-      assert.equal(text(await P.page.locator('[data-kpi="majority"] .wt-kpi__sub').innerText()), 'of ' + N + ', with more include than exclude votes');
+      assert.equal(text(await P.page.locator('[data-kpi="majority"] .wt-kpi__sub').innerText()), 'of ' + N + ' (more include than exclude votes)');
+      assert.equal(await P.page.evaluate(() => window.WT.results.WANTED.full), 'Features most reviewers want (more include than exclude votes)');
       assert.equal(await P.page.evaluate(() => window.WT.features.filter((f) => window.WT.results.wanted(window.WT.results.data().features[f.id])).length), rows.filter((r) => r.include > r.exclude).length);
       assertNoErrors(P.errors, assert, P.external);
     } finally {

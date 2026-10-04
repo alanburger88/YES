@@ -897,6 +897,23 @@ export default async function ({ base, api, assert, step, reset, adminCode, root
       const short = await call('GET', '/api/admin/check', null, { 'x-admin-code': 'short-code' });
       assert.equal(short.status, 503);
       assert.equal(short.json.error.message, 'Admin is not configured: ADMIN_CODE must be at least 16 characters');
+      // No Blobs context (the store can't be opened): still a JSON 500 with the API headers.
+      const prevCtx = process.env.NETLIFY_BLOBS_CONTEXT;
+      const prevError = console.error;
+      delete process.env.NETLIFY_BLOBS_CONTEXT;
+      console.error = () => {};
+      try {
+        const broken = await call('GET', '/api/health');
+        assert.equal(broken.status, 500);
+        assert.equal(broken.json.error.code, 'server_error');
+        assert.equal(broken.headers.get('x-robots-tag'), 'noindex, nofollow');
+        assert.equal(broken.headers.get('referrer-policy'), 'same-origin');
+        assert.equal(broken.headers.get('x-content-type-options'), 'nosniff');
+        assert.equal(broken.headers.get('cache-control'), 'no-store');
+      } finally {
+        console.error = prevError;
+        if (prevCtx !== undefined) process.env.NETLIFY_BLOBS_CONTEXT = prevCtx;
+      }
     } finally {
       if (prevAdmin === undefined) delete process.env.ADMIN_CODE;
       else process.env.ADMIN_CODE = prevAdmin;

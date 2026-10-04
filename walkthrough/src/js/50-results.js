@@ -51,7 +51,11 @@
   function wanted(x) {
     return (Number(x && x.include) || 0) > (Number(x && x.exclude) || 0);
   }
-  var WANTED = { label: 'Features most reviewers want', rule: 'more include than exclude votes' };
+  var WANTED = {
+    label: 'Features most reviewers want',
+    rule: 'more include than exclude votes',
+    full: 'Features most reviewers want (more include than exclude votes)'
+  };
 
   /**
    * Priority counts for one feature. A priority means "how important if it is
@@ -500,7 +504,7 @@
       { key: 'reviewers', label: 'Reviewers', value: d.reviewers, sub: 'people who answered at least one feature', icon: 'users' },
       { key: 'answers', label: 'Answers', value: d.answers, sub: 'about ' + avg.toLocaleString('en-GB') + ' per reviewer, across ' + WT.features.length + ' features', icon: 'check-circle' },
       { key: 'comments', label: 'Comments', value: d.comments, sub: 'plus ' + WT.fmt.plural(reasons, 'reason') + ' given with votes', icon: 'comment' },
-      { key: 'majority', label: WANTED.label, value: majority, sub: 'of ' + WT.features.length + ', with ' + WANTED.rule, icon: 'target' }
+      { key: 'majority', label: WANTED.label, value: majority, sub: 'of ' + WT.features.length + ' (' + WANTED.rule + ')', icon: 'target' }
     ];
     return (
       '<ul class="wt-kpis" role="list" aria-label="Key numbers">' +
@@ -1113,7 +1117,7 @@
     },
     /** True when a feature's stats ({ include, exclude }) have more include than exclude votes. */
     wanted: wanted,
-    /** How "wanted" is named everywhere: { label, rule }. */
+    /** How "wanted" is named everywhere: { label, rule, full }. */
     WANTED: WANTED,
     /** Priority counts that ignore Exclude votes, from a features[id] object. */
     priorityOf: priorityOf,

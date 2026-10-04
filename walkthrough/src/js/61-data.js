@@ -62,7 +62,7 @@
     return !!g && g.include > g.exclude;
   }
   function wantedLabel() {
-    return (WT.results && WT.results.WANTED) || { label: 'Features most reviewers want', rule: 'more include than exclude votes' };
+    return (WT.results && WT.results.WANTED) || { label: 'Features most reviewers want', rule: 'more include than exclude votes', full: 'Features most reviewers want (more include than exclude votes)' };
   }
   function groupIds() {
     if (!res.data) return [];
@@ -177,7 +177,7 @@
     var groupDesc =
       gs === 'ok'
         ? group
-          ? WT.fmt.plural(group, 'feature') + ' with ' + W.rule
+          ? WT.fmt.plural(group, 'feature') + ' (' + W.rule + ')'
           : 'No feature has ' + W.rule + ' yet'
         : gs === 'error'
           ? 'Everyone’s votes couldn’t be loaded'

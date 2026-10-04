@@ -95,6 +95,11 @@
     var restart = progress
       ? '<a class="wt-btn wt-btn--link" data-fk="start-restart" data-start="restart" href="' + tourHref(first) + '">' + WT.icon('restart', { size: 18 }) + '<span>Start from the beginning</span></a>'
       : '';
+    // The statement on its own, in a new tab, for reviewers who want to explore it freely.
+    var tryIt =
+      '<a class="wt-btn wt-btn--link wt-start__try" data-fk="start-try" data-start="try" href="statement/index.html" target="_blank" rel="noopener">' +
+        '<span>Try the statement on its own</span><span class="wt-sr-only"> (opens in a new tab)</span>' +
+        WT.icon('external', { size: 18 }) + '</a>';
     var progressBlock = progress
       ? '<div class="wt-start__progress">' +
           WT.ui.progress({ id: 'start-progress', value: stats.answered, max: N, label: 'You’ve answered ' + stats.answered + ' of ' + N + ' features' }) +
@@ -107,10 +112,10 @@
           '<div class="wt-start__intro">' +
             '<p class="wt-eyebrow">InfoSlips × YES · Feature review</p>' +
             '<h1 class="wt-display wt-title" tabindex="-1" data-fk="h1">Help shape the new YES statement</h1>' +
-            '<p class="wt-lead">InfoSlips built this interactive statement for YES to show the art of the possible. Walk through it, then tell us which features belong in the production statement, how important each one is, and why.</p>' +
+            '<p class="wt-lead">InfoSlips built this interactive statement for YES to show the art of the possible. Walk through it and, for each feature, tell us whether it belongs in the production statement, how important it is, and why. YES will use everyone’s answers to choose the features for the first release.</p>' +
             progressBlock +
-            '<div class="wt-start__actions">' + primary + restart + '</div>' +
-            '<p class="wt-start__meta">' + WT.icon('info', { size: 18 }) + '<span>About 15 minutes · ' + N + ' features · You can stop and continue at any time.</span></p>' +
+            '<div class="wt-start__actions">' + primary + restart + tryIt + '</div>' +
+            '<p class="wt-start__meta">' + WT.icon('info', { size: 18 }) + '<span>About 40 minutes for all ' + N + ' features · You can stop and continue at any time on this browser.</span></p>' +
             WT.brandNotice() +
           '</div>' +
           '<section class="wt-card wt-start__you" aria-labelledby="start-you-h">' +
@@ -127,7 +132,7 @@
               }) +
             '</form>' +
             '<p class="wt-start__privacy">' + WT.icon('lock', { size: 18 }) +
-              '<span>Your answers are saved to a shared database as you go and are visible to everyone with this link. They’re linked to this browser, not to an account.</span></p>' +
+              '<span>Your answers are saved to a shared database as you go and are visible to everyone with this link. They’re linked to this browser, not to an account. When you’re online, the statement also loads the UserWay accessibility widget from a third party.</span></p>' +
           '</section>' +
         '</div>' +
 
@@ -137,7 +142,7 @@
             '<ol class="wt-steps" role="list">' +
               '<li class="wt-steps__item"><span class="wt-steps__n" aria-hidden="true">1</span><div>' +
                 '<h3 class="wt-steps__h">Take the guided walkthrough</h3>' +
-                '<p>About 15 minutes, ' + N + ' features. We highlight each part of the statement and explain what it does for YES and for your customers.</p></div></li>' +
+                '<p>About 40 minutes, ' + N + ' features. We highlight each part of the statement and explain what it does for YES and for your customers.</p></div></li>' +
               '<li class="wt-steps__item"><span class="wt-steps__n" aria-hidden="true">2</span><div>' +
                 '<h3 class="wt-steps__h">Give your view</h3>' +
                 '<p>For each feature, vote to include or exclude it, set a priority and comment. Your answers save as you go.</p></div></li>' +
@@ -173,9 +178,35 @@
     );
   }
 
+  // What the page shows besides the name: re-render only when this changes, so
+  // saving the name (a 'reviewer' event) never replaces the form or a link that
+  // is being clicked (blur → change → save would otherwise swap the element
+  // between mousedown and click).
+  var shown = null;
+  function signature() {
+    var all = WT.answers.all();
+    return JSON.stringify([
+      WT.reviewer.lastStep(),
+      WT.features.map(function (f) {
+        var a = all[f.id];
+        return a ? a.vote || 1 : 0;
+      })
+    ]);
+  }
+
   function render() {
     if (!section) section = doc.getElementById('view-start');
+    shown = signature();
     WT.render(section, html());
+  }
+
+  /** Show the saved name in the field unless someone is typing in it. */
+  function syncName() {
+    var input = doc.getElementById('start-name');
+    if (input && doc.activeElement !== input) {
+      var name = WT.reviewer.name();
+      if (input.value !== name) input.value = name;
+    }
   }
 
   function visible() {
@@ -200,14 +231,31 @@
       section.addEventListener('change', function (e) {
         if (e.target && e.target.id === 'start-name') saveName();
       });
+      // Enter saves the name without an implicit form submission: the save
+      // re-renders nothing (see signature()), and the browser never submits.
+      section.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.isComposing && e.target && e.target.id === 'start-name') {
+          e.preventDefault();
+          saveName();
+        }
+      });
       section.addEventListener('submit', function (e) {
         if (e.target && e.target.id === 'start-name-form') {
           e.preventDefault();
           saveName();
         }
       });
+      // Re-render after the current event has finished, and only when the page content changed.
+      var queued = false;
       var rerender = function () {
-        if (visible()) render();
+        if (queued) return;
+        queued = true;
+        setTimeout(function () {
+          queued = false;
+          if (!visible()) return;
+          if (signature() !== shown) render();
+          else syncName();
+        }, 0);
       };
       WT.on('answers', rerender);
       WT.on('reviewer', rerender);

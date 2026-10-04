@@ -12,6 +12,7 @@ import {
   gotoApp,
   openPage,
   reviewerStorage,
+  ridFor,
   seedBrowserReviewer,
   shot,
   sleep,
@@ -38,6 +39,45 @@ export default async function (ctx) {
       await sleep(100);
     }
   }
+
+  /**
+   * Intercepts /api/me in a page and logs every request ({ seq, method, secret, body }).
+   * ctl.fail(body) → a status to answer with instead (0/null: pass through);
+   * ctl.delay holds a PUT that long before it goes on to the server.
+   */
+  async function controlMe(page) {
+    const ctl = { log: [], fail: null, delay: 0 };
+    await page.route('**/api/me', async (route) => {
+      const req = route.request();
+      let body = null;
+      try {
+        body = req.postDataJSON();
+      } catch {
+        body = null;
+      }
+      const entry = { seq: ctl.log.length, method: req.method(), secret: req.headers()['x-reviewer-secret'] || '', body };
+      ctl.log.push(entry);
+      try {
+        const status = req.method() === 'PUT' && ctl.fail ? ctl.fail(body || {}) : 0;
+        if (status) {
+          return await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ error: { code: 'test_' + status, message: 'Test failure ' + status + '.' } }) });
+        }
+        if (req.method() === 'PUT' && ctl.delay) await sleep(ctl.delay);
+        return await route.continue();
+      } catch {
+        /* page closed meanwhile */
+      }
+    });
+    return ctl;
+  }
+  const watchSaved = (page) =>
+    page.evaluate(() => {
+      window.__saved = [];
+      window.WT.on('saved', (s) => window.__saved.push(s));
+    });
+  const lastSaved = (page) => page.evaluate(() => window.__saved[window.__saved.length - 1] || null);
+  const status = (page) => page.evaluate(() => window.WT.answers.status());
+  const serverMe = async (secret) => (await api('/api/me', { secret })).json;
 
   /* ------------------------------------------------------------------ */
   await step('headers: CSP and security headers on / and /index.html; none on /statement/', async () => {
@@ -446,7 +486,17 @@ export default async function (ctx) {
       assert.equal(await P.page.locator('#view-start progress').count(), 0);
       const text = await P.page.locator('#view-start').innerText();
       assert.match(text, /How it works/);
-      assert.match(text, new RegExp(`about 15 minutes, ${N} features`, 'i'));
+      assert.match(text, new RegExp(`About 40 minutes for all ${N} features · You can stop and continue at any time on this browser\\.`));
+      assert.match(text, new RegExp(`about 40 minutes, ${N} features`, 'i'));
+      assert.match(text, /YES will use everyone’s answers to choose the features for the first release\./);
+      assert.match(text, /When you’re online, the statement also loads the UserWay accessibility widget from a third party\./);
+      // "Try the statement on its own" opens the bare statement in a new tab.
+      const tryIt = P.page.locator('#view-start [data-start="try"]');
+      assert.equal(await tryIt.getAttribute('href'), 'statement/index.html');
+      assert.equal(await tryIt.getAttribute('target'), '_blank');
+      assert.match(await tryIt.getAttribute('rel'), /noopener/);
+      assert.equal(await tryIt.locator('svg').count(), 1, 'visible new-tab icon');
+      assert.equal(await P.page.getByRole('link', { name: 'Try the statement on its own (opens in a new tab)' }).count(), 1);
       assert.match(text, /vote to include or exclude it, set a priority and comment/);
       assert.match(text, /Your answers are saved to a shared database as you go and are visible to everyone with this link\. They’re linked to this browser, not to an account\./);
       assert.equal(await P.page.locator('#view-start a[href="#/results"]').count(), 1);
@@ -515,14 +565,24 @@ export default async function (ctx) {
     const { page } = P;
     try {
       await gotoApp(page, base, '#/start');
+      const warnings = [];
+      page.on('console', (m) => warnings.push(m.text()));
       await page.fill('#start-name', '  Jo  Bloggs ');
       await page.keyboard.press('Tab');
       await until(async () => /Jo Bloggs$/.test((await page.locator('#wt-reviewer-chip').innerText()).trim()), 3000, 'chip updated');
       assert.equal(await page.locator('#start-name').inputValue(), 'Jo Bloggs', 'cleaned value shown');
+      // Enter saves too, keeps focus in the field, and never submits a detached form.
+      await page.fill('#start-name', 'Jo Enter');
+      await page.keyboard.press('Enter');
+      await until(async () => /Jo Enter$/.test((await page.locator('#wt-reviewer-chip').innerText()).trim()), 3000, 'chip updated on Enter');
+      await page.waitForTimeout(150);
+      assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.id), 'start-name', 'focus stays in the name field');
+      assert.equal(await page.evaluate(() => location.hash), '#/start');
+      assert.deepEqual(warnings.filter((t) => /form submission|not connected/i.test(t)), [], 'no form submission warning');
       const secret = await page.evaluate(() => window.WT.reviewer.get().secret);
       // Kept in this browser; the server stores it with the first answer.
       await page.evaluate((id) => window.WT.answers.set(id, { vote: 'include' }), first);
-      await until(async () => (await api('/api/me', { secret })).json.name === 'Jo Bloggs', 6000, 'saved to server with the first answer');
+      await until(async () => (await api('/api/me', { secret })).json.name === 'Jo Enter', 6000, 'saved to server with the first answer');
       assertNoErrors(P.errors, assert, P.external);
     } finally {
       await P.close();
@@ -610,6 +670,394 @@ export default async function (ctx) {
       await until(() => P.page.evaluate((id) => (window.WT.answers.get(id) || {}).vote === 'exclude', features[0].id), 4000, 'server answer adopted');
       assert.equal(await P.page.evaluate((id) => window.WT.answers.get(id), features[2].id), null);
       assert.equal(await P.page.evaluate(() => window.WT.reviewer.name()), 'Server name');
+    } finally {
+      await P.close();
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  await step('remove my answers: with a save queued and one in flight, nothing re-creates the record; the status is neutral after', async () => {
+    const P = await openPage(ctx);
+    const { page } = P;
+    const [a, b, c] = features.map((f) => f.id);
+    try {
+      const net = await controlMe(page);
+      await gotoApp(page, base, '#/start');
+      await watchSaved(page);
+      await page.evaluate((id) => {
+        window.WT.reviewer.setName('Bob Private');
+        window.WT.answers.set(id, { vote: 'include', comment: 'first' });
+        return window.WT.answers.flush();
+      }, a);
+      const secret = await page.evaluate(() => window.WT.reviewer.get().secret);
+      assert.equal((await serverMe(secret)).name, 'Bob Private');
+
+      // A save fails (5xx): it stays queued, with an automatic retry promised.
+      net.fail = () => 503;
+      assert.equal(await page.evaluate((id) => (window.WT.answers.set(id, { vote: 'exclude', comment: 'private remark' }), window.WT.answers.flush()), b), false);
+      const failed = await status(page);
+      assert.equal(failed.ok, false);
+      assert.equal(failed.willRetry, true, '5xx: retried automatically');
+      assert.equal(failed.pending, 1);
+
+      // The server is back but slow: a save is in flight when the reviewer removes their answers.
+      net.fail = null;
+      net.delay = 1500;
+      await page.evaluate((id) => {
+        window.WT.answers.set(id, { vote: 'include' });
+        window.WT.answers.flush();
+      }, c);
+      await until(() => net.log.some((e) => e.method === 'PUT' && e.body && e.body.answers && e.body.answers[c]), 3000, 'save in flight');
+      await page.click('#wt-reviewer-chip');
+      await page.click('[data-wt-remove-answers]');
+      await page.click('#wt-confirm [data-wt-confirm]');
+      await until(() => page.evaluate((s) => window.WT.reviewer.get().secret !== s, secret), 8000, 'new identity');
+      net.delay = 0;
+      const del = net.log.find((e) => e.method === 'DELETE' && e.secret === secret);
+      assert.ok(del, 'DELETE /api/me sent');
+      const inflight = net.log.find((e) => e.method === 'PUT' && e.body && e.body.answers && e.body.answers[c]);
+      assert.ok(inflight.seq < del.seq, 'the in-flight save finished before the DELETE');
+      const after = () => net.log.filter((e) => e.secret === secret && e.seq > del.seq).map((e) => e.method);
+      assert.deepEqual(after(), [], 'nothing sent for the old identity after the DELETE');
+      await sleep(5600); // past the first automatic retry (5 s)
+      assert.deepEqual(after(), [], 'no retry after the DELETE');
+      const old = await serverMe(secret);
+      assert.equal(old.createdAt, undefined, 'record gone');
+      assert.deepEqual(old.answers, {});
+      assert.ok(!(await api('/api/results')).json.people.some((p) => p.rid === ridFor(secret)), 'not in the results');
+
+      // The new reviewer starts with a neutral save status (not "Saved") and an empty queue.
+      const st = await status(page);
+      assert.deepEqual([st.ok, st.pending, st.savedAt, st.error, st.willRetry], [true, 0, null, null, false]);
+      const last = await lastSaved(page);
+      assert.equal(last.savedAt, null, 'last saved event has no savedAt');
+      assert.equal(last.reset, true);
+      assert.equal(await page.evaluate(() => localStorage.getItem('infoslips.wt.pending')), null);
+      assert.equal((await page.locator('#wt-reviewer-chip').innerText()).trim(), 'Add your name');
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  await step('new reviewer: unsaved changes are named before they are discarded; an old save never shows "Saved" for the new reviewer', async () => {
+    const P = await openPage(ctx);
+    const { page } = P;
+    const [a, b] = features.map((f) => f.id);
+    try {
+      const net = await controlMe(page);
+      await gotoApp(page, base, '#/start');
+      await watchSaved(page);
+      await page.evaluate((id) => (window.WT.answers.set(id, { vote: 'include' }), window.WT.answers.flush()), a);
+      const secret = await page.evaluate(() => window.WT.reviewer.get().secret);
+      net.fail = () => 503;
+      await page.evaluate((id) => window.WT.answers.set(id, { vote: 'exclude' }), b);
+      const warned = async () => {
+        await page.click('[data-wt-new-reviewer]');
+        await page.click('#wt-confirm [data-wt-confirm]');
+        await until(() => page.evaluate(() => document.getElementById('wt-confirm').open && document.getElementById('wt-confirm-title').textContent === 'Some answers aren’t saved yet'), 6000, 'unsaved-changes warning');
+      };
+      await page.click('#wt-reviewer-chip');
+      await warned();
+      assert.match(await page.locator('#wt-confirm').innerText(), /1 change on this browser hasn’t reached the shared results yet/);
+      assert.equal((await focused(page)).text, 'Keep my changes', 'safe default focus');
+      await page.click('#wt-confirm .wt-dialog__foot [data-wt-close]');
+      await until(() => page.evaluate(() => !document.querySelector('[data-wt-new-reviewer]').hasAttribute('aria-busy')), 3000, 'button ready');
+      assert.equal(await page.evaluate(() => window.WT.reviewer.get().secret), secret, 'kept: same identity');
+      assert.equal(await page.evaluate(() => window.WT.answers.pending()), 1, 'kept: still queued');
+
+      await warned();
+      await page.click('#wt-confirm [data-wt-confirm]');
+      await until(() => page.evaluate((s) => window.WT.reviewer.get().secret !== s, secret), 4000, 'new reviewer');
+      net.fail = null;
+      const st = await status(page);
+      assert.deepEqual([st.ok, st.pending, st.savedAt, st.willRetry], [true, 0, null, false], 'neutral status');
+      assert.equal((await serverMe(secret)).answers[b], undefined, 'the discarded change was never sent');
+
+      // A save of the old identity that lands after the reset does not report "Saved".
+      net.delay = 1200;
+      await page.evaluate((id) => {
+        window.WT.answers.set(id, { vote: 'include' });
+        window.WT.answers.flush();
+      }, a);
+      const secret2 = await page.evaluate(() => window.WT.reviewer.get().secret);
+      await until(() => net.log.some((e) => e.method === 'PUT' && e.secret === secret2), 3000, 'save in flight');
+      await page.evaluate(() => window.WT.reviewer.reset({ discard: true }));
+      const n = await page.evaluate(() => window.__saved.length);
+      await sleep(1800);
+      assert.equal((await serverMe(secret2)).answers[a].vote, 'include', 'the old save landed');
+      assert.deepEqual(await page.evaluate((k) => window.__saved.slice(k), n), [], 'no saved event from the old identity');
+      assert.equal((await status(page)).savedAt, null);
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  await step('name: kept in this browser and sent again after an admin deletes or resets the reviewer; invisible names are empty', async () => {
+    const P = await openPage(ctx);
+    const { page } = P;
+    const [a, b, c] = features.map((f) => f.id);
+    try {
+      const net = await controlMe(page);
+      await gotoApp(page, base, '#/start');
+      assert.equal(await page.evaluate(() => window.WT.cleanName('​‌‍ ⁠﻿')), '', 'invisible characters only: empty');
+      assert.equal(await page.evaluate(() => window.WT.cleanName('Ann\tLee')), 'Ann Lee');
+      await page.evaluate((id) => {
+        window.WT.reviewer.setName('Grace Hopper');
+        window.WT.answers.set(id, { vote: 'include' });
+        return window.WT.answers.flush();
+      }, a);
+      const secret = await page.evaluate(() => window.WT.reviewer.get().secret);
+      const rid = ridFor(secret);
+      assert.equal((await serverMe(secret)).name, 'Grace Hopper');
+
+      // An admin deletes this reviewer; they come back later.
+      assert.equal((await api('/api/admin/delete', { method: 'POST', admin: ctx.adminCode, body: { rid } })).status, 200);
+      await page.reload();
+      await page.waitForFunction(() => document.documentElement.getAttribute('data-wt-ready') === '1');
+      await until(() => page.evaluate((id) => window.WT.answers.get(id) === null, a), 4000, 'server wins on load');
+      assert.equal(await page.evaluate(() => window.WT.reviewer.name()), 'Grace Hopper', 'name kept in this browser');
+      assert.match((await page.locator('#wt-reviewer-chip').innerText()).trim(), /Grace Hopper$/);
+      await page.evaluate((id) => (window.WT.answers.set(id, { vote: 'exclude' }), window.WT.answers.flush()), b);
+      assert.equal((await serverMe(secret)).name, 'Grace Hopper', 'the name went with the first answer');
+
+      // An admin resets everything while the page stays open: the next answer re-creates the record, and the name follows.
+      assert.equal((await api('/api/admin/reset', { method: 'POST', admin: ctx.adminCode, body: { confirm: 'RESET' } })).status, 200);
+      await page.evaluate((id) => (window.WT.answers.set(id, { vote: 'include' }), window.WT.answers.flush()), c);
+      await until(async () => (await serverMe(secret)).name === 'Grace Hopper', 4000, 'name sent again');
+      assert.equal((await api('/api/results')).json.people.find((p) => p.rid === rid).name, 'Grace Hopper');
+      // A name is never sent on its own while the server has no record (it would not be stored).
+      const nameOnly = net.log.filter((e) => e.method === 'PUT' && e.body && typeof e.body.name === 'string' && !Object.keys(e.body.answers || {}).length);
+      assert.equal(nameOnly.length, 1, 'one name-only request, after the record was re-created');
+
+      // A name made only of invisible characters clears the name.
+      await page.evaluate(() => window.WT.reviewer.setName('​⁠'));
+      assert.equal(await page.evaluate(() => window.WT.reviewer.name()), '');
+      await page.evaluate(() => window.WT.answers.flush());
+      assert.equal((await serverMe(secret)).name, '');
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  await step('save queue: 409 is retried with backoff, 413 splits the batch, 422 drops only the bad entries, other errors promise no retry', async () => {
+    const P = await openPage(ctx);
+    const { page } = P;
+    const ids = features.map((f) => f.id);
+    const warnings = [];
+    page.on('console', (m) => {
+      if (m.type() === 'warning') warnings.push(m.text());
+    });
+    try {
+      const net = await controlMe(page);
+      await gotoApp(page, base, '#/start');
+      await watchSaved(page);
+      const setMany = (list, patch) =>
+        page.evaluate(
+          ([l, p]) => {
+            l.forEach((id) => window.WT.answers.set(id, p));
+            return window.WT.answers.flush();
+          },
+          [list, patch]
+        );
+      assert.equal(await setMany([ids[0]], { vote: 'include' }), true);
+      const secret = await page.evaluate(() => window.WT.reviewer.get().secret);
+
+      // 413: any request with more than one entry is "too large"; the batch is split until it fits.
+      net.fail = (body) => (Object.keys(body.answers || {}).length + (typeof body.name === 'string' ? 1 : 0) > 1 ? 413 : 0);
+      assert.equal(await setMany(ids.slice(1, 4), { vote: 'include' }), true, '413: saved in parts');
+      let me = await serverMe(secret);
+      assert.ok(ids.slice(1, 4).every((id) => me.answers[id]), '413: every part saved');
+      assert.equal((await status(page)).pending, 0);
+
+      // 422: one bad entry among good ones. Each is tried on its own; only the bad one is dropped, with a warning.
+      net.fail = (body) => (body.answers && body.answers[ids[5]] ? 422 : 0);
+      assert.equal(await setMany([ids[4], ids[5], ids[6]], { vote: 'exclude' }), true, '422: the rest saved');
+      me = await serverMe(secret);
+      assert.ok(me.answers[ids[4]] && me.answers[ids[6]], '422: good entries saved');
+      assert.equal(me.answers[ids[5]], undefined, '422: bad entry not saved');
+      assert.equal((await status(page)).pending, 0, '422: bad entry left the queue');
+      assert.deepEqual((await lastSaved(page)).dropped, [ids[5]]);
+      assert.ok(warnings.some((w) => w.includes(ids[5]) && /422/.test(w)), 'console warning names the dropped entry');
+
+      // Another 4xx: it stays queued and no automatic retry is promised.
+      net.fail = () => 403;
+      assert.equal(await setMany([ids[7]], { comment: 'Forbidden?' }), false);
+      let st = await status(page);
+      assert.deepEqual([st.ok, st.willRetry, st.status, st.pending], [false, false, 403, 1]);
+      assert.equal((await lastSaved(page)).willRetry, false);
+      net.fail = null;
+      assert.equal(await page.evaluate(() => window.WT.answers.retry()), true, 'Retry sends it');
+      assert.equal((await serverMe(secret)).answers[ids[7]].comment, 'Forbidden?');
+
+      // 409 (a write conflict): retried by itself with backoff.
+      let conflicts = 1;
+      net.fail = () => (conflicts-- > 0 ? 409 : 0);
+      assert.equal(await setMany([ids[8]], { vote: 'include' }), false);
+      st = await status(page);
+      assert.deepEqual([st.ok, st.willRetry, st.status], [false, true, 409]);
+      await until(async () => ((await serverMe(secret)).answers[ids[8]] || {}).vote === 'include', 9000, '409 retried');
+      await until(async () => (await status(page)).ok === true, 3000, 'status ok after the retry');
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  await step('save queue: hiding or leaving the page sends what is queued with fetch keepalive', async () => {
+    const P = await openPage(ctx);
+    const { page } = P;
+    const [a, b, c] = features.map((f) => f.id);
+    try {
+      await page.addInitScript(() => {
+        const orig = window.fetch;
+        window.__fetches = [];
+        window.fetch = function (input, init) {
+          window.__fetches.push({ url: String(input), method: (init && init.method) || 'GET', keepalive: !!(init && init.keepalive) });
+          return orig.apply(this, arguments);
+        };
+      });
+      await gotoApp(page, base, '#/start');
+      const puts = () => page.evaluate(() => window.__fetches.filter((f) => f.method === 'PUT'));
+      // Hidden before the 600 ms debounce runs.
+      await page.evaluate((id) => {
+        window.__fetches.length = 0;
+        window.WT.answers.set(id, { vote: 'include', comment: 'before hiding' });
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+        document.dispatchEvent(new Event('visibilitychange'));
+      }, a);
+      const secret = await page.evaluate(() => window.WT.reviewer.get().secret);
+      await until(async () => ((await serverMe(secret)).answers[a] || {}).comment === 'before hiding', 3000, 'sent when hidden');
+      let p = await puts();
+      assert.ok(p.length >= 1 && p.every((f) => f.keepalive), 'visibilitychange: keepalive PUT ' + JSON.stringify(p));
+
+      // pagehide (the tab closing or navigating away).
+      await page.evaluate((id) => {
+        delete document.visibilityState;
+        window.__fetches.length = 0;
+        window.WT.answers.set(id, { vote: 'exclude' });
+        window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false }));
+      }, b);
+      await until(async () => ((await serverMe(secret)).answers[b] || {}).vote === 'exclude', 3000, 'sent on pagehide');
+      p = await puts();
+      assert.ok(p.length >= 1 && p.every((f) => f.keepalive), 'pagehide: keepalive PUT ' + JSON.stringify(p));
+      await until(async () => (await status(page)).pending === 0, 3000, 'queue empty');
+
+      // An ordinary save does not use keepalive.
+      await page.evaluate((id) => {
+        window.__fetches.length = 0;
+        window.WT.answers.set(id, { priority: 'low' });
+        return window.WT.answers.flush();
+      }, c);
+      p = await puts();
+      assert.ok(p.length === 1 && !p[0].keepalive, 'normal save without keepalive');
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  await step('save queue: offline and back online with nothing queued reports "saved" again', async () => {
+    const P = await openPage(ctx);
+    const { page, context } = P;
+    try {
+      await gotoApp(page, base, '#/start');
+      await watchSaved(page);
+      assert.equal(await page.evaluate((id) => (window.WT.answers.set(id, { vote: 'include' }), window.WT.answers.flush()), first), true);
+      await context.setOffline(true);
+      await until(() => page.evaluate(() => window.__saved.some((s) => s.ok === false && s.offline)), 3000, 'offline reported');
+      assert.equal(await page.evaluate(() => window.WT.answers.pending()), 0);
+      const n = await page.evaluate(() => window.__saved.length);
+      await context.setOffline(false);
+      await until(() => page.evaluate((k) => window.__saved.slice(k).some((s) => s.ok === true && s.pending === 0), n), 3000, 'saved after online');
+      const st = await status(page);
+      assert.deepEqual([st.ok, st.error, st.willRetry, st.pending], [true, null, false, 0]);
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  await step('two tabs: simultaneous changes all reach the server, both tabs stay in sync, "answers" says local or remote', async () => {
+    const P = await openPage(ctx);
+    const A = P.page;
+    const B = await P.context.newPage();
+    const ids = features.map((f) => f.id);
+    try {
+      await gotoApp(A, base, '#/start');
+      await gotoApp(B, base, '#/start');
+      for (const pg of [A, B]) {
+        await pg.evaluate(() => {
+          window.__answers = [];
+          window.WT.on('answers', (id, d) => window.__answers.push({ id, d }));
+        });
+      }
+      // The same feature, one tab after the other: the second change builds on the first.
+      await A.evaluate((id) => window.WT.answers.set(id, { reason: 'from tab A' }), ids[0]);
+      const evA = await A.evaluate(() => window.__answers[window.__answers.length - 1]);
+      assert.equal(evA.id, ids[0]);
+      assert.equal(evA.d.featureId, ids[0]);
+      assert.equal(evA.d.source, 'local');
+      await until(() => B.evaluate((id) => (window.WT.answers.get(id) || {}).reason === 'from tab A', ids[0]), 3000, 'tab B has tab A’s change');
+      const evB = await B.evaluate((id) => window.__answers.filter((e) => e.d && e.d.ids && e.d.ids.includes(id)).pop(), ids[0]);
+      assert.equal(evB.d.source, 'remote', 'another tab’s change is remote');
+      assert.equal(evB.d.featureId, ids[0]);
+      await B.evaluate((id) => window.WT.answers.set(id, { vote: 'include' }), ids[0]);
+      const secret = await A.evaluate(() => window.WT.reviewer.get().secret);
+      assert.equal(await B.evaluate(() => window.WT.reviewer.get().secret), secret, 'one identity');
+      await until(async () => {
+        const x = (await serverMe(secret)).answers[ids[0]];
+        return x && x.reason === 'from tab A' && x.vote === 'include';
+      }, 4000, 'both changes to one feature on the server');
+
+      // Different features changed in the same moment in both tabs, several times.
+      const pairs = [1, 3, 5, 7].map((i) => [ids[i], ids[i + 1]]);
+      for (const [fa, fb] of pairs) {
+        await Promise.all([A.evaluate((id) => window.WT.answers.set(id, { comment: 'A' }), fa), B.evaluate((id) => window.WT.answers.set(id, { comment: 'B' }), fb)]);
+      }
+      const all = [ids[0]].concat(pairs.flat());
+      await until(async () => {
+        const s = (await serverMe(secret)).answers;
+        return all.every((id) => s[id]);
+      }, 8000, 'every change on the server');
+      for (const pg of [A, B]) {
+        await until(() => pg.evaluate((l) => l.every((id) => window.WT.answers.get(id)) && window.WT.answers.pending() === 0, all), 4000, 'each tab has every answer');
+      }
+      const stored = await A.evaluate(() => JSON.parse(localStorage.getItem('infoslips.wt.reviewer')).answers);
+      assert.ok(all.every((id) => stored[id]), 'localStorage has every answer');
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  await step('phone Menu: the name dialog opened from the Menu returns focus to the Menu button', async () => {
+    const P = await openPage(ctx, { viewport: 'phone' });
+    const { page } = P;
+    try {
+      await gotoApp(page, base, '#/start');
+      const open = async () => {
+        await page.click('#wt-menu-btn');
+        await page.click('#wt-reviewer-chip');
+        assert.ok(await page.locator('#wt-name-dialog').evaluate((d) => d.open), 'dialog open');
+        assert.equal(await page.getAttribute('#wt-menu-btn', 'aria-expanded'), 'false', 'Menu closed behind the dialog');
+      };
+      await open();
+      // The chip is hidden in the closed Menu, so focus moves in the dialog's (async) close event.
+      const onMenuBtn = (label) => until(async () => (await focused(page)).id === 'wt-menu-btn', 2000, label);
+      await page.keyboard.press('Escape');
+      await onMenuBtn('Escape: focus on the Menu button');
+      await open();
+      await page.keyboard.type('Pat');
+      await page.keyboard.press('Enter');
+      await onMenuBtn('Save: focus on the Menu button');
+      assert.equal(await page.evaluate(() => window.WT.reviewer.name()), 'Pat');
+      await open();
+      await page.click('#wt-name-dialog .wt-dialog__foot [data-wt-close]');
+      await onMenuBtn('Cancel: focus on the Menu button');
+      assertNoErrors(P.errors, assert, P.external);
     } finally {
       await P.close();
     }

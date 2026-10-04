@@ -616,7 +616,7 @@ export default async function (ctx) {
       await until(async () => (await cards(page)).join() === group.join(), 6000, 'group cards');
       assert.deepEqual(await explorerFeatures(page), group);
       assert.match(await page.locator('#view-data input[value="group"] ~ .wt-dv__opt-body .wt-dv__opt-title').innerText(), /^Features most reviewers want$/);
-      assert.match(await page.locator('#view-data input[value="group"] ~ .wt-dv__opt-body .wt-dv__opt-desc').innerText(), /^2 features with more include than exclude votes$/);
+      assert.match(await page.locator('#view-data input[value="group"] ~ .wt-dv__opt-body .wt-dv__opt-desc').innerText(), /^2 features \(more include than exclude votes\)$/);
       assert.match(await page.locator(`[data-dv-card="${A}"] .wt-dv__votes`).innerText(), /Group:\s*100% include · 1 vote/);
       // The shared rule: a tie, no votes or a missing feature is not wanted.
       assert.equal(

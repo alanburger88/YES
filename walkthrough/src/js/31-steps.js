@@ -45,7 +45,7 @@
         'The first thing a customer sees: the closing balance in tokens, the exact moment it was taken, and how much it changed since the opening balance. A reference US-dollar value sits beside it, always with its rate, source and time. “Statement details” holds the statement ID and the masked account and wallet numbers.',
       valueYes: [
         'Answers “what do I hold, and as of when?” before the customer has to ask, so fewer routine questions reach support.',
-        'The US-dollar value appears only with its rate, source and time, labelled “Illustrative” and “not a guarantee of value”. YES never implies a promise it can’t keep.',
+        'The US-dollar value appears only with its rate, source and time, and says it is “not a guarantee of value”, so it never reads as a promise.',
         'An exact as-of time and masked account and wallet numbers make it a dependable record for complaints and audits.',
         'A personal greeting (“Hello, Sam”) makes the statement feel like YES speaking to the customer, not a system printout.'
       ],
@@ -70,9 +70,9 @@
         'A one-minute animated walkthrough of the customer’s own statement: a personal greeting, the opening and closing balance, the largest movement, how to inspect a transaction and where to get help. It is drawn in the page from the statement’s own figures, so it always matches them. It never plays on its own, and it has captions (on by default), chapters, a transcript and full screen.',
       valueYes: [
         'A short, personal message from YES with every statement: a reason for customers to open it and engage.',
-        'The figures come straight from the statement data, so the video can never contradict the statement.',
+        'The animation and captions are drawn from the statement data, so they always match it. A recorded voiceover plays only if it was made for that exact script; otherwise the device’s own voice reads it.',
         'It shows customers how to help themselves (select a step, open a transaction, ask a question) before they think of calling.',
-        'Captions, a transcript and a recorded Spanish voiceover make it inclusive from day one.'
+        'Captions, a transcript and recorded English and Spanish voiceovers make it inclusive from day one.'
       ],
       valueCustomer: [
         'Get the story of your month in one minute, in plain words.',
@@ -117,12 +117,12 @@
     {
       id: 'why',
       what:
-        '“Explain this balance”, on the balance card, gives a short, plain-language account of what moved the balance: what added to it, what took away from it (including fees) and what is still pending and so not included. It lists the figures it used. Further down the Overview, the “Why it changed” section tells the same story with a chart, the fees and the largest movement.',
+        '“Explain this balance”, on the balance card, gives a short, plain-language account of what moved the balance: what added to it, what took away from it (including fees) and what is still pending and so not included, with the figures it used. Further down the Overview, the “Why it changed” section tells the same story with a chart, the fees and the largest movement. It is built from fixed templates, so it can ship without the AI service behind “Explain with AI” (step 11) or Ask YES (step 13).',
       valueYes: [
         'Answers “why is my balance different?” inside the statement, before it becomes a call or an email.',
         'Every sentence is built from the statement’s own figures, so the explanation always matches the record.',
         'Pending items are called out, so customers don’t mistake a timing difference for an error.',
-        'In this demo the text is built from fixed sentence templates and labelled “Demo explanation”, so it never says more than the statement supports.'
+        'Built from approved sentence templates and the statement’s own totals, so YES signs the wording off once and it never goes beyond the figures.'
       ],
       valueCustomer: [
         'Understand your balance in a few sentences, without working it out yourself.',
@@ -242,7 +242,7 @@
         'Move to the previous or next transaction without closing the details.'
       ],
       tryIt:
-        'Select any transaction to open its details. Look for both dates, the reference with “Copy”, the balance after it and the fee as its own linked line (“Open fee line”). Use the arrows to move to the previous or next transaction.',
+        'This step opened one transaction’s details. Look for both dates, the reference with “Copy”, the balance after it and the fee as its own linked line (“Open fee line”). Use the arrows to move to the previous or next transaction, or close it and select any other.',
       setup: [{ route: '#/transactions/TX-260920-0900' }, { wait: '#tx-dialog[open] #tx-dialog-title' }],
       target: { desktop: ['#tx-dialog[open]'], phone: ['#tx-dialog[open]'] },
       shot: { pad: 0, height: 1100 }
@@ -275,7 +275,7 @@
       valueYes: [
         'Puts a clear answer next to every figure, at the moment a question comes up.',
         'Answers show their working (figures and rows), so customers can trust them.',
-        'In this demo answers are worked out in the browser and nothing is sent. Production would use a governed AI service with a privacy notice and an audit trail.',
+        'In this demo there is no AI model: each answer is a fixed template filled with the statement’s own figures, and nothing is sent. Production would use a governed AI service with a privacy notice and an audit trail, so its answers would need the same checks.',
         'Positions YES as a modern, helpful brand in digital money.'
       ],
       valueCustomer: [
@@ -284,7 +284,7 @@
         'Ask about the transaction, or talk to a person, from the same place.'
       ],
       tryIt:
-        'Open any transaction and select “Explain with AI”. You get a short explanation built from that transaction’s own figures, with the rows it used and “Ask about this transaction”. Look for the same button on the balance card, the journey, the chart, fees and Understand topics.',
+        'Open any transaction and select “Explain with AI”. You get a short explanation built from that transaction’s own figures, with the rows it used and “Ask about this transaction”. Look for the same button on the journey, the chart, fees, the pending notice and Understand topics; on the balance card it reads “Explain this balance”.',
       setup: [{ route: '#/transactions' }, { call: 'assistant.open', args: [{ topic: 'transaction', id: 'TX-260909-2051' }] }],
       target: { desktop: [ASK_TEXT, ASK_ANSWER], phone: [ASK_TEXT, ASK_ANSWER] },
       shot: { pad: { bottom: 16 }, selector: ASK_FRAME, height: 1200 }
@@ -295,7 +295,7 @@
         'A guided, four-step way to ask YES about one transaction: Transaction, Details, Review and Confirmation. The transaction and its reference are filled in, only reasons that fit it are offered, and the customer can add a note and choose how YES should reply. It asks for no contact details, keeps a draft if the customer stops halfway, and explains how an inquiry differs from a formal dispute or a fraud report.',
       valueYes: [
         'Inquiries arrive with the transaction, reference and reason attached, so they are quicker to resolve.',
-        'Keeps simple questions out of the formal dispute process, while making the route to a dispute or fraud report clear.',
+        'Keeps simple questions out of the formal dispute process, and gives the dispute and fraud routes a clear place once YES supplies its policy.',
         'Asks for no contact details and warns against sharing passwords or account numbers, which lowers fraud and data risk.',
         'A self-service channel that can replace a phone call.'
       ],
@@ -314,15 +314,15 @@
     {
       id: 'assistant',
       what:
-        'Ask YES answers questions about this statement: customers pick one of seven suggested questions or type their own. Every answer shows the figures and transactions it used, with “Show these rows in Transactions”, “Was this helpful?” and “Talk to a person”. It is open about its limits: it can’t move money, give investment advice or see the live account.',
+        'Ask YES answers questions about this statement: customers pick one of seven suggested questions or type their own. Every answer shows the figures and transactions it used, with “Show these rows in Transactions”, “Was this helpful?” and “Talk to a person”, and it says plainly that it can’t move money, give investment advice or see the live account. In this demo, typed questions are matched to a fixed set of topics.',
       valueYes: [
         'Handles routine statement questions at any hour, taking load off support.',
         'Grounded in the statement and honest about its limits, so it builds trust instead of risk.',
         '“Was this helpful?” shows YES which answers work and where customers still struggle.',
-        'In this demo nothing is sent. In production it would use a governed AI service with a privacy notice, a retention policy and an audit trail.'
+        'In this demo there is no AI model: typed questions are matched to the topics it can explain from this statement, and anything else gets an honest “I can’t answer that”. Production would use a governed AI service with a privacy notice, a retention policy and an audit trail.'
       ],
       valueCustomer: [
-        'Ask in your own words and get an answer about your own statement.',
+        'Ask in your own words about your own statement.',
         'See the numbers behind every answer.',
         'Reach a person whenever you want.',
         'Ask in English or Spanish, on a phone or a laptop.'
@@ -401,8 +401,8 @@
         'Every way to keep the statement of record, side by side: a print layout (always light), a PDF file and a spreadsheet (CSV) with every transaction. The files are created on the customer’s device, in the current language, and nothing is sent. The same options sit under “Download or print” at the top of every page, and Transactions adds a CSV of the current view.',
       valueYes: [
         'Fewer requests for statement copies: customers keep their own.',
-        'The same statement of record in every format, with its ID and page numbers, supports record-keeping and audits.',
-        'Files are made on the device, so there is nothing extra to generate, store or send per customer.'
+        'The printed statement and the PDF carry the statement ID and page numbers on every page, which supports record-keeping and audits.',
+        'Files are made on the customer’s device from the same data, so there is no separate PDF run to schedule. How YES keeps the statement of record is agreed before live use.'
       ],
       valueCustomer: [
         'Keep a copy that suits you: paper, PDF or spreadsheet.',
@@ -421,7 +421,7 @@
     {
       id: 'help-record',
       what:
-        'Help brings support together: phone, email, hours and chat status (placeholders in this demo), and a plain explanation of three routes: a transaction inquiry, a formal dispute, and fraud or unauthorized activity. A one-question prompt asks “How clear was this statement?”. The statement record lists the ID, version, issue status (Original or Corrected), period, times, time zone and date basis; corrections are issued as a new version, never by changing the original.',
+        'Help brings support together: phone, email, hours and chat status (placeholders in this demo), and the three routes a customer can take: a transaction inquiry, a formal dispute, and a fraud or unauthorized-activity report (the dispute and fraud wording are placeholders until YES supplies its policy). A one-question prompt asks “How clear was this statement?”. The statement record lists the ID, version, issue status (Original or Corrected), period, times, time zone and date basis; corrections are issued as a new version, never by changing the original.',
       valueYes: [
         'Sends customers to the right route first time: a question, a dispute or a fraud report.',
         '“How clear was this statement?” gives YES a simple, ongoing measure of clarity.',
@@ -464,7 +464,7 @@
     {
       id: 'language',
       what:
-        'The whole statement in English or Spanish, switchable at any time from the header (on a phone, from the Menu). Labels, explanations, dates and number formats all change (1,147.50 becomes 1.147,50), and so do the video with its recorded voiceover, the PDF, the CSV headings and Ask YES. The customer keeps their place, filters, open transaction and conversation.',
+        'The whole statement in English or Spanish, switchable at any time from the header (on a phone, from the Menu). Labels, explanations and dates change, number formats follow Spanish conventions (in this demo, 1,147.50 becomes 1.147,50), and so do the video with its recorded voiceover, the PDF, the CSV headings and Ask YES. The customer keeps their place, filters, open transaction and conversation.',
       valueYes: [
         'Serves Spanish-speaking customers fully, not with a partial translation.',
         'One statement, two languages: no second document to produce or keep in step.',
@@ -506,7 +506,7 @@
     {
       id: 'accessibility',
       what:
-        'Designed to meet WCAG 2.2 AA without add-ons: keyboard use, screen readers (masked numbers are read as “ending in 4821”), visible focus, reduced motion, zoom and reflow, a table behind every chart, and never relying on colour alone. On phones the layout adapts, with a Menu, full-screen panels and cards instead of tables. When online, the UserWay widget adds optional display and reading tools.',
+        'Designed to meet WCAG 2.2 AA without add-ons: keyboard use, screen readers (masked numbers are read as “ending in 4821”), visible focus, reduced motion, zoom and reflow, a table behind every chart, and never relying on colour alone. On phones the layout adapts, with a Menu, full-screen panels and cards instead of tables, and when online the UserWay widget adds optional display and reading tools. Accessible design is part of every feature; this vote is about the extras: the UserWay widget and the phone-specific layout.',
       valueYes: [
         'Accessibility is built into every feature, not bolted on, which lowers legal and reputational risk.',
         'Serves more of YES’s customers well, including people who use screen readers, keyboards or large text.',

@@ -141,6 +141,7 @@ html[data-view='tour'] #view-tour {
   padding: var(--sp-5) var(--sp-5) var(--sp-6);
   scroll-padding: var(--sp-5);
   scrollbar-gutter: stable;
+  scrollbar-width: thin;
 }
 .wt-tour__content > :last-child {
   margin-bottom: 0;
@@ -253,7 +254,7 @@ html[data-view='tour'] #view-tour {
 /* Your view: the form, straight after Try it */
 .wt-tour__view {
   margin-top: var(--sp-5);
-  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  padding: var(--sp-5) 20px var(--sp-4);
   scroll-margin-top: var(--sp-3);
 }
 .wt-tour__fieldset {
@@ -279,6 +280,30 @@ html[data-view='tour'] #view-tour {
 .wt-tour__form > .wt-fieldset,
 .wt-tour__form > .wt-field {
   margin-bottom: var(--sp-4);
+}
+/* The choices fit the panel's width (340–440px panels, phones, zoom): tighter
+   buttons first, then the priorities stack their radio dot over the word. */
+.wt-tour__form {
+  container: tourform / inline-size;
+}
+@container tourform (max-width: 319.98px) {
+  .wt-segmented__options {
+    gap: 6px;
+  }
+  .wt-segmented__label {
+    gap: 6px;
+    padding-inline: 8px;
+  }
+  .wt-segmented--lg .wt-segmented__label {
+    font-size: 1rem;
+  }
+}
+@container tourform (max-width: 299.98px) {
+  .wt-segmented--priority .wt-segmented__label {
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 4px;
+  }
 }
 .wt-tour__form > :last-child {
   margin-bottom: var(--sp-3);
@@ -409,20 +434,22 @@ html[data-view='tour'] #view-tour {
   box-shadow: var(--tour-shadow);
 }
 
-/* The state chip: what I said about this feature; it leads to the form */
+/* The state chip: what I said about this feature; it leads to the form.
+   Two short lines (the state, then "Give your view" or the priority), so it
+   never has to cut its words in a 340–440px panel. */
 .wt-tour__state {
   grid-area: state;
   justify-self: start;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
   max-width: 100%;
-  min-height: 36px;
+  min-height: 40px;
   margin: 0;
-  padding: 4px 14px 4px 5px;
+  padding: 3px 16px 3px 5px;
   border: 1px solid var(--control-border);
-  border-radius: var(--radius-pill);
+  border-radius: 14px;
   background: var(--control-bg);
   color: var(--heading);
   font: inherit;
@@ -444,8 +471,8 @@ html[data-view='tour'] #view-tour {
   display: grid;
   flex: none;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
 }
 .wt-tour__state-dot .wt-icon {
@@ -464,14 +491,35 @@ html[data-view='tour'] #view-tour {
   color: var(--exclude-text);
 }
 .wt-tour__state-text {
+  display: grid;
+  min-width: 0;
+}
+.wt-tour__state-main,
+.wt-tour__state-rest {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.wt-tour__state-main {
+  line-height: 1.2;
+}
 .wt-tour__state-rest {
   color: var(--body);
+  font-size: 0.75rem;
   font-weight: 500;
+  line-height: 1.3;
+}
+/* " · " between the lines is for screen readers ("Not answered yet · Give your view") */
+.wt-tour__state-sep {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .wt-tour__state[data-state='none'] .wt-tour__state-rest {
   color: var(--link);
@@ -497,7 +545,8 @@ html[data-view='tour'] #view-tour {
   grid-area: restart;
   margin-right: -6px;
 }
-.wt-tour__tool--restart::after {
+/* (.wt-tour … beats .wt-tour [data-tip]::after, so the tip really ends at the right edge) */
+.wt-tour .wt-tour__tool--restart::after {
   left: auto;
   right: 0;
   transform: translate(0, 3px);
@@ -711,7 +760,7 @@ html[data-view='tour'] #view-tour {
 .wt-tour__dim .wt-switch__input:checked + .wt-switch__track::after {
   transform: translateX(16px);
 }
-.wt-tour__dim::after {
+.wt-tour .wt-tour__dim::after {
   left: auto;
   right: 0;
   transform: translate(0, 3px);
@@ -1227,7 +1276,7 @@ html[data-view='tour'] #view-tour {
     margin: 0 !important;
     justify-self: center !important;
   }
-  .wt-tour__tool--restart::after {
+  .wt-tour .wt-tour__tool--restart::after {
     left: 50%;
     right: auto;
     transform: translate(-50%, 3px);
@@ -1313,7 +1362,8 @@ html[data-view='tour'] #view-tour {
     }
   }
 }
-/* Very narrow phones: the state chip makes way for the step controls. */
+/* Very narrow phones (and 400% zoom): the state chip makes way for the step
+   controls, and the form's choices get the card's full width. */
 @media (max-width: 359.98px) {
   .wt-tour__nav {
     grid-template-columns: auto auto auto minmax(0, 1fr);
@@ -1321,6 +1371,9 @@ html[data-view='tour'] #view-tour {
   }
   .wt-tour__state {
     display: none;
+  }
+  .wt-tour__view {
+    padding-inline: var(--sp-3);
   }
 }
 /* The Alt+arrow tips are for keyboards: leave them out on touch-only devices. */
@@ -1349,6 +1402,7 @@ html[data-view='tour'] #view-tour {
     display: flex;
     flex-direction: column;
     overflow: visible;
+    overflow-x: clip; /* a tooltip at the edge never makes the page scroll sideways */
   }
   .wt-tour__stage {
     order: 1;

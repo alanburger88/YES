@@ -249,7 +249,7 @@
               '<span class="wt-tour__views-label" id="tour-views-label">View as</span>' +
               '<span class="wt-tour__seg">' + deviceOptionsHtml() + '</span>' +
             '</div>' +
-            '<a class="wt-tour__newtab" data-tour="newtab" href="statement/index.html" target="_blank" rel="noopener" aria-label="Open the statement in a new tab" data-tip="Open the statement in a new tab">' +
+            '<a class="wt-tour__newtab" data-tour="newtab" href="statement/index.html" target="_blank" rel="noopener" aria-label="Open the statement in a new tab" data-tip="Open in a new tab">' +
               icon('external', 17) + '<span class="wt-tour__newtab-text">New tab</span></a>' +
             /* WT.ui.switch markup, with " the rest" in its own span so phones can show just "Dim". */
             '<div class="wt-tour__dim" data-tip="Dim the rest">' +
@@ -361,6 +361,12 @@
     els.views.addEventListener('change', function (e) {
       var t = e.target;
       if (t && t.name === 'tour-device' && t.checked) setDevice(t.value, { save: true, announce: true });
+    });
+    // The statement may change its address with history.replaceState (no event), so the
+    // link catches up just before it is used: hover, focus, any button press (middle-click,
+    // the context menu's "Open in new tab") and the click itself (onClick).
+    ['pointerenter', 'pointerdown', 'focus'].forEach(function (t) {
+      els.newtab.addEventListener(t, syncNewTab);
     });
     els.frame.addEventListener('load', onFrameLoad);
     if (win.ResizeObserver) {
@@ -700,7 +706,7 @@
       '<span class="wt-tour__state-dot">' + icon(glyph, 14) + '</span>' +
       '<span class="wt-tour__state-text"><span class="wt-sr-only">Your view: </span>' +
         '<span class="wt-tour__state-main">' + WT.esc(main) + '</span>' +
-        (rest ? '<span class="wt-tour__state-rest"> · ' + WT.esc(rest) + '</span>' : '') +
+        (rest ? '<span class="wt-tour__state-rest"><span class="wt-tour__state-sep"> · </span>' + WT.esc(rest) + '</span>' : '') +
       '</span>';
     var sig = state + '|' + main + '|' + rest;
     if (els.chip.getAttribute('data-sig') === sig) return;

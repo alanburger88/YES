@@ -13,7 +13,7 @@
  * Other instances keep their own; both are best-effort by design.
  */
 import { getStore } from '@netlify/blobs';
-import { createApi, createApiState } from '../../server/api-core.mjs';
+import { API_HEADERS, createApi, createApiState } from '../../server/api-core.mjs';
 import { blobsStore } from '../../server/stores.mjs';
 import features from '../../shared/features.json' with { type: 'json' };
 
@@ -30,7 +30,17 @@ function readEnv(name) {
 const state = createApiState();
 
 export default async function handler(request, context) {
-  const store = blobsStore(getStore({ name: 'reviews', consistency: 'strong' }));
+  let store;
+  try {
+    store = blobsStore(getStore({ name: 'reviews', consistency: 'strong' }));
+  } catch (err) {
+    // No Blobs context (e.g. a misconfigured deploy): still a JSON error with the API headers.
+    console.error('[api] could not open the reviews store:', err && err.message ? err.message : err);
+    return new Response(JSON.stringify({ error: { code: 'server_error', message: 'Something went wrong on our side. Please try again.' } }), {
+      status: 500,
+      headers: { 'content-type': 'application/json; charset=utf-8', ...API_HEADERS }
+    });
+  }
   const api = createApi({
     store,
     env: (name) => readEnv(name),
