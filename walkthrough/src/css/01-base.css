@@ -166,16 +166,30 @@ button {
 :focus:not(:focus-visible) {
   outline: none;
 }
-/* Headings receive programmatic focus on navigation: show a quiet ring only for keyboard users. */
+/*
+ * Headings receive programmatic focus on navigation (tabindex="-1", never in
+ * the tab order). Mouse and touch users see nothing; after a keyboard action
+ * the heading shows a quiet focus-coloured line under it instead of a box
+ * around the whole line. Controls keep the full 3px ring above.
+ */
 h1[tabindex='-1']:focus,
 h2[tabindex='-1']:focus {
   outline: none;
 }
 h1[tabindex='-1']:focus-visible,
 h2[tabindex='-1']:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 4px;
-  border-radius: 2px;
+  outline: none;
+  text-decoration: underline 3px var(--focus);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 0.16em;
+}
+/* Page titles already carry the accent bar: it takes the focus colour and runs the full width. */
+.wt-title[tabindex='-1']:focus-visible {
+  text-decoration: none;
+}
+.wt-title[tabindex='-1']:focus-visible::after {
+  width: 100%;
+  background: var(--focus);
 }
 
 /* ---- Type helpers ---- */
@@ -318,7 +332,9 @@ h2[tabindex='-1']:focus-visible {
 
 /* ---- Forced colours: keep outlines, focus and boundaries ---- */
 @media (forced-colors: active) {
-  :focus-visible {
+  :focus-visible,
+  h1[tabindex='-1']:focus-visible,
+  h2[tabindex='-1']:focus-visible {
     outline: 3px solid Highlight;
   }
   .wt-title::after {

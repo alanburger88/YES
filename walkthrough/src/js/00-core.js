@@ -389,6 +389,19 @@
     );
   }
 
+  /** Close every open WT dialog (top-most first) without returning focus to its trigger. */
+  function closeDialogsForRoute() {
+    WT.$$('dialog[open]')
+      .filter(function (d) {
+        return d._wtBound || d.classList.contains('wt-dialog');
+      })
+      .reverse()
+      .forEach(function (d) {
+        WT.dialog.setReturn(d, null); // on close, focus goes to the (new) view's h1
+        WT.dialog.close(d, 'route');
+      });
+  }
+
   function route(opts) {
     opts = opts || {};
     var r = WT.parseRoute(location.hash);
@@ -409,6 +422,12 @@
     var prev = current;
     current = r;
     var sameView = !!(prev && prev.view === r.view);
+
+    // A dialog belongs to the page it was opened on: Back/Forward, a link inside
+    // a dialog or any other route change closes it instead of leaving it over the
+    // next view. Focus goes to the new view (its h1, or what its module chooses),
+    // not back to a trigger on the page we are leaving.
+    if (prev && prev.path !== r.path) closeDialogsForRoute();
 
     if (prev && !sameView) {
       var pm = viewModules[prev.view];

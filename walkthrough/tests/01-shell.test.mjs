@@ -458,7 +458,7 @@ export default async function (ctx) {
     try {
       await gotoApp(S.page, base, '#/start');
       const cont = S.page.locator('[data-start="continue"]');
-      assert.equal((await cont.innerText()).trim(), `Continue (step ${k} of ${N})`);
+      assert.equal((await cont.innerText()).trim(), `Continue where you left off: ${features[k - 1].title} (step ${k} of ${N})`);
       assert.equal(await cont.getAttribute('href'), '#/tour/' + features[k - 1].id);
       const restart = S.page.locator('[data-start="restart"]');
       assert.equal((await restart.innerText()).trim(), 'Start from the beginning');
@@ -482,9 +482,27 @@ export default async function (ctx) {
     try {
       await gotoApp(U.page, base, '#/start');
       assert.equal(await U.page.locator('[data-start="continue"]').getAttribute('href'), '#/tour/' + features[1].id);
-      assert.equal((await U.page.locator('[data-start="continue"]').innerText()).trim(), `Continue (step 2 of ${N})`);
+      assert.equal((await U.page.locator('[data-start="continue"]').innerText()).trim(), `Continue with ${features[1].title} (step 2 of ${N})`);
+      // The tour opened without an id (the masthead's Walkthrough link) resumes at the same step.
+      await U.page.click('#wt-mast a[data-nav="tour"]');
+      await U.page.waitForFunction((id) => window.WT.route().path === '/tour/' + id && window.WT.tour.current() === id, features[1].id);
     } finally {
       await U.close();
+    }
+
+    // Every feature answered: the results lead, and "continue" stays as a link.
+    const all = Object.fromEntries(features.map((f) => [f.id, { vote: 'include' }]));
+    const C = await openPage(ctx, { storage: await seedBrowserReviewer(api, { answers: all, lastStep: features[N - 1].id }) });
+    try {
+      await gotoApp(C.page, base, '#/start');
+      const lead = C.page.locator('[data-fk="start-primary"]');
+      assert.equal(await lead.getAttribute('data-start'), 'results');
+      assert.equal(await lead.getAttribute('href'), '#/results');
+      assert.equal((await lead.innerText()).trim(), 'You’ve answered every feature: see the results');
+      assert.equal((await C.page.locator('[data-start="continue"]').innerText()).trim(), `Continue where you left off: ${features[N - 1].title} (step ${N} of ${N})`);
+      assertNoErrors(C.errors, assert, C.external);
+    } finally {
+      await C.close();
     }
   });
 

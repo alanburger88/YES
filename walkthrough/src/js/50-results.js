@@ -1075,13 +1075,6 @@
           state.loadedAt = 0;
         }
       });
-      // Back/Forward while the screenshot is open: close it rather than leave it over the next page.
-      WT.on('route', function () {
-        if (shotDlg && shotDlg.open) {
-          WT.dialog.setReturn(shotDlg, null);
-          WT.dialog.close(shotDlg, 'route');
-        }
-      });
       WT.on('moderated', function () {
         state.loadedAt = 0;
         if (visible()) load({ force: true });

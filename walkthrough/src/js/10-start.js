@@ -64,8 +64,12 @@
     var stats = WT.answers.stats();
     var last = WT.reviewer.lastStep();
     var progress = !!last || stats.answered > 0;
+    // The same resume point as #/tour without an id (40-tour.js): the step the
+    // reviewer last had open, else the first feature they haven't answered.
     var resumeId = last || stats.firstUnanswered || first;
     var k = WT.featureIndex(resumeId) + 1;
+    var resumeFeature = WT.feature(resumeId);
+    var resumeLabel = (last ? 'Continue where you left off: ' : 'Continue with ') + (resumeFeature ? resumeFeature.title : '') + ' (step ' + k + ' of ' + N + ')';
     var sections = {};
     WT.features.forEach(function (f) {
       sections[f.section] = true;
@@ -76,11 +80,18 @@
     var input = doc.getElementById('start-name');
     var nameValue = input && doc.activeElement === input ? input.value : WT.reviewer.name();
 
-    var primary = progress
-      ? '<a class="wt-btn wt-btn--primary wt-btn--lg" data-fk="start-primary" data-start="continue" href="' + tourHref(resumeId) + '">' +
-          '<span>Continue (step ' + k + ' of ' + N + ')</span>' + WT.icon('arrow-right') + '</a>'
-      : '<a class="wt-btn wt-btn--primary wt-btn--lg" data-fk="start-primary" data-start="begin" href="' + tourHref(first) + '">' +
-          '<span>Start the walkthrough</span>' + WT.icon('arrow-right') + '</a>';
+    // Every feature answered: the results come first, and the walkthrough stays a click away.
+    var complete = N > 0 && stats.answered >= N;
+    var resume =
+      '<a class="wt-btn ' + (complete ? 'wt-btn--link' : 'wt-btn--primary wt-btn--lg') + '" data-fk="start-continue" data-start="continue" href="' + tourHref(resumeId) + '">' +
+        '<span>' + WT.esc(resumeLabel) + '</span>' + WT.icon('arrow-right', complete ? { size: 18 } : undefined) + '</a>';
+    var primary = complete
+      ? '<a class="wt-btn wt-btn--primary wt-btn--lg" data-fk="start-primary" data-start="results" href="#/results">' +
+          '<span>You’ve answered every feature: see the results</span>' + WT.icon('arrow-right') + '</a>' + resume
+      : progress
+        ? resume
+        : '<a class="wt-btn wt-btn--primary wt-btn--lg" data-fk="start-primary" data-start="begin" href="' + tourHref(first) + '">' +
+            '<span>Start the walkthrough</span>' + WT.icon('arrow-right') + '</a>';
     var restart = progress
       ? '<a class="wt-btn wt-btn--link" data-fk="start-restart" data-start="restart" href="' + tourHref(first) + '">' + WT.icon('restart', { size: 18 }) + '<span>Start from the beginning</span></a>'
       : '';

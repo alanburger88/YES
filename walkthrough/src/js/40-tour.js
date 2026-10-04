@@ -15,7 +15,8 @@
  * the frame (STATEMENT-MAP G4), unless the visitor went into the statement.
  *
  * Overlay: an SVG spotlight (dim with a rounded cut-out, padding 8, radius 12),
- * a 3px --spot outline with an inner contrast ring and a "k · Title" tag. It is
+ * a 3px --spot outline with an inner contrast ring and a "k · Title" tag (placed
+ * around the outline where it hides the least of the statement). It is
  * aria-hidden and pointer-events: none, so the statement stays usable. It is
  * tracked with requestAnimationFrame while anything moves (frame scroll, frame
  * and target resize, DOM mutations that may replace the target), then idles.
@@ -725,6 +726,7 @@
     S.activated = id;
     S.failed = !el;
     setTarget(el);
+    tagPick.spot = null; // a new target: choose the tag's place afresh
     var f = WT.feature(id);
     els.tag.textContent = f.index + 1 + ' · ' + f.title;
     if (el && !WT.reducedMotion()) {
@@ -968,34 +970,166 @@
     }
   }
 
+  /*
+   * The tag goes where it hides the least of the statement: above the outline,
+   * on its top edge (like a legend) or below it, at the left or the right end;
+   * beside its top corner; or inside a corner, in that order of preference.
+   * Each spot is sampled in the statement. A spot that would hide a button,
+   * link or form control is used only when every spot does; after that, the
+   * least text and imagery covered wins (the target's own counts double; blank
+   * space and the dimmed background don't), plus the share of the target the
+   * tag would hide, so a small target is never covered while there is room
+   * around it. The choice is made on the settled outline and kept while it
+   * tweens or scrolls (looked at again once it has been still for a moment),
+   * so the tag never jumps about.
+   */
+  var TAG_SPOTS = [
+    ['above', 'start'], ['above', 'end'],
+    ['edge', 'start'], ['edge', 'end'],
+    ['below', 'start'], ['below', 'end'],
+    ['beside', 'start'], ['beside', 'end'],
+    ['inside', 'start'], ['inside', 'end'],
+    ['inside-bottom', 'start'], ['inside-bottom', 'end']
+  ];
+  var tagPick = { sig: '', spot: null, at: 0, timer: 0 };
+
+  function tagSpot(spot, o, g, tw, th) {
+    var where = spot[0];
+    if (where === 'beside') return { x: spot[1] === 'end' ? o.x + o.w + 6 : o.x - tw - 6, y: o.y + 6 };
+    var inset = where === 'inside' || where === 'inside-bottom' ? 10 : 6;
+    var x = spot[1] === 'end' ? o.x + o.w - tw - inset : o.x + inset;
+    x = Math.max(8, Math.min(x, g.W - tw - 8));
+    var y = where === 'above' ? o.y - th - 6 : where === 'edge' ? o.y - Math.round(th / 2) : where === 'below' ? o.y + o.h + 6 : where === 'inside' ? o.y + 10 : o.y + o.h - th - 10;
+    return { x: x, y: y };
+  }
+
+  function near(r, x, y) {
+    return x >= r.left - 2 && x <= r.right + 2 && y >= r.top - 2 && y <= r.bottom + 2;
+  }
+  /** Text or an icon at (x, y): the element's own text, or anything inside a control (icons there often ignore the pointer). */
+  function inkAt(d, el, x, y, deep) {
+    var range = d.createRange();
+    var texts = [];
+    if (deep) {
+      var walker = d.createTreeWalker(el, 4); // NodeFilter.SHOW_TEXT
+      for (var t = walker.nextNode(); t && texts.length < 40; t = walker.nextNode()) texts.push(t);
+    } else {
+      for (var n = el.firstChild; n; n = n.nextSibling) if (n.nodeType === 3) texts.push(n);
+    }
+    for (var i = 0; i < texts.length; i++) {
+      if (!/\S/.test(texts[i].nodeValue)) continue;
+      range.selectNodeContents(texts[i]);
+      var rects = range.getClientRects();
+      for (var j = 0; j < rects.length; j++) if (near(rects[j], x, y)) return true;
+    }
+    if (deep) {
+      var icons = el.querySelectorAll('svg, img');
+      for (var k = 0; k < icons.length && k < 10; k++) if (near(icons[k].getBoundingClientRect(), x, y)) return true;
+    }
+    return false;
+  }
+
+  var CONTROLS = 'button, a[href], summary, input, select, textarea, [role="button"], [role="tab"], [role="switch"], [role="option"]';
+  /** What the statement shows at (x, y), in overlay coordinates: null, or { weight, control }. */
+  function contentAt(d, x, y) {
+    var fr = els.frame;
+    var fx = x - fr.offsetLeft - fr.clientLeft;
+    var fy = y - fr.offsetTop - fr.clientTop;
+    if (fx < 0 || fy < 0 || fx >= fr.clientWidth || fy >= fr.clientHeight) return null;
+    var el = null;
+    try {
+      el = d.elementFromPoint(fx, fy);
+    } catch (e) {
+      return null;
+    }
+    if (!el || el === d.body || el === d.documentElement) return null;
+    var control = el.closest(CONTROLS);
+    var field = control && /^(INPUT|SELECT|TEXTAREA)$/.test(control.tagName);
+    var hit = field || !!el.closest('img, svg, canvas, video') || inkAt(d, control || el, fx, fy, !!control);
+    if (!hit) return null;
+    return { weight: S.target && S.target.contains(el) ? 2 : 1, control: control };
+  }
+
+  function scoreTag(d, p, tw, th, tr) {
+    var s = 0;
+    var controls = [];
+    var cols = Math.max(5, Math.ceil((tw - 8) / 12) + 1); // every ~12px, so small icons are found
+    for (var row = 0; row < 3; row++) {
+      for (var col = 0; col < cols; col++) {
+        var c = contentAt(d, p.x + 4 + ((tw - 8) * col) / (cols - 1), p.y + th * (0.2 + 0.3 * row));
+        if (!c) continue;
+        s += c.weight;
+        if (c.control && controls.indexOf(c.control) === -1) controls.push(c.control);
+      }
+    }
+    s += 1000 * controls.length; // hiding a control loses to any spot that hides none
+    if (tr) {
+      var w = Math.min(p.x + tw, tr.r) - Math.max(p.x, tr.l);
+      var h = Math.min(p.y + th, tr.b) - Math.max(p.y, tr.t);
+      if (w > 0 && h > 0) s += (10 * w * h) / (tw * th);
+    }
+    return s;
+  }
+
   function placeTag(o, g) {
     var tag = els.tag;
     var tw = tag.offsetWidth;
     var th = tag.offsetHeight;
-    var gap = 6;
     var top = els.frame.offsetTop + 4; // the tag may sit over the statement's (dimmed) sticky masthead
     var bottom = g.H - (g.vb || 0) - 4;
-    var x = Math.max(8, Math.min(o.x + 6, g.W - tw - 8));
-    var y = o.y - th - gap;
-    var where = 'above';
-    if (y < top) {
-      // no room above: sit on the outline's top edge, like a legend
-      y = o.y - Math.round(th / 2);
-      where = 'edge';
-      if (y < top) {
-        y = o.y + o.h + gap;
-        where = 'below';
-        if (y + th > bottom) {
-          y = o.y + 10;
-          x = Math.max(8, Math.min(o.x + 10, g.W - tw - 8));
-          where = 'inside';
-        }
-      }
+    var fits = function (p) {
+      return p.y >= top && p.y + th <= bottom && p.x >= 4 && p.x + tw <= g.W - 4;
+    };
+    // Choose on the settled outline (g.o), then place relative to the drawn one (o).
+    var sig = [g.o.x, g.o.y, g.o.w, g.o.h, g.W, g.H, g.vb, tw, th].join(',');
+    var due = tagPick.sig !== sig || !tagPick.spot;
+    if (due && tagPick.spot && now() - tagPick.at < 150) {
+      // Moving (scroll, resize): keep the spot for now and look again once it settles.
+      due = false;
+      clearTimeout(tagPick.timer);
+      tagPick.timer = setTimeout(function () {
+        S.last = '';
+        kick();
+      }, 160);
     }
-    els.overlay.style.setProperty('--tx', Math.round(x) + 'px');
-    els.overlay.style.setProperty('--ty', Math.round(y) + 'px');
+    if (due) {
+      var d = null;
+      try {
+        d = fwin() && fwin().document;
+      } catch (e) {
+        d = null;
+      }
+      var tr = null;
+      if (S.target && S.target.isConnected) {
+        var fr = els.frame;
+        var r = S.target.getBoundingClientRect();
+        var ox = fr.offsetLeft + fr.clientLeft;
+        var oy = fr.offsetTop + fr.clientTop;
+        tr = { l: r.left + ox, t: r.top + oy, r: r.right + ox, b: r.bottom + oy };
+      }
+      var best = null;
+      var bestScore = Infinity;
+      for (var i = 0; i < TAG_SPOTS.length; i++) {
+        var p = tagSpot(TAG_SPOTS[i], g.o, g, tw, th);
+        if (!fits(p)) continue;
+        var sc = d ? scoreTag(d, p, tw, th, tr) : 0;
+        if (sc < bestScore) {
+          best = TAG_SPOTS[i];
+          bestScore = sc;
+        }
+        if (sc < 0.5) break;
+      }
+      tagPick.sig = sig;
+      tagPick.at = now();
+      tagPick.spot = best || ['inside', 'start'];
+    }
+    var pos = tagSpot(tagPick.spot, o, g, tw, th);
+    pos.y = Math.max(top, Math.min(pos.y, bottom - th));
+    pos.x = Math.max(4, Math.min(pos.x, g.W - tw - 4));
+    els.overlay.style.setProperty('--tx', Math.round(pos.x) + 'px');
+    els.overlay.style.setProperty('--ty', Math.round(pos.y) + 'px');
     els.overlay.style.setProperty('--tmax', Math.max(80, g.W - 16) + 'px');
-    tag.setAttribute('data-where', where);
+    tag.setAttribute('data-where', tagPick.spot[0] + ' ' + tagPick.spot[1]);
   }
 
   /* ------------------------------------------------------------------ */
@@ -1235,12 +1369,7 @@
       S.raf = 0;
       if (els.overlay) setState('idle');
       if (els.edge) els.edge.hidden = true;
-      [stepsDlg, drDlg].forEach(function (d) {
-        if (d && d.open) {
-          WT.dialog.setReturn(d, null);
-          WT.dialog.close(d);
-        }
-      });
+      // Open dialogs (All steps, data requirements) are closed by the router (00-core).
       // Never leave the video talking behind another page.
       try {
         var y = fwin() && fwin().YES;

@@ -275,7 +275,9 @@
  * Light: grey fills (bands, notices, table heads) take the muted text to
  * Slate 2, since Slate 3 is only 4.36:1 on #F5F5F5.
  * Dark: Slate 2 surfaces (cards, dialogs, notices) allow only White, Slate 5
- * and Lime text; the Dark Green band allows White, Slate 5 and Lime.
+ * and Lime text; the Dark Green band allows White, Slate 5 and Lime. A dark
+ * .wt-fill is Slate 1 (--surface-2), so its muted text goes back to Slate 4
+ * (6.96:1); the light-mode Slate 2 would be 1.7:1 there.
  */
 .wt-band,
 .wt-notice,
@@ -296,6 +298,9 @@
   --table-row-hover: #0f172a;
   --surface-2: #0f172a;
   --skeleton: #64748b;
+}
+:root[data-theme='dark'] .wt-fill {
+  --muted: #94a3b8;
 }
 :root[data-theme='dark'] .wt-band {
   --muted: #cbd5e1;
@@ -318,6 +323,9 @@
     --table-row-hover: #0f172a;
     --surface-2: #0f172a;
     --skeleton: #64748b;
+  }
+  :root:not([data-theme='light']) .wt-fill {
+    --muted: #94a3b8;
   }
   :root:not([data-theme='light']) .wt-band {
     --muted: #cbd5e1;

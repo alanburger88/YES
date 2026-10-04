@@ -72,15 +72,6 @@ html[data-view='tour'] #view-tour {
   min-height: 0;
   border-left: 1px solid var(--border);
 }
-/* .wt-fill takes --muted to Slate 2 for #F8F8F8; on the dark panel (Slate 1) muted text is Slate 4 (6.96:1). */
-:root[data-theme='dark'] .wt-tour__panel {
-  --muted: var(--c-slate-4);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .wt-tour__panel {
-    --muted: var(--c-slate-4);
-  }
-}
 .wt-tour__scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -688,7 +679,9 @@ html[data-view='tour'] #view-tour {
 /* =================================================================== */
 @media (max-width: 719.98px) {
   .wt-tour {
-    --frame-h: 52svh;
+    /* About 52svh. On short screens (landscape phones, 200% zoom) the frame gives
+       way so the panel keeps room for its navigation and a few lines of text. */
+    --frame-h: max(96px, min(52svh, calc(100svh - var(--mast-h) - 49px - 160px)));
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: var(--frame-h) auto minmax(0, 1fr);
     grid-template-areas:
@@ -777,6 +770,12 @@ html[data-view='tour'] #view-tour {
     align-self: start;
     height: var(--frame-h);
     visibility: hidden;
+  }
+}
+/* The Alt+arrow tips are for keyboards: leave them out on touch-only devices. */
+@media (hover: none) and (pointer: coarse) {
+  .wt-tour__keys {
+    display: none;
   }
 }
 @media (max-width: 379.98px) {

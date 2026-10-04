@@ -86,11 +86,11 @@ walkthrough/
 - **Router.** Hash routes:
   - `#/start`
   - `#/tour/<featureId>` (no id = first feature, or resume where the reviewer left off)
-  - `#/results`, `#/results/<featureId>`, `#/results/people`
+  - `#/results`, `#/results/features` (every feature ranked), `#/results/<featureId>`, `#/results/people`
   - `#/data`, `#/data/<featureId>`
   - `#/admin`
   
-  The default is `#/start`. Use `WT.go(path)` to navigate (pushState plus a synchronous route; Back and Forward work). On a view change, focus the view's `h1` (`tabindex="-1"`) and update `document.title` to "<View> · YES statement review · InfoSlips".
+  The default is `#/start`. Use `WT.go(path)` to navigate (pushState plus a synchronous route; Back and Forward work). On a view change, focus the view's `h1` (`tabindex="-1"`) and update `document.title` to "<View> · YES statement review · InfoSlips". Any route change (including Back/Forward within a view) closes open WT dialogs first, without returning focus to their triggers; focus goes to the new view instead.
 - `WT.theme`:
   - `get()`, `set('light' | 'dark' | null)`, `toggle()`, `effective()`;
   - localStorage key `infoslips.wt.theme`; mirrored to `<html data-theme>`;
@@ -137,7 +137,7 @@ walkthrough/
   2. For each feature, vote to include or exclude it, set a priority and comment.
   3. See what everyone thinks and the data each feature needs.
 - **Optional name field.** It saves on change.
-- **Primary button:** "Start the walkthrough", or "Continue (step k of N)" when there is progress. A secondary "Start from the beginning" link goes to the first feature.
+- **Primary button:** "Start the walkthrough", or, when there is progress, "Continue where you left off: <Title> (step k of N)" (the `lastStep`), or "Continue with <Title> (step k of N)" (the first unanswered feature when there is no `lastStep`). It goes to the same step as `#/tour` without an id. Once every feature is answered, the primary button is "You've answered every feature: see the results" and the continue label becomes a link under it. A secondary "Start from the beginning" link goes to the first feature.
 - **Links** to Results and Data requirements. The full branding notice.
 - **Privacy note:** "Your answers are saved to a shared database as you go and are visible to everyone with this link. They're linked to this browser, not to an account."
 
@@ -174,6 +174,14 @@ Headline line-height is 1.1. All-caps labels are 12/600 with +0.08em tracking.
 | --spot (tour outline) | #277656 | #DBE64C |
 
 **Brand rules.** No colours outside the palette (Greens, Slates, Neutrals, White, plus Black #111827), and no gradients. Green carries the brand. Lime is used sparingly. Never put dark text on a dark surface (except dark text on a Green button). Use a Green accent bar (4px) under page titles. Keep the logo's clear space (the height of the "i" dot, about 14px at 32px tall). The logo is never recoloured or stretched. Semantic states use the palette: success uses Green or Dark Green, "exclude" uses Slate 2/Slate 4, and errors use Dark Green text with an icon and a bold label. If a true error colour is unavoidable, document the exception in this file.
+
+**Documented accessibility and brand exceptions.** Each one keeps to the palette; they are recorded here because they bend a rule above.
+- **Priority colours in the light-mode charts** (`51-charts.js`): High = **Slate 1 #0F172A** (17.85:1 on white), Medium = **Dark Green #1D5941** (8.21:1), Low = **Medium Green #277656** (5.51:1). Priority is an ordinal ramp, so it needs three steps of monotone lightness that all reach 3:1 on the white card. Only two brand greens do (Green #4EAF60 is 2.75:1, Acorn and Lime are lower), so the darkest step is the near-neutral Slate 1 rather than a third green. Low shares Medium Green with "include" and the score bars; the charts tell them apart by position, legend and the data table. In dark mode (on Slate 2 cards) the ramp is Lime #DBE64C / Acorn #80D100 / Green #4EAF60 (7.61 / 5.44 / 3.76:1). Segments are separated by 2px surface gaps and labelled in place when the label fits. The priority *badges* use the `--high-*`/`--medium-*`/`--low-*` tokens (Dark Green / Medium Green / Slate 7 with a Slate 3 border in light), which are text-on-fill pairs rather than chart marks.
+- **Dark-mode control borders** use **Slate 4 #94A3B8** (`--control-border`) instead of the table's #64748B: #64748B is only 2.18:1 on a Slate 2 card, while Slate 4 is 4.04:1 on Slate 2 and 6.96:1 on Slate 1.
+- **Selected and current indicators** (tab underline, the nav "current" bar, the current step in "All steps", selected chips and segmented options) use `--highlight` / `--selected-bg`: **Dark Green** in light mode, and **Lime** (or a Green fill with Slate 1 text) in dark mode, because Green #4EAF60 is only 2.75:1 on white.
+- **Progress fill** is Medium Green #277656 in light mode (4.47:1 on its #E2E8F0 track, 5.51:1 on white).
+- **Muted text on grey fills** is Slate 2 in light mode (`.wt-band`, `.wt-notice`, `.wt-fill`, `.wt-card--fill`), since Slate 3 is 4.36:1 on #F5F5F5. In dark mode it is Slate 5 on Slate 2 and Dark Green surfaces and Slate 4 on Slate 1 (`.wt-fill`).
+- **No true error colour** is used: errors are `--error-text` (Dark Green / Lime) with an alert icon and a bold label.
 
 **Accessibility.**
 - All text meets 4.5:1 (3:1 for 24px+ or bold 19px+). UI boundaries and chart marks meet 3:1 against their background.
@@ -218,7 +226,7 @@ The tour also stores `lastStep`.
 **Highlight overlay.** This lives in the parent page, absolutely positioned over the frame, `pointer-events: none` and `aria-hidden="true"`.
 - **Spotlight:** an SVG with a full-size dim rect (rgb(15 23 42 / .55)) masked by a rounded cut-out around the target rect (padding 8px, radius 12px).
 - **Outline:** 3px solid `--spot`, with a 2px inner white or Slate 1 ring for contrast on any background.
-- **Tag:** a small label anchored to the outline, "k · Title".
+- **Tag:** a small label anchored to the outline, "k · Title". It goes above, on the top edge of, below, beside or (last) inside the outline, wherever it hides the least of the statement, and never over a button, link or form control when another spot avoids one.
 - It updates every animation frame while it moves, then idles (watch frame scroll, frame resize, a ResizeObserver on the target, and a MutationObserver on the frame body that re-resolves the target).
 - If the target is off-screen in the frame (scrolled away by the user), show an edge arrow "Highlighted part is above / below — Show it" that re-scrolls.
 - A "Dim the rest" switch (default on) turns the dimming off so people can explore. The outline stays.
@@ -233,6 +241,8 @@ The tour also stores `lastStep`.
 5. The overlay draws.
 
 A failed step still shows the panel, with a polite note: "We couldn't highlight this part automatically. Try it: …".
+
+**`WT.tour`** (read-only helpers, used by tests): `current()` (the step id), `frame()` (the `<iframe>`) and `target()` (the highlighted element in the statement, or null).
 
 ## 6. Steps and driver (owned by steps)
 
@@ -266,11 +276,14 @@ A failed step still shows the panel, with a polite note: "We couldn't highlight 
 - `{ menu: true }` opens the phone Menu when the frame is narrow.
 - `{ delay: ms }`
 
-Methods:
-- `WT.driver.reset(win)`: close dialogs via the statement's own APIs (`YES.explorer.closeTx`, `YES.ui.closeDialog` for open `<dialog open>`, the assistant close API), clear the journey selection (`YES.overview.clearStep`), set the language back to the one the visitor had chosen before the tour changed it, and return to the top.
-- `WT.driver.apply(win, step)`
-- `WT.driver.target(win, step)`
-- `WT.driver.isPhone(win)`
+Methods (every one is safe to call at any time and never rejects; the full notes are in the header of `30-driver.js`):
+- `WT.driver.reset(win, { top = true })` → `{ ok, problems[] }`: close dialogs via the statement's own APIs (`YES.explorer.closeTx`, `YES.ui.closeDialog` for open `<dialog open>`, the assistant close API), clear the journey selection (`YES.overview.clearStep`), filters and disclosures, pause the video, leave the integrity preview, restore the baseline language and theme, and return to the top. `{ top: false }` keeps the scroll position so the next `scrollToTarget()` glides from where the reader was. A newer `reset()` aborts a running `apply()`.
+- `WT.driver.apply(win, step)` → `{ ok, errors[], aborted? }`: runs `step.setup` in order (`{ menu }` actions last) and waits for the frame's scroll to settle.
+- `WT.driver.target(win, step, { timeout = 4000 })` → the first visible match of `step.target.phone|desktop`, or null.
+- `WT.driver.scrollToTarget(win, el, { behavior, block = 'auto', margin = 12 })` → the target's final rect: scrolls only inside the frame (centred, or to the top when taller than the space), never the parent page; instant with reduced motion.
+- `WT.driver.settle(win, { el, minMs, maxMs, frames, animations })`: resolves when the frame's scroll (and `el`) has stopped moving.
+- `WT.driver.baseline({ theme, lang })`: sets and returns the state `reset()` restores (the tour passes the app theme).
+- `WT.driver.isPhone(win)` (frame width < 720), `ready(win, ms)`, `check(win)`, `selectors(win, step)`, `topInset(win)`, `visible(win, el)`, `firstVisible(win, selector)`.
 
 Study the statement's real APIs in `../src/js/*.js` and `../docs/ARCHITECTURE.md` (for example `YES.overview.selectStep`, `YES.explorer.openTx`, `YES.explorer.applyFilter`, `YES.inquiry.start`, `YES.help.*`, `YES.theme`) and prefer them to synthetic clicks.
 
@@ -302,6 +315,8 @@ The fields are derived from the statement's real data model (`../src/js/01-data.
 - Every node shows key, type badge, required/optional, and an example value preview. Selecting a node shows its details: description, source, example, and "needed by" features (with links to their tour step and results).
 - Controls: expand all / collapse all, a search filter (key, description or source), a "Sample JSON" tab (pretty-printed sample payload built from the examples, with copy and download), and a "Schema" download (JSON Schema draft 2020-12 generated from the fields).
 - The tree is a WAI-ARIA tree view: `role="tree"`/`treeitem`, `aria-expanded`, arrow keys, Home/End and type-ahead.
+- `mount()` returns an instance with `update(opts)` (keeps the tab, search, expansion and selection) and `destroy()`. Mounting again on the same element updates it. Options: `mode: 'tree' | 'sample' | 'sources'` (the first tab; "By source" is a summary per data source), `compact` (the dense layout; **on by default inside a dialog**), `headingLevel`, `label`.
+- Pure helpers: `WT.json.merge(ids)` → `{ features, fields }`, `sample(ids)`, `schema(ids)` (draft 2020-12), `stats(ids)`, `plainType(type)`. `WT.json.openDialog({ features, trigger, title })` shows the compact explorer in a standard dialog with a link to `#/data/<id>`.
 
 **Data view** (`61-data.js`, `#/data`): "Data requirements".
 - A scope switch: **"Features I included"** (from my answers), **"Features the group wants"** (include share ≥ 50% with at least 1 vote), and **"All features"**, plus a list of feature checkboxes.
@@ -334,6 +349,10 @@ The fields are derived from the statement's real data model (`../src/js/01-data.
 - **People** (`#/results/people`). A matrix of reviewers × features (a table with sticky headers and horizontal scroll inside its own container): ✓ include / ✗ exclude / – none, plus a priority letter, with a text legend.
 - **Admin moderation.** Only when an admin code is stored and verified. Controls are added inline: hide/unhide a comment or reason, delete a reviewer's answers (with confirmation), and Reset all results (confirmation by typing RESET).
 - **`#/admin`.** An admin code form (verifies with `/api/admin/check`), "Sign out of admin", and an explanation that the code is set as the Netlify environment variable `ADMIN_CODE`.
+- **Sub-views.** `#/results` (overview: summary, KPI tiles and charts), `#/results/features` ("Every feature, ranked": the feature cards with a sort), `#/results/<featureId>` and `#/results/people`, linked by a sub-navigation.
+- **`WT.results`** (`50-results.js`): `refreshMs` (30000), `load({ manual, force })`, `data()` (the last results object), `model()` (one derived row per feature) and `sentences()` (the summary in words). The module emits `results` with each fresh object.
+- **`WT.moderation`** (`52-admin.js`): `enabled()`, `hide({ rid, featureId, field, hidden }, trigger)`, `deleteReviewer(rid, name, trigger)` (confirms), `reset(trigger)` (type RESET) and `signOut()`. Each successful change emits **`moderated`** (true; false when the reviewer was already gone), and the results reload on it.
+- **`WT.charts`** (`51-charts.js`): the chart builders and `PALETTE` (see the exceptions in section 4).
 - **States.** Loading (skeleton), error (with retry), and empty ("No answers yet — be the first: start the walkthrough").
 
 ## 9. API (`server/api-core.mjs`), owned by foundation
@@ -417,12 +436,8 @@ Written by foundation. **Reuse these instead of re-inventing them.** Everything 
 - **CSP** (section 9) applies to the app page: no `style="…"` attributes, no `<style>` elements (in SVG too), no inline `<script>` or `on…=` handlers, and no external URLs. For dynamic sizes, set CSSOM from JS (`el.style.setProperty('--w', pct + '%')`, which is allowed) or use SVG geometry attributes (`width`, `x`, `d` …). Colour SVG marks with classes in your CSS (`.bar--include { fill: var(--…) }`), because `fill="var(--…)"` does not work as an attribute. `img-src` allows `'self'` and `data:` only, so `blob:` images won't load. Downloads through `WT.download` work.
 - **Escaping.** Interpolate with `WT.esc(v)` or the `WT.h` tagged template, and render with `WT.render(el, html)`. Give every control a stable `data-fk` so re-renders keep focus and the text selection.
 - **Colour.** Use semantic tokens (`var(--heading)`, `var(--link)` …), never raw hex. Palette tokens (`--c-green`, `--c-slate-3` …) are only for charts and must be checked for 3:1 in both themes. For a rule that differs in dark mode, write it twice: `:root[data-theme='dark'] .x {…}` and `@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .x {…} }`.
-- **Surfaces re-scope the text tokens**, so text on them stays legible. Inside `.wt-card`, `.wt-dialog`, `.wt-notice` and `.wt-surface` in dark mode (Slate 2 #334155), `--body`/`--muted` become Slate 5, `--link` becomes Lime and `--border` becomes Slate 3. Inside `.wt-band`, `.wt-fill`, `.wt-card--fill` and `.wt-notice` in light mode, `--muted` becomes Slate 2 (Slate 3 is only 4.36:1 on #F5F5F5).
-- **Accessibility exceptions documented here** (section 4 asked for them to be recorded):
-  - Dark-mode control borders use **Slate 4 #94A3B8** (`--control-border`), not #64748B. #64748B is only 2.18:1 on Slate 2 cards, while Slate 4 is 4.04:1 on Slate 2 and 6.96:1 on Slate 1.
-  - Selected and current indicators (tab underline, nav "current" bar) use `--highlight` (Dark Green / Lime), because Green #4EAF60 is 2.75:1 on white.
-  - The progress fill is Medium Green #277656 in light mode, which is 4.47:1 on its track.
-  - No true error colour is used: errors are `--error-text` (Dark Green / Lime) with an alert icon and a bold label.
+- **Surfaces re-scope the text tokens**, so text on them stays legible. Inside `.wt-card`, `.wt-dialog`, `.wt-notice` and `.wt-surface` in dark mode (Slate 2 #334155), `--body`/`--muted` become Slate 5, `--link` becomes Lime and `--border` becomes Slate 3. Inside `.wt-band`, `.wt-fill`, `.wt-card--fill` and `.wt-notice` in light mode, `--muted` becomes Slate 2 (Slate 3 is only 4.36:1 on #F5F5F5). A dark `.wt-fill` (Slate 1) takes `--muted` back to Slate 4.
+- **Accessibility and brand exceptions** (dark control borders, selected indicators, progress fill, the priority chart colours, no error colour) are recorded in section 4, "Documented accessibility and brand exceptions".
 - **Layout contract.**
   - The masthead is sticky and `var(--mast-h)` (64px) tall.
   - `<html data-view="start|tour|results|data|admin">` names the current view.
@@ -456,7 +471,7 @@ Written by foundation. **Reuse these instead of re-inventing them.** Everything 
 | Helper | Use |
 |---|---|
 | `WT.on(evt, fn)` → `off()`, `WT.off`, `WT.emit` | Event bus. A listener that throws is logged and skipped. |
-| Events | `route` {view, param, path, prev} · `theme` ('light'\|'dark') · `reviewer` (reviewer copy) · `answers` (featureId, or null for "many changed") · `saving` {pending} · `saved` {ok, pending, savedAt?, error?, status?, offline?} · `admin` (true\|false) · `ready` · `results` (emitted by the results module). |
+| Events | `route` {view, param, path, prev} · `theme` ('light'\|'dark') · `reviewer` (reviewer copy) · `answers` (featureId, or null for "many changed") · `saving` {pending} · `saved` {ok, pending, savedAt?, error?, status?, offline?} · `admin` (true\|false) · `ready` · `results` (emitted by the results module) · `moderated` (emitted by `WT.moderation`). |
 | `WT.features` | Array from `shared/features.json`, inlined by the build. `WT.feature(id)` returns a feature with an extra `index` (0-based), or null. |
 | `WT.featureIndex(id)` | 0-based position, or -1. |
 | `WT.SECTIONS`, `WT.sectionLabel(section)` | `overview` → "Overview" … `everywhere` → "Throughout the statement". |
@@ -470,7 +485,7 @@ Written by foundation. **Reuse these instead of re-inventing them.** Everything 
 | Helper | Use |
 |---|---|
 | `WT.register({ name, view?, init(), render(param, route), onRoute?(param, route), leave?(), keepScroll?, manageFocus? })` | Register a module. `render` runs when the view is entered. `onRoute` (optional) runs instead when only the param changes within the same view (the tour uses this to avoid reloading the frame). `leave` runs when another view takes over (stop timers there). `manageFocus: true` stops the router focusing the h1. `keepScroll: true` keeps the scroll position on param changes. `render` may return a promise. A view with no module shows a polite placeholder. |
-| `WT.go(path, { replace?, force? })` | Navigate (`'/tour/journey'` or `'#/results'`). Pushes history and routes synchronously. |
+| `WT.go(path, { replace?, force? })` | Navigate (`'/tour/journey'` or `'#/results'`). Pushes history and routes synchronously. Every route change closes open WT dialogs (focus goes to the new view, not the trigger). |
 | `WT.refresh()` | Re-render the current route. |
 | `WT.route()` | Returns `{ view, param, path }`. |
 | `WT.parseRoute(hash)` | Parse a hash, or return null for non-route hashes such as `#main`. |
@@ -580,7 +595,7 @@ Failed saves stay in localStorage `infoslips.wt.pending` and are retried on the 
 **Accessibility**
 - `.wt-sr-only` (visually hidden) and `.wt-sr-only-focusable`.
 - `.wt-skip` (skip link).
-- `:focus-visible` gives a global 3px `--focus` ring with a 2px offset; `forced-colors` and `prefers-reduced-motion` are handled globally.
+- `:focus-visible` gives a global 3px `--focus` ring with a 2px offset; `forced-colors` and `prefers-reduced-motion` are handled globally. Headings that receive programmatic focus (`h1`/`h2` with `tabindex="-1"`) show nothing after mouse or touch use and, after a keyboard action, a quiet `--focus` line instead of a box (the `.wt-title` accent bar turns the focus colour and runs the full width).
 
 **Buttons:** `.wt-btn` plus one of:
 - `--primary` (Green, 6.5:1 text)
