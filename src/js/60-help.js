@@ -797,7 +797,9 @@
     var voiceLines = ['en', 'es']
       .map(function (lang) {
         var v = voice[lang];
-        var key = v == null || v === '' ? 'help.slots.voiceNotSet' : typeof v === 'string' && /^data:audio\/[a-z0-9.+-]+[;,]/i.test(v) ? 'help.slots.voiceSet' : 'help.slots.voiceIgnored';
+        // A data: audio URI, or { src, scriptHash } as packaged by the build from src/media.
+        var src = v && typeof v === 'object' ? v.src : v;
+        var key = v == null || v === '' ? 'help.slots.voiceNotSet' : typeof src === 'string' && /^data:audio\/[a-z0-9.+-]+[;,]/i.test(src) ? 'help.slots.voiceSet' : 'help.slots.voiceIgnored';
         if (key === 'help.slots.voiceSet') voiceUsable++;
         return '<span data-voice-lang="' + lang + '">' + esc(t('help.slots.voiceLang', { lang: t('help.slots.voiceLang.' + lang), state: t(key) })) + '</span>';
       })

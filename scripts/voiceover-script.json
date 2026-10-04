@@ -1,0 +1,35 @@
+{
+  "_comment": "Spoken text for the recorded voiceover of 'Your statement in 60 seconds', one line per caption cue. 'caption' must equal the player's caption for that cue (YES.overview.video.cues()); scripts/voiceover.mjs refuses to record if they differ, so the narration can never drift from the statement. 'voice' is what the narrator says: the same words, with amounts and dates written out so they are read exactly.",
+  "en": {
+    "hello": { "caption": "Hello, Sam.", "voice": "Hello, Sam." },
+    "period": { "caption": "This is your YES statement for September 1 – 30, 2026.", "voice": "This is your YES statement for September 1st to 30th, 2026." },
+    "opening": { "caption": "You started the period with 1,000.00 EXUSD.", "voice": "You started the period with one thousand tokens." },
+    "incoming": { "caption": "Incoming activity added 700.00 EXUSD.", "voice": "Incoming activity added seven hundred." },
+    "outgoing": { "caption": "Outgoing activity and fees took away 552.50 EXUSD.", "voice": "Outgoing activity and fees took away five hundred fifty-two point fifty." },
+    "closing": { "caption": "You closed the period with 1,147.50 EXUSD.", "voice": "You closed the period with one thousand, one hundred forty-seven point fifty tokens." },
+    "largest": { "caption": "Your largest single movement was +250.00 EXUSD.", "voice": "Your largest single movement added two hundred fifty tokens." },
+    "what": { "caption": "Deposit from linked bank account, posted on September 1, 2026.", "voice": "A deposit from your linked bank account, posted on September 1st, 2026." },
+    "select": { "caption": "Select any step of your balance journey.", "voice": "Select any step of your balance journey." },
+    "rows": { "caption": "Its transactions appear, and they add up exactly.", "voice": "Its transactions appear, and they add up exactly." },
+    "open": { "caption": "Open one to check its dates, reference and fees.", "voice": "Open one to check its dates, reference and fees." },
+    "actions": { "caption": "From there, use Explain with AI or Ask about this transaction.", "voice": "From there, use Explain with AI, or Ask about this transaction." },
+    "help": { "caption": "Questions? Ask YES, or open Help to contact us.", "voice": "Questions? Ask YES, or open Help to contact us." },
+    "bye": { "caption": "If something does not look right, we are here to help.", "voice": "If something does not look right, we are here to help." }
+  },
+  "es": {
+    "hello": { "caption": "Hola, Sam.", "voice": "Hola, Sam." },
+    "period": { "caption": "Este es tu estado de cuenta de YES del 1 al 30 de septiembre de 2026.", "voice": "Este es tu estado de cuenta de YES del uno al treinta de septiembre de dos mil veintiséis." },
+    "opening": { "caption": "Empezaste el período con 1.000,00 EXUSD.", "voice": "Empezaste el período con mil unidades de token." },
+    "incoming": { "caption": "Las entradas sumaron 700,00 EXUSD.", "voice": "Las entradas sumaron setecientas." },
+    "outgoing": { "caption": "Las salidas y las comisiones restaron 552,50 EXUSD.", "voice": "Las salidas y las comisiones restaron quinientas cincuenta y dos coma cincuenta." },
+    "closing": { "caption": "Cerraste el período con 1.147,50 EXUSD.", "voice": "Cerraste el período con mil ciento cuarenta y siete coma cincuenta unidades de token." },
+    "largest": { "caption": "Tu mayor movimiento individual fue de +250,00 EXUSD.", "voice": "Tu mayor movimiento individual sumó doscientas cincuenta unidades de token." },
+    "what": { "caption": "Depósito desde cuenta bancaria vinculada, del 1 de septiembre de 2026.", "voice": "Un depósito desde tu cuenta bancaria vinculada, del uno de septiembre de dos mil veintiséis." },
+    "select": { "caption": "Selecciona cualquier paso del recorrido del saldo.", "voice": "Selecciona cualquier paso del recorrido del saldo." },
+    "rows": { "caption": "Aparecen sus movimientos, que suman justo ese importe.", "voice": "Aparecen sus movimientos, que suman justo ese importe." },
+    "open": { "caption": "Abre uno para ver sus fechas, referencia y comisiones.", "voice": "Abre uno para ver sus fechas, referencia y comisiones." },
+    "actions": { "caption": "Desde ahí, usa Explicar con IA o Preguntar por este movimiento.", "voice": "Desde ahí, usa Explicar con IA o Preguntar por este movimiento." },
+    "help": { "caption": "¿Dudas? Pregunta a YES o abre Ayuda para contactarnos.", "voice": "¿Dudas? Pregunta a YES o abre Ayuda para contactarnos." },
+    "bye": { "caption": "Si algo no te cuadra, estamos aquí para ayudarte.", "voice": "Si algo no te cuadra, estamos aquí para ayudarte." }
+  }
+}

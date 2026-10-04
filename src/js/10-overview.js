@@ -2411,10 +2411,46 @@
 
   /* -------------------------------------------------------- the player */
   /** The approved recording for the current language, if packaged as a data: audio URI. */
+  /*
+   * Fingerprint of the narration script in the current language (FNV-1a over
+   * each cue's id, timing and caption). A recording generated for this script
+   * carries the same fingerprint (scripts/voiceover.mjs); if the statement's
+   * figures or the wording change, the fingerprints differ and the outdated
+   * recording is not played: the device voice narrates instead.
+   */
+  function scriptHash() {
+    var cues = VP.cues && VP.cues.length && VP.cuesLang === YES.i18n.lang ? VP.cues : cueList(vidModel());
+    var str = YES.i18n.lang + '\n' + cues
+      .map(function (c) {
+        return c.id + '|' + c.at + '|' + c.end + '|' + c.text;
+      })
+      .join('\n');
+    var h = 0x811c9dc5;
+    for (var i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return ('0000000' + h.toString(16)).slice(-8);
+  }
+  var staleWarned = {};
+  /**
+   * The packaged recording for the current language, or null. The slot holds a
+   * data: audio URI, or { src, scriptHash, voice } as written by the build from
+   * src/media (scriptHash must match this script, see scriptHash()).
+   */
   function recordedSrc() {
     var slot = YES.config.slots && YES.config.slots.VIDEO_VOICEOVER;
     var v = slot && slot[YES.i18n.lang];
-    return typeof v === 'string' && /^data:audio\/[a-z0-9.+-]+[;,]/i.test(v) ? v : null;
+    var src = v && typeof v === 'object' ? v.src : v;
+    if (typeof src !== 'string' || !/^data:audio\/[a-z0-9.+-]+[;,]/i.test(src)) return null;
+    if (v && typeof v === 'object' && v.scriptHash && v.scriptHash !== scriptHash()) {
+      if (!staleWarned[YES.i18n.lang] && root.console) {
+        staleWarned[YES.i18n.lang] = true;
+        console.warn('[YES] the ' + YES.i18n.lang + ' voiceover was recorded for a different script; using the device voice instead. Regenerate it with scripts/voiceover.mjs.');
+      }
+      return null;
+    }
+    return src;
   }
 
   function playerHtml(m) {
@@ -2595,6 +2631,7 @@
     }
     var m = vidModel();
     VP.cues = cueList(m);
+    VP.cuesLang = YES.i18n.lang;
     return (
       '<section class="card ov-video" aria-labelledby="ov-video-title"><div class="ov-video__grid">' +
       '<div class="ov-video__media">' +
@@ -3448,6 +3485,10 @@
       return VP.cues.map(function (c) {
         return { id: c.id, at: c.at, end: c.end, chapter: c.ch, text: c.text, say: c.say };
       });
+    },
+    /** Fingerprint of the current language's narration script (see scriptHash()). */
+    scriptHash: function () {
+      return scriptHash();
     }
   };
 
@@ -3823,7 +3864,7 @@
         'overview.video.duration': 'Duration {time}',
         'overview.video.optional': 'Optional; it never plays on its own',
         'overview.video.honest': 'An animated walkthrough built from this statement’s sample figures, narrated by your device’s built-in voice.',
-        'overview.video.honestRecorded': 'An animated walkthrough built from this statement’s sample figures, narrated by the approved recording.',
+        'overview.video.honestRecorded': 'An animated walkthrough built from this statement’s sample figures, narrated by a recorded voiceover.',
         'overview.video.honestSilent': 'An animated walkthrough built from this statement’s sample figures, with captions.',
         'overview.video.noVoice': 'Voiceover isn’t available in this language on this device — captions are on.',
         'overview.video.withheld': 'This video is withheld because the statement does not reconcile.',
@@ -4019,7 +4060,7 @@
         'overview.video.duration': 'Duración {time}',
         'overview.video.optional': 'Opcional; nunca se reproduce solo',
         'overview.video.honest': 'Un recorrido animado creado con las cifras de muestra de este estado de cuenta, narrado con la voz integrada de tu dispositivo.',
-        'overview.video.honestRecorded': 'Un recorrido animado creado con las cifras de muestra de este estado de cuenta, narrado con la grabación aprobada.',
+        'overview.video.honestRecorded': 'Un recorrido animado creado con las cifras de muestra de este estado de cuenta, narrado con una locución grabada.',
         'overview.video.honestSilent': 'Un recorrido animado creado con las cifras de muestra de este estado de cuenta, con subtítulos.',
         'overview.video.noVoice': 'La locución no está disponible en este idioma en este dispositivo; los subtítulos están activados.',
         'overview.video.withheld': 'Este video se retiene porque el estado de cuenta no cuadra.',

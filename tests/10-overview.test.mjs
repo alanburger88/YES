@@ -254,6 +254,11 @@ export default async function (t) {
   const vp = t.viewport;
   const wide = vp === 'desktop';
 
+  // This suite covers the device-voice path and synthetic recordings; the
+  // recordings packaged from src/media are covered by tests/08-voiceover.test.mjs.
+  await page.addInitScript(() => {
+    window.YES_SKIP_PACKAGED_MEDIA = true;
+  });
   // Collect runtime warnings (missing i18n keys only warn) from a fresh load.
   const warnings = [];
   page.on('console', (m) => {
@@ -1787,7 +1792,7 @@ async function videoSuite(t) {
   });
   t.eq(await page.locator('.ov-video audio[data-vp-audio]').count(), 1, 'one <audio> element for the recording');
   t.eq(await page.evaluate(() => [YES.overview.video.state().mode, document.querySelector('audio[data-vp-audio]').preload]), ['recorded', 'auto'], 'recorded mode, preloaded');
-  t.assert(norm(await page.locator('.ov-video__honest').innerText()).includes('narrated by the approved recording'), 'the card says the narration is the approved recording');
+  t.assert(norm(await page.locator('.ov-video__honest').innerText()).includes('narrated by a recorded voiceover'), 'the card says the narration is a recorded voiceover');
   n0 = (await said(page)).length;
   await page.evaluate(() => YES.overview.video.seek(12, { play: true }));
   await page.waitForTimeout(400); // the media element starts on its own clock
