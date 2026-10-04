@@ -96,7 +96,9 @@ The statement data lives in `src/js/01-data.js`.
 The narration for “Your statement in 60 seconds” can be a recorded female voice made once with ElevenLabs and kept inside the file, so the statement never calls ElevenLabs and works offline. Until a recording exists, the device's built-in voice narrates.
 
 ```bash
-export ELEVENLABS_API_KEY=…                                   # never written to any file
+# Key: add it as an API credential on the cloud environment (host api.elevenlabs.io,
+# header xi-api-key, no prefix) so the session never sees it — or, locally:
+# export ELEVENLABS_API_KEY=…   (never written to any file)
 node build.mjs                                                 # the generator reads the player's script from dist/
 node scripts/voiceover.mjs check                               # offline: spoken lines match every caption
 node scripts/voiceover.mjs voices                              # the account's female voices
@@ -109,7 +111,7 @@ node build.mjs                                                 # packages the re
 - **Staying in step:** each line is recorded separately, with its neighbouring lines passed as context so the delivery flows. It is placed at its caption's start time and the track is levelled. A line that runs slightly long is sped up by at most 15%. Anything longer fails, so the cue can be retimed instead.
 - **Model and format:** `eleven_multilingual_v2`, with the same voice for English and Spanish. The result is a mono 64 kbps MP3, about 0.5 MB per language.
 - **Outdated recordings are never played:** each recording carries the fingerprint of the script it was made for (`YES.overview.video.scriptHash()`). If the statement's figures or wording change, the player ignores the outdated recording, uses the device voice and warns in the console. To fix that, run `record` again.
-- **Network:** the environment must allow `api.elevenlabs.io`. Generated lines are cached in `.cache/voiceover/`, which is not committed, so a re-run doesn't spend credits on unchanged lines.
+- **Network:** an API credential for `api.elevenlabs.io` also lets the session reach that host. Without one, the environment must allow it under Custom network access. Generated lines are cached in `.cache/voiceover/`, which is not committed, so a re-run doesn't spend credits on unchanged lines.
 
 ## Build and test
 

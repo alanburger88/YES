@@ -5,7 +5,8 @@
  * the single HTML file. The statement itself never calls ElevenLabs: this runs
  * once, at authoring time.
  *
- *   export ELEVENLABS_API_KEY=…          (never written to any file)
+ *   Key: an environment API credential for api.elevenlabs.io (header xi-api-key),
+ *   or export ELEVENLABS_API_KEY=… — never written to any file
  *   node build.mjs                        (the player's script is read from dist/)
  *   node scripts/voiceover.mjs check                       offline: script matches the captions
  *   node scripts/voiceover.mjs voices                      list the account's female voices
@@ -57,9 +58,18 @@ const die = (msg) => {
   process.exit(1);
 };
 
+/*
+ * Authentication: in a Claude Code cloud environment, store the key as an API
+ * credential (host api.elevenlabs.io, header xi-api-key, no prefix); the agent
+ * proxy attaches it to each request, so the key is never in this process. Or
+ * set ELEVENLABS_API_KEY, which is sent as xi-api-key. Neither is ever written
+ * to a file.
+ */
 async function api(path, init = {}) {
-  if (!KEY) die('Set ELEVENLABS_API_KEY in the environment (it is never stored).');
-  const res = await fetch(API + path, { ...init, headers: { 'xi-api-key': KEY, ...(init.headers || {}) } });
+  const headers = { ...(init.headers || {}) };
+  if (KEY) headers['xi-api-key'] = KEY;
+  const res = await fetch(API + path, { ...init, headers });
+  if (res.status === 401 || res.status === 403) die(`ElevenLabs refused the request (${res.status}). Add the key as an API credential on the environment (api.elevenlabs.io, header xi-api-key) or set ELEVENLABS_API_KEY. ${(await res.text()).slice(0, 200)}`);
   if (!res.ok) die(`ElevenLabs ${init.method || 'GET'} ${path.split('?')[0]} → ${res.status} ${(await res.text()).slice(0, 300)}`);
   return res;
 }
