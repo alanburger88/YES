@@ -1,7 +1,8 @@
 /*
  * Overview: first screen, balance card, statement details, balance journey,
  * running-balance chart, fees, insight and the "Your statement in 60 seconds"
- * player (an animated, narrated walkthrough drawn on a 16:9 stage).
+ * player (an animated, narrated walkthrough drawn on a 16:9 stage, or a
+ * portrait 3:4 one on a narrow player).
  * Colours come from tokens only; chart marks use --in / --out / --total and
  * text always stays in ink tokens.
  */
@@ -1797,8 +1798,10 @@ button.jr-step:hover {
 }
 
 /* ------------------------------------- Your statement in 60 seconds */
-/* The card lays out for its own width: the player beside its description and
-   chapters when there is room, stacked (the player edge to edge) otherwise. */
+/* The card lays out for its own width. With room, the player spans the card's
+   full width (so the picture's own text is large enough to read) with the
+   description and the chapters side by side beneath it; otherwise everything
+   stacks and the player runs edge to edge. */
 .ov-video {
   margin-top: var(--s10);
   container: ov-video / inline-size;
@@ -1810,19 +1813,38 @@ button.jr-step:hover {
 }
 @container ov-video (min-width: 48rem) {
   .ov-video__grid {
-    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      'media body'
-      'tr body';
-    grid-template-rows: auto 1fr;
-    gap: var(--s5) var(--s6);
-    align-items: start;
+      'media'
+      'body'
+      'tr';
+    gap: var(--s6);
   }
   .ov-video__media {
     grid-area: media;
   }
   .ov-video__body {
     grid-area: body;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(17rem, 24rem);
+    column-gap: var(--s8);
+    align-items: start;
+  }
+  /* The eyebrow and title run across the top, like a video's title under the
+     picture; then the description on the left and the chapters on the right. */
+  .ov-video__body > * {
+    grid-column: 1;
+  }
+  .ov-video__body > .card__eyebrow,
+  .ov-video__body > .ov-video__title {
+    grid-column: 1 / -1;
+  }
+  .ov-video__body > .ov-vchap__wrap {
+    grid-column: 2;
+    grid-row: 3 / span 8;
+  }
+  .ov-video__body > .ov-vchap__wrap > .ov-vchap__title {
+    margin-top: 0;
   }
   .ov-vtr {
     grid-area: tr;
@@ -2136,6 +2158,14 @@ button.jr-step:hover {
 .vp.is-started:not(.is-ended) .vp-big {
   display: none;
 }
+/* On the last frame, Replay sits below the closing words, above the bar. */
+@container vp (min-width: 36rem) {
+  .vp.is-ended .vp-big {
+    top: auto;
+    bottom: calc(var(--vp-bar-h) + 1.5cqw);
+    margin-top: 0;
+  }
+}
 .vp-dur {
   position: absolute;
   right: 12px;
@@ -2397,8 +2427,9 @@ button.jr-step:hover {
 
 /* ------------------------------------------------------------- Stage */
 /* Everything inside is sized in cqw (stage widths), so the picture scales as
-   one, inline and in full screen. Each animated property is written by the
-   script from the playhead (drawFrame), never by CSS transitions. */
+   one, inline and in full screen (the phone frame, below, mixes in a pixel
+   floor so its type stays readable). Each animated property is written by
+   the script from the playhead (drawFrame), never by CSS transitions. */
 .vs-scene,
 .vs-chrome {
   /* Nothing in the picture follows the page's text size (it is a frame of film;
@@ -3145,7 +3176,7 @@ button.jr-step:hover {
   position: absolute;
   left: 8cqw;
   right: 8cqw;
-  top: 7.5cqw;
+  top: 5cqw;
   display: grid;
   justify-items: center;
   gap: 1.6cqw;
@@ -3173,6 +3204,583 @@ button.jr-step:hover {
   border: 0.15cqw solid color-mix(in srgb, var(--vs-ink) 50%, transparent);
   font-size: 1.55cqw;
   font-weight: 650;
+}
+
+/* Where the pointer waits on a phone (the 16:9 frame uses fixed spots). */
+.vs-spot {
+  display: none;
+}
+
+/* ------------------------------------------------------- Phone frame */
+/* A narrow player (a phone held upright, also in full screen) draws a
+   portrait 3:4 frame with its own layout for every chapter: the panels
+   stacked and centred under the chapter's title, secondary details left
+   out, and type sized for a phone. --u is the smallest text in the
+   picture: 11 px on a 286 px frame (a 320 px screen), about 12.8 px at
+   356 px (390 px), growing a little more slowly than the frame. The
+   timeline is the same in both frames: drawFrame(t) sets the same
+   properties at the same times; only where things sit differs. The foot of
+   the frame is kept for the captions (and, before the first Play, the big
+   Play button), so they do not cover the figures. */
+@container vp (max-width: 35.99rem) {
+  .vp-screen {
+    --u: calc(3.6px + 2.6cqw);
+    --pad: 4cqw;
+    --ccb: calc(var(--u) * 3.4 + 7.6cqw);
+    --big: clamp(48px, 13cqw, 64px);
+  }
+  .vp-stage {
+    aspect-ratio: 3 / 4;
+  }
+  .vs-scene,
+  .vs-chrome {
+    font-size: var(--u);
+  }
+  .vs-scene {
+    display: flex;
+    flex-direction: column;
+    gap: 3cqw;
+    padding: 4.4cqw var(--pad) var(--ccb);
+  }
+  /* The corner logo is left out: the greeting and the last frame carry it. */
+  .vs-chrome {
+    display: none;
+  }
+  .vs-n {
+    width: calc(var(--u) * 1.8);
+    height: calc(var(--u) * 1.8);
+    font-size: var(--u);
+  }
+  .vs-eyebrow {
+    position: relative;
+    left: auto;
+    top: auto;
+    flex: none;
+    gap: 2.2cqw;
+    font-size: var(--u);
+    letter-spacing: 0.05em;
+    line-height: 1.25;
+  }
+  .vs-eyebrow .vs-n {
+    width: calc(var(--u) * 1.8);
+    height: calc(var(--u) * 1.8);
+    font-size: var(--u);
+  }
+  .vs-card {
+    position: relative;
+    left: auto;
+    right: auto;
+    top: auto;
+    width: auto;
+    height: auto;
+    padding: 3.2cqw 3.4cqw;
+    border-radius: 2.8cqw;
+    box-shadow: 0 1cqw 4cqw color-mix(in srgb, var(--vs-deep) 45%, transparent);
+  }
+  .vs-label {
+    margin-bottom: 1.6cqw;
+    font-size: var(--u);
+    letter-spacing: 0.05em;
+    line-height: 1.25;
+  }
+  .vs-dir {
+    width: calc(var(--u) * 1.7);
+    height: calc(var(--u) * 1.7);
+  }
+  .vs-dir .icon {
+    width: calc(var(--u) * 1.05);
+    height: calc(var(--u) * 1.05);
+  }
+  .vs-ico {
+    width: calc(var(--u) * 2.3);
+    height: calc(var(--u) * 2.3);
+  }
+  .vs-ico .icon {
+    width: calc(var(--u) * 1.3);
+    height: calc(var(--u) * 1.3);
+  }
+  .vp-stage .mono {
+    font-size: max(0.92em, var(--u));
+  }
+
+  /* 1. Greeting: name and period, then the agenda, centred. */
+  .vs-greet {
+    gap: 0;
+  }
+  .vs-greet__logo {
+    position: relative;
+    left: auto;
+    top: auto;
+    margin-top: auto;
+  }
+  .vs-greet__logo .vs-logo {
+    --logo-h: calc(var(--u) * 2.2);
+  }
+  .vs-greet__text {
+    position: relative;
+    left: auto;
+    top: auto;
+    width: auto;
+    margin-top: 5cqw;
+  }
+  .vs-greet__hello {
+    font-size: calc(var(--u) * 2.75);
+  }
+  .vs-greet__sub {
+    margin-top: 2cqw;
+    font-size: calc(var(--u) * 1.2);
+  }
+  .vs-greet__agenda {
+    right: auto;
+    top: auto;
+    width: auto;
+    margin: 6cqw 0 auto;
+    padding: 3.2cqw 3.6cqw;
+  }
+  .vs-agenda {
+    gap: 1.6cqw;
+  }
+  .vs-agenda li {
+    gap: 2.4cqw;
+    font-size: calc(var(--u) * 1.12);
+  }
+
+  /* 2. Balance: the four rows, then a compact bridge (its figures are the rows'). */
+  .vs-bal__card {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: calc(var(--u) * 24);
+    margin: auto 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2cqw;
+    padding: 3cqw 3.4cqw 3.4cqw;
+  }
+  .vs-rows {
+    gap: 0.8cqw;
+  }
+  .vs-row {
+    gap: 2.2cqw;
+    padding: 1.2cqw 1.8cqw;
+    border-radius: 1.8cqw;
+    font-size: calc(var(--u) * 1.1);
+    box-shadow: inset 0 0 0 0.4cqw color-mix(in srgb, var(--primary) calc(var(--hl, 0) * 55%), transparent);
+  }
+  .vs-row__label {
+    text-wrap: balance;
+  }
+  .vs-row--closing {
+    margin-top: 0.4cqw;
+    font-size: calc(var(--u) * 1.2);
+  }
+  .vs-net {
+    gap: 1.6cqw;
+    margin: 1.6cqw 0 0;
+    padding: 0.9cqw 2.4cqw;
+    border-width: 0.35cqw;
+    font-size: var(--u);
+  }
+  .vs-net .icon {
+    width: calc(var(--u) * 1.2);
+    height: calc(var(--u) * 1.2);
+  }
+  .vs-bal__chart {
+    flex: 1;
+    min-height: 12cqw;
+  }
+  .vs-plot {
+    inset: 1.4cqw 3cqw 0;
+  }
+  .vs-plot__base,
+  .vs-link {
+    border-top-width: 0.4cqw;
+  }
+  .vs-bar {
+    border-radius: 1cqw;
+    box-shadow: 0 0 0 calc(var(--hl, 0) * 0.6cqw) var(--vs-card), 0 0 0 calc(var(--hl, 0) * 1.2cqw) color-mix(in srgb, var(--ink) 45%, transparent);
+  }
+  .vs-bar__v {
+    display: none;
+  }
+
+  /* 3. Largest movement: the movement itself, then every movement (whose
+     foot a long caption may cover). */
+  .vs-big .vs-eyebrow {
+    order: -2;
+  }
+  .vs-big__tx {
+    order: -1;
+    margin-top: auto;
+  }
+  .vs-big__chart {
+    left: auto;
+    top: auto;
+    width: auto;
+    height: auto;
+    flex: 1 1 auto;
+    min-height: 24cqw;
+    max-height: calc(var(--u) * 12);
+    margin-bottom: auto;
+  }
+  .vs-mvplot {
+    margin: 0.6cqw 0 1.4cqw;
+  }
+  .vs-mvplot__base {
+    border-top-width: 0.4cqw;
+  }
+  .vs-mv {
+    border-radius: 0.6cqw;
+  }
+  .vs-mv.is-max {
+    box-shadow: 0 0 0 calc(var(--hl, 0) * 0.6cqw) var(--vs-card), 0 0 0 calc(var(--hl, 0) * 1.3cqw) var(--ink);
+  }
+  /* The flag repeats the figure the card below shows large. */
+  .vs-flag {
+    display: none;
+  }
+  .vs-axis {
+    font-size: var(--u);
+  }
+  .vs-big__tx {
+    left: auto;
+    top: auto;
+    width: auto;
+    height: auto;
+    flex: none;
+  }
+  .vs-big__head {
+    gap: 2.4cqw;
+  }
+  .vs-big__amt {
+    margin: 1.6cqw 0 0.4cqw;
+    font-size: calc(var(--u) * 2.4);
+  }
+  .vs-big__amt span {
+    font-size: calc(var(--u) * 1.15);
+  }
+  .vs-big__desc {
+    margin: 0 0 1.4cqw;
+    font-size: calc(var(--u) * 1.15);
+  }
+  .vs-kv {
+    font-size: calc(var(--u) * 1.05);
+  }
+  .vs-kv--grid {
+    gap: 0.6cqw 2.4cqw;
+  }
+  .vs-kv--grid .vs-kv__row {
+    gap: 0.3cqw;
+    padding: 0.8cqw 1.8cqw;
+    margin: 0 -1.8cqw;
+    border-radius: 1.6cqw;
+  }
+  .vs-kv--grid .vs-kv__row > :first-child {
+    font-size: var(--u);
+  }
+  .vs-big__none {
+    left: auto;
+    right: auto;
+    top: auto;
+    margin: auto 0;
+    font-size: calc(var(--u) * 1.4);
+  }
+
+  /* 4. How to inspect a transaction: the journey's steps, the step's rows
+     beneath them, then the detail over the whole card. */
+  .vs-app {
+    left: auto;
+    right: auto;
+    top: auto;
+    height: auto;
+    flex: none;
+    margin: auto 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .vs-app__journey {
+    flex: none;
+    padding: 2.8cqw 3cqw 2.6cqw;
+    border-right: 0;
+    border-bottom: 0.35cqw solid var(--line);
+    /* The detail slides over the whole card: the steps fade out beneath it (--p, from the playhead). */
+    opacity: calc(1 - var(--p, 0));
+  }
+  /* The caption names the journey. */
+  .vs-app__journey > .vs-label {
+    display: none;
+  }
+  .vs-steps {
+    gap: 0.8cqw;
+  }
+  .vs-step {
+    gap: 1.6cqw;
+    padding: 0.8cqw 1.6cqw;
+    border-width: 0.35cqw;
+    border-radius: 1.6cqw;
+    font-size: var(--u);
+  }
+  .vs-step .vs-dir {
+    width: calc(var(--u) * 1.4);
+    height: calc(var(--u) * 1.4);
+  }
+  .vs-step .vs-dir .icon {
+    width: calc(var(--u) * 0.9);
+    height: calc(var(--u) * 0.9);
+  }
+  .vs-step__check {
+    width: calc(var(--u) * 1.35);
+    height: calc(var(--u) * 1.35);
+    margin-left: 0;
+  }
+  .vs-step__check .icon {
+    width: calc(var(--u) * 0.95);
+    height: calc(var(--u) * 0.95);
+  }
+  .vs-app__panel {
+    flex: 1;
+    padding: 2.6cqw 3cqw 3cqw;
+  }
+  /* "Transactions behind this step ·" is left out: the step's name stays. */
+  .vs-label__lead {
+    display: none;
+  }
+  .vs-hint {
+    inset: 2.6cqw 3cqw 3cqw;
+    padding: 2cqw 3cqw;
+    border-width: 0.4cqw;
+    border-radius: 1.8cqw;
+    font-size: calc(var(--u) * 1.05);
+  }
+  .vs-trows {
+    gap: 0.8cqw;
+  }
+  /* Three rows at most (the one the walkthrough opens always among them). */
+  .vs-trow:nth-child(n + 4):not(.is-target) {
+    display: none;
+  }
+  .vs-trow {
+    gap: 1.8cqw;
+    padding: 0.8cqw 1.6cqw;
+    border-width: 0.35cqw;
+    border-radius: 1.6cqw;
+    font-size: calc(var(--u) * 1.05);
+  }
+  .vs-sum {
+    gap: 1.8cqw;
+    margin-top: 1.4cqw;
+    padding: 1cqw 1.8cqw;
+    border-radius: 1.6cqw;
+    font-size: var(--u);
+  }
+  .vs-sum .icon {
+    width: calc(var(--u) * 1.2);
+    height: calc(var(--u) * 1.2);
+  }
+  .vs-sheet {
+    left: 0;
+    width: auto;
+    padding: 3.2cqw 3.6cqw;
+    border-left: 0;
+    box-shadow: none;
+  }
+  .vs-sheet__title {
+    font-size: calc(var(--u) * 1.25);
+    line-height: 1.25;
+  }
+  .vs-sheet__amt {
+    flex-wrap: wrap;
+    gap: 0.8cqw 2.4cqw;
+    margin: 0.8cqw 0 2cqw;
+    font-size: calc(var(--u) * 1.9);
+    line-height: 1.2;
+  }
+  /* The detail's facts one per line, so a date and time stay together. */
+  .vs-sheet .vs-kv--grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.4cqw;
+  }
+  .vs-sheet .vs-kv--grid .vs-kv__row {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: baseline;
+    gap: 3cqw;
+  }
+  .vs-sheet .vs-kv--grid .vs-kv__row > :last-child {
+    text-align: right;
+  }
+  .vs-status {
+    gap: 1cqw;
+    padding: 0.4cqw 1.8cqw;
+    font-size: var(--u);
+  }
+  .vs-status .icon {
+    width: calc(var(--u) * 1.05);
+    height: calc(var(--u) * 1.05);
+  }
+  .vs-actions {
+    position: relative;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.8cqw;
+    margin-top: 2.6cqw;
+  }
+  .vs-btn {
+    gap: 1.6cqw;
+    padding: 1.3cqw 2.8cqw;
+    border-width: 0.35cqw;
+    font-size: calc(var(--u) * 1.05);
+    box-shadow: 0 0 0 calc(var(--hl, 0) * 1cqw) color-mix(in srgb, var(--focus) 60%, transparent);
+  }
+  .vs-btn .icon {
+    width: calc(var(--u) * 1.15);
+    height: calc(var(--u) * 1.15);
+  }
+  /* Where the pointer waits on a phone: below the hint, and beside the buttons. */
+  .vs-spot {
+    display: block;
+    position: absolute;
+    width: 0;
+    height: 0;
+  }
+  .vs-spot--rest {
+    right: 16%;
+    bottom: 9%;
+  }
+  .vs-spot--aside {
+    right: 14%;
+    top: calc(100% + 5.5cqw);
+  }
+  .vs-pointer {
+    width: calc(var(--u) * 2);
+    height: calc(var(--u) * 2);
+    margin: calc(var(--u) * -1) 0 0 calc(var(--u) * -1);
+    border-width: 0.6cqw;
+  }
+  .vs-pointer::after {
+    inset: -0.9cqw;
+    border-width: 0.6cqw;
+  }
+
+  /* 5. Where to get help: the two cards stacked, each icon beside its title. */
+  .vs-help__cards {
+    display: flex;
+    flex-direction: column;
+    gap: 3cqw;
+    padding: 4.4cqw var(--pad) var(--ccb);
+  }
+  .vs-help__ask {
+    margin-top: auto;
+  }
+  .vs-help__help {
+    margin-bottom: auto;
+  }
+  .vs-help__ask,
+  .vs-help__help {
+    left: auto;
+    top: auto;
+    width: auto;
+    height: auto;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 2.6cqw;
+    box-shadow:
+      0 1cqw 4cqw color-mix(in srgb, var(--vs-deep) 45%, transparent),
+      0 0 0 calc(var(--hl, 0) * 1cqw) var(--vs-ink);
+  }
+  .vs-help__p,
+  .vs-chip,
+  .vs-contact {
+    grid-column: 1 / -1;
+  }
+  .vs-help__t {
+    margin: 0;
+    font-size: calc(var(--u) * 1.5);
+    line-height: 1.2;
+  }
+  .vs-help__p {
+    margin: 1.6cqw 0 2cqw;
+    font-size: calc(var(--u) * 1.08);
+  }
+  .vs-chip {
+    justify-self: start;
+    gap: 1.4cqw;
+    padding: 1.2cqw 2.4cqw;
+    border-width: 0.35cqw;
+    font-size: calc(var(--u) * 1.05);
+  }
+  .vs-chip .icon,
+  .vs-contact .icon {
+    width: calc(var(--u) * 1.15);
+    height: calc(var(--u) * 1.15);
+  }
+  .vs-contact {
+    gap: 1.4cqw;
+    font-size: calc(var(--u) * 1.05);
+  }
+  .vs-contact li {
+    gap: 2cqw;
+  }
+  .vs-end {
+    left: var(--pad);
+    right: var(--pad);
+    top: 0;
+    bottom: var(--ccb);
+    align-content: center;
+    gap: 3cqw;
+  }
+  .vs-end .vs-logo {
+    --logo-h: calc(var(--u) * 2.8);
+  }
+  .vs-end__bye {
+    margin: 1cqw 0 0;
+    font-size: calc(var(--u) * 2.5);
+    text-wrap: balance;
+  }
+  .vs-end__sig {
+    font-size: calc(var(--u) * 1.15);
+  }
+  .vs-end__demo {
+    margin-top: 1cqw;
+    padding: 0.8cqw 2.6cqw;
+    border-width: 0.35cqw;
+    font-size: var(--u);
+  }
+
+  /* Captions in the foot of the frame, and the big Play there before the first Play. */
+  .vp-cc {
+    left: var(--pad);
+    right: var(--pad);
+    bottom: 2.6cqw;
+    font-size: clamp(min(0.8125rem, 5cqw), calc(var(--u) * 1.15), 1.25rem);
+    line-height: 1.45;
+  }
+  .vp-big {
+    top: auto;
+    bottom: max(2cqw, calc((var(--ccb) - var(--big)) / 2));
+    width: var(--big);
+    height: var(--big);
+    margin: 0 0 0 calc(var(--big) / -2);
+  }
+  .vp-dur {
+    right: var(--pad);
+    bottom: calc((var(--ccb) - 1.6em) / 2);
+  }
+  .vp.is-fs .vp-screen {
+    width: min(100%, calc((100vh - 5.5rem) * 3 / 4));
+  }
+  /* A narrow column on a landscape screen (a tablet, a small laptop, or
+     beside the docked assistant) also gets this frame: in the page it stays
+     within the screen's height, below the masthead and with the bar, so
+     the captions and controls show with the picture. It is pillarboxed, and
+     never narrower than on a 320 px phone. Phones held upright are not
+     affected. */
+  @media (orientation: landscape) {
+    .vp:not(.is-fs) .vp-screen {
+      width: min(100%, max(18rem, calc((100vh - 12.5rem) * 3 / 4)));
+      width: min(100%, max(18rem, calc((100svh - 12.5rem) * 3 / 4)));
+      margin-inline: auto;
+    }
+  }
 }
 
 /* Motion is optional: nothing here may move under reduced motion. */

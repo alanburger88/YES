@@ -433,12 +433,75 @@ export default async function (t) {
   });
   t.eq(logoArtRow, { svg: true, text: 'Logo artwork supplied' }, 'supplied logo artwork is shown and named in the slot table');
   const slots = await page.$$eval('[data-help-slots] tbody tr', (els) => els.map((e) => e.getAttribute('data-slot-row')));
-  t.eq(slots, ['YES_LOGO', 'YES_PRIMARY', 'YES_ACCENT', 'YES_FONT', 'PRODUCT_NAME', 'ISSUER_OR_PARTNER', 'VIDEO_POSTER', 'DISCLOSURES', 'SUPPORT'], 'replacement slots');
+  t.eq(slots, ['YES_LOGO', 'YES_PRIMARY', 'YES_ACCENT', 'YES_FONT', 'PRODUCT_NAME', 'ISSUER_OR_PARTNER', 'VIDEO_POSTER', 'VIDEO_VOICEOVER', 'DISCLOSURES', 'SUPPORT'], 'replacement slots');
   const slotsCfg = await page.evaluate(() => YES.config.slots);
   t.assert(about.includes(slotsCfg.YES_PRIMARY) && about.includes(slotsCfg.YES_ACCENT), 'colour slot values');
   t.assert(about.includes(slotsCfg.PRODUCT_NAME.en) && about.includes(slotsCfg.ISSUER_OR_PARTNER.en), 'product and issuer slot values');
   t.assert(about.includes(slotsCfg.DISCLOSURES.en.slice(0, 40)), 'disclosures slot value');
-  t.eq(await page.locator('[data-help-slots] .tag--illustrative').count(), 9, 'every slot tagged as placeholder');
+  t.eq(await page.locator('[data-help-slots] .tag--illustrative').count(), 10, 'every slot tagged as placeholder');
+  // The video: the overview's player draws its own poster (its opening frame)
+  // and narrates with the device voice unless an approved recording is set.
+  const videoAbout = await text('[data-enh="video"]');
+  t.assert(/never plays on its own/.test(videoAbout) && /device’s built-in voice, or an approved recording/.test(videoAbout), 'video row describes the player and its narration');
+  t.assert(!/placeholder poster/i.test(about), 'no drawn placeholder poster is claimed');
+  const slotValue = (row) => page.$eval(`[data-slot-row="${row}"] .help-slot__value`, (e) => e.innerText.replace(/\s*\n\s*/g, ' | ').trim());
+  t.eq(slotsCfg.VIDEO_POSTER, null, 'no poster configured in the demo');
+  t.eq(await slotValue('VIDEO_POSTER'), 'Not set — the player shows its own opening frame', 'unset poster: the player’s opening frame');
+  const noVoice = 'English: not set | Spanish: not set | Narration uses the device’s built-in voice, if it has one for that language. Captions and a transcript are always available.';
+  t.eq(slotsCfg.VIDEO_VOICEOVER, { en: null, es: null }, 'no recording configured in the demo');
+  t.eq(await slotValue('VIDEO_VOICEOVER'), noVoice, 'voiceover slot: per-language state and the device-voice fallback');
+  // The table reports what the player will actually use: data: URIs only.
+  const slotStates = await page.evaluate(() => {
+    const s = YES.config.slots;
+    const read = () => {
+      YES.renderAll();
+      const v = (r) => document.querySelector(`[data-slot-row="${r}"] .help-slot__value`).innerText.replace(/\s*\n\s*/g, ' | ').trim();
+      return { poster: v('VIDEO_POSTER'), voice: v('VIDEO_VOICEOVER') };
+    };
+    const out = {};
+    s.VIDEO_POSTER = 'data:image/png;base64,iVBORw0KGgo=';
+    s.VIDEO_VOICEOVER.en = 'data:audio/mpeg;base64,SUQz';
+    out.some = read();
+    s.VIDEO_VOICEOVER.es = 'data:audio/wav;base64,UklGRg==';
+    out.all = read();
+    s.VIDEO_POSTER = 'https://example.invalid/poster.png';
+    s.VIDEO_VOICEOVER.en = 'https://example.invalid/voice-en.mp3';
+    out.ignored = read();
+    s.VIDEO_POSTER = null;
+    s.VIDEO_VOICEOVER.en = null;
+    s.VIDEO_VOICEOVER.es = null;
+    YES.renderAll();
+    return out;
+  });
+  t.eq(
+    slotStates.some,
+    {
+      poster: 'Poster image supplied',
+      voice: 'English: approved recording set | Spanish: not set | A language without a recording uses the device’s built-in voice, if it has one. Captions and a transcript are always available.'
+    },
+    'one recording set: named per language'
+  );
+  t.eq(slotStates.all.voice, 'English: approved recording set | Spanish: approved recording set | Each language plays its approved recording. Captions and a transcript are always available.', 'both recordings set');
+  t.eq(
+    slotStates.ignored,
+    {
+      poster: 'Not used — only an image packaged in this file (a data: URI) is shown, so the player shows its own opening frame',
+      voice:
+        'English: not used — a recording must be packaged in this file (a data: audio URI) | Spanish: approved recording set | A language without a recording uses the device’s built-in voice, if it has one. Captions and a transcript are always available.'
+    },
+    'values the player would not use (a URL is a request) are reported as not used'
+  );
+  t.eq(await slotValue('VIDEO_VOICEOVER'), noVoice, 'restored');
+  await setLang('es');
+  t.eq(await slotValue('VIDEO_POSTER'), 'Sin definir: el reproductor muestra su propio fotograma inicial', 'poster slot in Spanish');
+  t.eq(
+    await slotValue('VIDEO_VOICEOVER'),
+    'Inglés: sin definir | Español: sin definir | La narración usa la voz integrada del dispositivo, si tiene una para ese idioma. Los subtítulos y la transcripción siempre están disponibles.',
+    'voiceover slot in Spanish'
+  );
+  t.assert(/nunca se reproduce solo/.test(await text('[data-enh="video"]')), 'video row in Spanish');
+  await shotEl('#help-about', 'about-es');
+  await setLang('en');
   await shotEl('#help-about', 'about');
 
   // English copy follows the en-US locale used for dates and numbers.
@@ -865,6 +928,10 @@ export default async function (t) {
   t.assert(lum(darkColors.bg) < 0.2 && lum(darkColors.ink) > 0.7, 'options follow the dark tokens: ' + JSON.stringify(darkColors));
   await shotEl('#help-record', 'record-dark');
   await seriousAxe('#help-record', 'Download or print (dark mode chosen)');
+  await page.evaluate(() => YES.help.open('about'));
+  await settle(500);
+  await shotEl('#help-about', 'about-dark');
+  await seriousAxe('#help-about', 'About this demo (dark mode chosen)');
   await page.evaluate(() => YES.theme.set('light'));
   t.assert(lum(await page.$eval('#help-record .help-dl__opt', (e) => getComputedStyle(e).backgroundColor)) > 0.9, 'light choice: light surfaces');
   await page.evaluate(() => YES.theme.set(null));

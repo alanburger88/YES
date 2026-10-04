@@ -1048,14 +1048,21 @@ const SCREENS = fileURLToPath(new URL('../test-results/screens/', import.meta.ur
 /**
  * Device voice stub (speechSynthesis): records what is spoken, in which
  * language and voice, and every cancel; an utterance ends 40 ms after it
- * starts. sessionStorage 'ovtest.tts' picks 'voices' (en-US and es-ES, local),
- * 'remote' (network voices only) or 'none' (the device has no voice). Full
- * screen requests are recorded.
+ * starts. Every speak() call is also listed in __tts.calls, marked silent
+ * (volume 0: the iOS unlock) or not, and whether it ran inside a click's
+ * dispatch (between a capturing and a bubbling listener on window), i.e.
+ * synchronously within the click handler; __tts.spoken lists the audible
+ * ones only. sessionStorage 'ovtest.tts' picks 'voices' (en-US and es-ES,
+ * local), 'remote' (network voices only) or 'none' (the device has no
+ * voice). Full screen requests are recorded.
  */
 const TTS_STUB = `(() => {
   const mode = sessionStorage.getItem('ovtest.tts');
   if (!mode) return;
-  window.__tts = { spoken: [], cancels: 0 };
+  window.__tts = { spoken: [], calls: [], cancels: 0 };
+  let inClick = false;
+  window.addEventListener('click', () => { inClick = true; }, true);
+  window.addEventListener('click', () => { inClick = false; });
   const voices = mode === 'none' ? [] : mode === 'remote' ? [
     { name: 'Stub Online English', lang: 'en-US', localService: false, default: true, voiceURI: 'stub-online-en' },
     { name: 'Stub Online Español', lang: 'es-ES', localService: false, default: false, voiceURI: 'stub-online-es' }
@@ -1071,7 +1078,8 @@ const TTS_STUB = `(() => {
     speaking: false, pending: false, paused: false,
     getVoices: () => voices.slice(),
     speak(u) {
-      __tts.spoken.push({ text: u.text, lang: u.lang, voice: u.voice ? u.voice.name : null });
+      __tts.calls.push({ text: u.text, silent: u.volume === 0, inClick, lang: u.lang });
+      if (u.volume !== 0) __tts.spoken.push({ text: u.text, lang: u.lang, voice: u.voice ? u.voice.name : null });
       synth.speaking = true;
       setTimeout(() => { synth.speaking = false; if (u.onend) u.onend({}); }, 40);
     },
@@ -1172,11 +1180,68 @@ async function frameShot(t, name) {
 /** The chapters' frames: greeting, balance, largest movement, the detail of a transaction, help. */
 const CHAPTER_FRAMES = [5, 23, 33.5, 44.4, 53.5];
 async function chapterShots(t, tag) {
-  if (t.viewport === 'narrow') return;
   for (let i = 0; i < CHAPTER_FRAMES.length; i++) {
     await t.page.evaluate((s) => YES.overview.video.seek(s), CHAPTER_FRAMES[i]);
     await frameShot(t, `${tag}-ch${i + 1}`);
   }
+}
+
+/** Frames across every chapter: its start, mid-animation and its end. */
+const READ_FRAMES = [0.6, 3.2, 6.2, 7.4, 11.6, 15.2, 20.4, 24.1, 25.6, 27.6, 31.6, 34.4, 36.4, 38.4, 40.6, 42.9, 44.4, 47.2, 49.8, 51.6, 53.5, 55.6, 59.2];
+/**
+ * The picture's text at each of READ_FRAMES (seeking while paused): the
+ * smallest computed font size of any text shown, text drawn outside the
+ * frame, and figures or labels the caption covers.
+ */
+async function stageText(page) {
+  return page.evaluate((times) => {
+    const st = document.querySelector('.vp-stage');
+    const sr = st.getBoundingClientRect();
+    const out = { frame: [st.clientWidth, st.clientHeight], min: { size: Infinity }, outside: [], covered: [] };
+    const shown = (el) => {
+      if (!el.getClientRects().length || getComputedStyle(el).visibility !== 'visible') return false;
+      let o = 1;
+      for (let p = el; p && p !== st.parentElement; p = p.parentElement) o *= +getComputedStyle(p).opacity;
+      return o > 0.05;
+    };
+    const KEY = '.vs-row__val, .vs-net strong, .vs-big__amt, .vs-kv__row, .vs-sheet__amt, .vs-step__val, .vs-trow__amt, .vs-sum strong, .vs-btn, .vs-chip, .vs-contact li, .vs-agenda li, .vs-greet__hello, .vs-end__bye';
+    for (const sec of times) {
+      YES.overview.video.seek(sec);
+      const walker = document.createTreeWalker(st, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const el = n.parentElement;
+        if (!n.textContent.trim() || !shown(el)) continue;
+        const size = parseFloat(getComputedStyle(el).fontSize);
+        if (size < out.min.size) out.min = { size: Math.round(size * 100) / 100, at: sec, text: n.textContent.trim().slice(0, 40) };
+        const r = el.getBoundingClientRect();
+        if (r.left < sr.left - 1 || r.right > sr.right + 1 || r.top < sr.top - 1 || r.bottom > sr.bottom + 1) out.outside.push(sec + ' ' + n.textContent.trim().slice(0, 30));
+      }
+      const cc = st.querySelector('[data-vp-cc]');
+      if (cc && !cc.hidden && cc.textContent.trim()) {
+        const c = cc.firstChild.getBoundingClientRect();
+        st.querySelectorAll(KEY).forEach((el) => {
+          if (!shown(el)) return;
+          const r = el.getBoundingClientRect();
+          if (r.left < c.right && c.left < r.right && r.top < c.bottom - 1 && c.top + 1 < r.bottom) out.covered.push(sec + ' ' + el.textContent.trim().slice(0, 30));
+        });
+      }
+    }
+    return out;
+  }, READ_FRAMES);
+}
+/** A phone gets a portrait 3:4 frame whose smallest text is 11 px at 320 px and 12 px or more at 390 px; a wide player keeps 16:9. */
+async function readable(t, lang) {
+  const rd = await stageText(t.page);
+  const ratio = rd.frame[0] / rd.frame[1];
+  if (t.viewport === 'desktop') t.assert(Math.abs(ratio - 16 / 9) < 0.02, `a 16:9 frame on a wide player (${lang}): ` + rd.frame);
+  else {
+    t.assert(Math.abs(ratio - 3 / 4) < 0.02, `a portrait 3:4 frame on a phone (${lang}): ` + rd.frame);
+    const floor = t.viewport === 'narrow' ? 11 : 12;
+    t.assert(rd.min.size >= floor, `every text in the picture is at least ${floor} px (${lang}): smallest ` + JSON.stringify(rd.min));
+    t.eq(rd.covered, [], `captions cover no figure or label (${lang})`);
+  }
+  t.eq(rd.outside, [], `no text drawn outside the frame (${lang})`);
+  return rd;
 }
 
 async function videoSuite(t) {
@@ -1305,6 +1370,10 @@ async function videoSuite(t) {
   await page.evaluate(() => YES.overview.video.seek(0));
   t.eq(await said(page), [], 'seeking while paused speaks nothing');
 
+  t.step('video: the picture is readable at this width (English)');
+  await readable(t, 'en');
+  t.eq(await said(page), [], 'still nothing spoken');
+
   /* -------------------------------------------------------------- play */
   t.step('video: Play starts the picture and the voice');
   await page.evaluate(() => YES.overview.video.pause());
@@ -1369,6 +1438,41 @@ async function videoSuite(t) {
   await runFor(page, 2000);
   t.eq((await said(page)).slice(n0), [byId.closing.say], '…and reads the next cue when it starts');
   await page.click('[data-fk="vp-toggle"]');
+
+  t.step('video: every Play, chapter, transcript or unmute gesture speaks inside its click handler (iOS)');
+  // iOS Safari allows speech started from animation frames only after speech
+  // was started synchronously inside a user gesture.
+  const nCalls = () => page.evaluate(() => window.__tts.calls.length);
+  const callsFrom = (k) => page.evaluate((n) => window.__tts.calls.slice(n).map((c) => [c.silent ? 'silent' : c.text, c.inClick]), k);
+  await page.evaluate(() => YES.overview.video.seek(13.4)); // outgoing (13.1–18.2), within its first 40%
+  let k0 = await nCalls();
+  await page.click('[data-fk="vp-toggle"]');
+  t.eq(await callsFrom(k0), [[byId.outgoing.say, true]], 'Play with a cue due: that cue is spoken synchronously within the click handler');
+  k0 = await nCalls();
+  await page.click('[data-fk="vp-toggle"]');
+  t.eq([await callsFrom(k0), (await vstate(page)).playing], [[], false], 'Pause speaks nothing');
+  await page.evaluate(() => YES.overview.video.seek(16.5)); // past its 40%: nothing due
+  k0 = await nCalls();
+  await page.click('[data-fk="vp-toggle"]');
+  t.eq(await callsFrom(k0), [['silent', true]], 'Play with nothing due: a silent utterance, synchronously within the click handler');
+  t.eq(await page.evaluate((k) => [window.__tts.calls[k].text, window.__tts.calls[k].lang], k0), [' ', 'en-US'], '…a single space at volume 0, in the statement’s language');
+  await runFor(page, 2000);
+  t.eq(await callsFrom(k0 + 1), [[byId.closing.say, false]], '…after which the next cue is spoken from an animation frame');
+  k0 = await nCalls();
+  await page.click('[data-vp-ch="2"]');
+  t.eq(await callsFrom(k0), [[byId.largest.say, true]], 'a chapter click speaks its first cue within the click handler');
+  await page.click('[data-fk="vp-mute"]');
+  await runFor(page, 2500); // muted, past the first 40% of "largest"
+  k0 = await nCalls();
+  await page.click('[data-fk="vp-mute"]');
+  t.eq(await callsFrom(k0), [['silent', true]], 'unmuting with nothing due: a silent utterance within the click handler');
+  await page.evaluate(() => (document.querySelector('.ov-vtr').open = true));
+  k0 = await nCalls();
+  await page.click('[data-vp-cue="7"]');
+  t.eq(await callsFrom(k0), [[byId.what.say, true]], 'a transcript line speaks its cue within the click handler');
+  await page.click('[data-fk="vp-toggle"]');
+  await page.evaluate(() => (document.querySelector('.ov-vtr').open = false));
+  t.eq((await vstate(page)).playing, false, 'paused again');
 
   t.step('video: the seek slider by keyboard');
   const range = page.locator('[data-vp-range]');
@@ -1511,6 +1615,8 @@ async function videoSuite(t) {
     return b.getClientRects().length === 0;
   });
   t.assert(esClear, 'once started, the big Play stays away until the end');
+  t.step('video: the picture is readable at this width (Spanish, the longer language)');
+  await readable(t, 'es');
   await chapterShots(t, 'es-light');
 
   t.step('video: dark scheme (Spanish, then English)');
@@ -1556,13 +1662,26 @@ async function videoSuite(t) {
       YES.overview.video.seek(35.0 + 1.3); // the pointer half-way to the journey step
       const p = document.querySelector('.vs-pointer');
       out.ptr = [p.style.left, p.style.top];
+      // Where the pointer rests: a fixed spot on the 16:9 frame, a marked one on the phone frame.
+      const spot = document.querySelector('.vs-spot--rest');
+      out.rest = ['72%', '82%'];
+      if (spot.offsetParent) {
+        const st = document.querySelector('.vp-stage');
+        let x = 0;
+        let y = 0;
+        for (let n = spot; n && n !== st; n = n.offsetParent) {
+          x += n.offsetLeft;
+          y += n.offsetTop;
+        }
+        out.rest = [Math.round((x / st.clientWidth) * 10000) / 100 + '%', Math.round((y / st.clientHeight) * 10000) / 100 + '%'];
+      }
       return out;
     });
   const moving = await frame();
-  t.assert(/translate/.test(moving.card) && +moving.bar > 0 && +moving.bar < 1 && moving.ptr[0] !== '72%', 'with motion: entrances move, bars grow, the pointer glides: ' + JSON.stringify(moving));
+  t.assert(/translate/.test(moving.card) && +moving.bar > 0 && +moving.bar < 1 && moving.ptr[0] !== moving.rest[0], 'with motion: entrances move, bars grow, the pointer glides: ' + JSON.stringify(moving));
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const still = await frame();
-  t.eq([still.card, still.bar, still.ptr], ['', '1', ['72%', '82%']], 'reduced motion: no movement, bars appear whole, the pointer cuts');
+  t.eq([still.card, still.bar, still.ptr], ['', '1', still.rest], 'reduced motion: no movement, bars appear whole, the pointer cuts');
   await page.evaluate(() => YES.overview.video.seek(10, { play: true }));
   await runFor(page, 1000);
   st = await vstate(page);
@@ -1602,7 +1721,8 @@ async function videoSuite(t) {
         art: stage.querySelectorAll('.vs-logo.yes-logo--art').length,
         hidden: [...stage.querySelectorAll('.vs-logo')].every((l) => l.getAttribute('aria-hidden') === 'true' && !l.hasAttribute('role')),
         kind: art ? art.tagName.toLowerCase() : null,
-        height: r ? Math.round((r.height / stage.clientWidth) * 1000) / 10 : null,
+        // On the 16:9 frame a share of the picture's width; on the phone frame sized like its type (2.2 × the smallest text).
+        height: r ? (stage.clientWidth >= stage.clientHeight ? Math.round((r.height / stage.clientWidth) * 1000) / 10 : Math.round((r.height / (parseFloat(getComputedStyle(stage.querySelector('.vs-label')).fontSize) * 2.2)) * 100) / 100) : null,
         ratio: r ? Math.round((r.width / r.height) * 10) / 10 : null,
         ink: greet.classList.contains('yes-logo--art') ? getComputedStyle(greet).color === getComputedStyle(stage.querySelector('.vs-greet__hello')).color : null
       };
@@ -1614,15 +1734,16 @@ async function videoSuite(t) {
     YES.renderAll();
     YES.overview.video.seek(5);
   });
-  t.eq(await logos(), { placeholders: 0, art: 3, hidden: true, kind: 'svg', height: 4.8, ratio: 3, ink: true }, 'approved SVG: in every place, 4.8% of the picture high, 3:1 kept, in the stage ink');
-  if (t.viewport !== 'narrow') await frameShot(t, 'logo-art');
+  const logoH = wide ? 4.8 : 1;
+  t.eq(await logos(), { placeholders: 0, art: 3, hidden: true, kind: 'svg', height: logoH, ratio: 3, ink: true }, 'approved SVG: in every place, ' + (wide ? '4.8% of the picture' : '2.2 × the smallest text') + ' high, 3:1 kept, in the stage ink');
+  await frameShot(t, 'logo-art');
   await page.evaluate(() => {
     delete YES.config.slots.YES_LOGO.svg;
     YES.config.slots.YES_LOGO.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 90 30%22%3E%3Crect width=%2290%22 height=%2230%22 fill=%22%23fff%22/%3E%3C/svg%3E';
     YES.renderAll();
   });
   const dataLogo = await logos();
-  t.eq([dataLogo.art, dataLogo.kind, dataLogo.height], [3, 'img', 4.8], 'a data: image is drawn the same way');
+  t.eq([dataLogo.art, dataLogo.kind, dataLogo.height], [3, 'img', logoH], 'a data: image is drawn the same way');
   await page.evaluate(() => {
     YES.config.slots.YES_LOGO.src = 'https://cdn.example.com/logo.png';
     YES.renderAll();
@@ -1707,7 +1828,7 @@ async function videoSuite(t) {
   t.eq(await caption(page), 'This is your YES statement for ' + norm(fig.period) + '.', 'captions carry the narration');
   await page.evaluate(() => YES.overview.video.pause());
   await axeLive(t, '.ov-video', 'video without a voice');
-  if (t.viewport !== 'narrow') await frameShot(t, 'no-voice');
+  await frameShot(t, 'no-voice');
   await page.clock.resume();
 
   t.step('video: network voices only: never used (they would send the statement’s figures off the device)');

@@ -787,6 +787,22 @@
     // A miniature of the slot as rendered everywhere else; the words name its state.
     var logoMini = ui.logoHtml({ cls: 'help-logo-mini', size: 24, decorative: true });
     var logoArt = logoMini.indexOf('yes-logo--art') !== -1;
+    // The video player uses a poster or a recording only when it is packaged in
+    // this file as a data: URI (anything else would be a request), so the table
+    // reports what the player will actually use, by the same test.
+    var poster = slots.VIDEO_POSTER;
+    var posterKey = poster == null || poster === '' ? 'help.slots.posterNone' : typeof poster === 'string' && /^data:image\//.test(poster) ? 'help.slots.posterSet' : 'help.slots.posterIgnored';
+    var voice = slots.VIDEO_VOICEOVER || {};
+    var voiceUsable = 0;
+    var voiceLines = ['en', 'es']
+      .map(function (lang) {
+        var v = voice[lang];
+        var key = v == null || v === '' ? 'help.slots.voiceNotSet' : typeof v === 'string' && /^data:audio\/[a-z0-9.+-]+[;,]/i.test(v) ? 'help.slots.voiceSet' : 'help.slots.voiceIgnored';
+        if (key === 'help.slots.voiceSet') voiceUsable++;
+        return '<span data-voice-lang="' + lang + '">' + esc(t('help.slots.voiceLang', { lang: t('help.slots.voiceLang.' + lang), state: t(key) })) + '</span>';
+      })
+      .join('');
+    var voiceNote = voiceUsable === 2 ? 'help.slots.voiceNoteAll' : voiceUsable ? 'help.slots.voiceNoteSome' : 'help.slots.voiceNoteNone';
     var slotRows = [
       ['YES_LOGO', logoMini + '<span>' + esc(logoArt ? t('help.slots.logoSvg') : t('help.slots.logoText', { text: logo.text || t('brand.logoAlt') })) + '</span>'],
       ['YES_PRIMARY', swatch(slots.YES_PRIMARY)],
@@ -794,7 +810,8 @@
       ['YES_FONT', '<span class="mono help-slot__font">' + esc(slots.YES_FONT) + '</span>'],
       ['PRODUCT_NAME', esc(YES.L(slots.PRODUCT_NAME))],
       ['ISSUER_OR_PARTNER', esc(YES.L(slots.ISSUER_OR_PARTNER))],
-      ['VIDEO_POSTER', esc(slots.VIDEO_POSTER ? t('help.slots.posterSet') : t('help.slots.posterNone'))],
+      ['VIDEO_POSTER', esc(t(posterKey))],
+      ['VIDEO_VOICEOVER', '<span class="help-slot__lines">' + voiceLines + '<span class="muted">' + esc(t(voiceNote)) + '</span></span>'],
       ['DISCLOSURES', esc(YES.L(slots.DISCLOSURES))],
       [
         'SUPPORT',
@@ -2098,7 +2115,7 @@
         'help.a11y.f.focus': 'Visible focus',
         'help.a11y.f.focus.body': 'A clear outline shows where you are as you move through the page.',
         'help.a11y.f.motion': 'Reduced motion',
-        'help.a11y.f.motion.body': 'Animations are short and optional, and they switch off when your device asks for less motion.',
+        'help.a11y.f.motion.body': 'Animations are brief, and the video plays only when you choose. When your device asks for less motion, movement switches off and the video uses quick fades and cuts.',
         'help.a11y.f.zoom': 'Zoom and reflow',
         'help.a11y.f.zoom.body': 'Text can be enlarged, and the layout reflows down to 320 pixels wide without sideways scrolling.',
         'help.a11y.f.textAlt': 'Text alternatives for charts',
@@ -2150,8 +2167,8 @@
         'help.about.e.inquiry.file': 'A complete local mock. Its confirmation says “Demo only — no inquiry was sent”.',
         'help.about.e.inquiry.prod': 'Secure, authenticated case management with a genuine case ID.',
         'help.about.e.video': 'Personalized video',
-        'help.about.e.video.file': 'An animated walkthrough drawn in the page from this statement’s sample figures, with narration, captions and a transcript. No video file is played or fetched.',
-        'help.about.e.video.prod': 'An approved video with captions and a transcript.',
+        'help.about.e.video.file': 'A player drawn in the page from this statement’s sample figures, with chapters, captions and a transcript; it never plays on its own. Narration uses the device’s built-in voice, or an approved recording when one is set. No video file is used and nothing is fetched.',
+        'help.about.e.video.prod': 'An approved video or personalized animation, with recorded narration, captions and a transcript in each language.',
         'help.about.e.feedback': 'Feedback',
         'help.about.e.feedback.file': 'Kept only in this browser session. Nothing is sent.',
         'help.about.e.feedback.prod': 'An approved feedback service.',
@@ -2170,8 +2187,18 @@
         'help.slots.colValue': 'Current value',
         'help.slots.logoText': 'Text “{text}” in a placeholder box',
         'help.slots.logoSvg': 'Logo artwork supplied',
-        'help.slots.posterNone': 'Not set — a drawn placeholder poster is shown',
+        'help.slots.posterNone': 'Not set — the player shows its own opening frame',
         'help.slots.posterSet': 'Poster image supplied',
+        'help.slots.posterIgnored': 'Not used — only an image packaged in this file (a data: URI) is shown, so the player shows its own opening frame',
+        'help.slots.voiceLang': '{lang}: {state}',
+        'help.slots.voiceLang.en': 'English',
+        'help.slots.voiceLang.es': 'Spanish',
+        'help.slots.voiceNotSet': 'not set',
+        'help.slots.voiceSet': 'approved recording set',
+        'help.slots.voiceIgnored': 'not used — a recording must be packaged in this file (a data: audio URI)',
+        'help.slots.voiceNoteNone': 'Narration uses the device’s built-in voice, if it has one for that language. Captions and a transcript are always available.',
+        'help.slots.voiceNoteSome': 'A language without a recording uses the device’s built-in voice, if it has one. Captions and a transcript are always available.',
+        'help.slots.voiceNoteAll': 'Each language plays its approved recording. Captions and a transcript are always available.',
         'help.slots.support': 'Support destinations',
         'help.slots.notConnected': 'Not connected in this demo',
         'help.slots.connected': 'Connected',
@@ -2331,7 +2358,7 @@
         'help.a11y.f.focus': 'Foco visible',
         'help.a11y.f.focus.body': 'Un contorno claro muestra dónde estás mientras recorres la página.',
         'help.a11y.f.motion': 'Movimiento reducido',
-        'help.a11y.f.motion.body': 'Las animaciones son breves y opcionales, y se desactivan cuando tu dispositivo pide menos movimiento.',
+        'help.a11y.f.motion.body': 'Las animaciones son breves y el video solo se reproduce cuando tú lo eliges. Cuando tu dispositivo pide menos movimiento, los desplazamientos se desactivan y el video usa fundidos y cortes rápidos.',
         'help.a11y.f.zoom': 'Zoom y adaptación',
         'help.a11y.f.zoom.body': 'Puedes ampliar el texto, y el diseño se adapta hasta 320 píxeles de ancho sin desplazamiento lateral.',
         'help.a11y.f.textAlt': 'Alternativas de texto para gráficos',
@@ -2383,8 +2410,8 @@
         'help.about.e.inquiry.file': 'Una simulación local completa. Su confirmación indica «Solo demostración: no se envió ninguna consulta».',
         'help.about.e.inquiry.prod': 'Gestión de casos segura y autenticada, con un número de caso real.',
         'help.about.e.video': 'Video personalizado',
-        'help.about.e.video.file': 'Un recorrido animado dibujado en la página con las cifras de muestra de este estado de cuenta, con narración, subtítulos y transcripción. No se reproduce ni se descarga ningún archivo de video.',
-        'help.about.e.video.prod': 'Un video aprobado con subtítulos y transcripción.',
+        'help.about.e.video.file': 'Un reproductor dibujado en la página con las cifras de muestra de este estado de cuenta, con capítulos, subtítulos y transcripción; nunca se reproduce solo. La narración usa la voz integrada del dispositivo, o una grabación aprobada si se ha definido. No se usa ningún archivo de video y no se descarga nada.',
+        'help.about.e.video.prod': 'Un video o una animación personalizada aprobados, con narración grabada, subtítulos y transcripción en cada idioma.',
         'help.about.e.feedback': 'Opiniones',
         'help.about.e.feedback.file': 'Se guardan solo en esta sesión del navegador. No se envía nada.',
         'help.about.e.feedback.prod': 'Un servicio de opiniones aprobado.',
@@ -2403,8 +2430,18 @@
         'help.slots.colValue': 'Valor actual',
         'help.slots.logoText': 'Texto «{text}» en un recuadro provisional',
         'help.slots.logoSvg': 'Logotipo proporcionado',
-        'help.slots.posterNone': 'Sin definir: se muestra una imagen provisional dibujada',
+        'help.slots.posterNone': 'Sin definir: el reproductor muestra su propio fotograma inicial',
         'help.slots.posterSet': 'Imagen de portada proporcionada',
+        'help.slots.posterIgnored': 'No se usa: solo se muestra una imagen incluida en este archivo (un URI data:), así que el reproductor muestra su propio fotograma inicial',
+        'help.slots.voiceLang': '{lang}: {state}',
+        'help.slots.voiceLang.en': 'Inglés',
+        'help.slots.voiceLang.es': 'Español',
+        'help.slots.voiceNotSet': 'sin definir',
+        'help.slots.voiceSet': 'con grabación aprobada',
+        'help.slots.voiceIgnored': 'no se usa: la grabación debe estar incluida en este archivo (un URI data: de audio)',
+        'help.slots.voiceNoteNone': 'La narración usa la voz integrada del dispositivo, si tiene una para ese idioma. Los subtítulos y la transcripción siempre están disponibles.',
+        'help.slots.voiceNoteSome': 'Un idioma sin grabación usa la voz integrada del dispositivo, si tiene una. Los subtítulos y la transcripción siempre están disponibles.',
+        'help.slots.voiceNoteAll': 'Cada idioma reproduce su grabación aprobada. Los subtítulos y la transcripción siempre están disponibles.',
         'help.slots.support': 'Destinos de soporte',
         'help.slots.notConnected': 'No conectados en esta demostración',
         'help.slots.connected': 'Conectados',

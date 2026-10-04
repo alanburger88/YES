@@ -1692,16 +1692,20 @@
   /* 5. "Your statement in 60 seconds": an animated, narrated player      */
   /* ------------------------------------------------------------------ */
   /*
-   * PRD 5.7. Not a video file: a 16:9 stage drawn in the page from this
+   * PRD 5.7. Not a video file: a stage drawn in the page from this
    * statement's own figures (YES.calc, YES.fmt), in the current language, with
-   * nothing fetched. It behaves like a video: it never plays on its own; Play /
+   * nothing fetched: a 16:9 frame, or on a narrow player (a phone held upright,
+   * also in full screen) a portrait 3:4 frame with its own layout for every
+   * chapter and type sized for a phone (CSS only: the same timeline, cues and
+   * frames). It behaves like a video: it never plays on its own; Play /
    * Pause, a seek slider with chapter markers, captions (on by default), mute
    * and full screen; chapters and a transcript beneath it.
    *
    * The picture is a pure function of time. drawFrame(t) sets every animated
    * property (entrances, bar growth, highlights, the pointer) from t alone, so
-   * seeking to any time draws exactly that frame, and reduced motion swaps
-   * movement for fades and cuts. requestAnimationFrame only advances t.
+   * seeking to any time draws exactly that frame, in either frame, and reduced
+   * motion swaps movement for fades and cuts. requestAnimationFrame only
+   * advances t. (The pointer's spots are measured from the frame's layout.)
    *
    * Narration: the approved recording for the current language
    * (YES.config.slots.VIDEO_VOICEOVER[lang], a data:audio URI) kept in step
@@ -1881,7 +1885,8 @@
    *   i  — enters at (s): fades in, moving by fx ('up' default, 'left', 'right', 'fade')
    *   d  — entrance duration (s)
    *   o  — leaves at (s): fades out
-   *   p  — [at, dur]: --p grows 0 → 1 (bar heights)
+   *   p  — [at, dur]: --p grows 0 → 1 (bar heights; on the phone frame, the
+   *        journey receding under the transaction's detail)
    *   hl — [from, to]: --hl rises to 1 and falls back (highlights, pressed states)
    *   dim — recedes from (s) to a quieter opacity
    *   pt — a target the pointer can travel to
@@ -2211,7 +2216,9 @@
       .map(function (tx, i) {
         var target = m.tx && tx.id === m.tx.id;
         return (
-          '<li class="vs-trow"' +
+          '<li class="vs-trow' +
+          (target ? ' is-target' : '') +
+          '"' +
           att({ i: C.rows - 0.1 + i * 0.25, fx: 'left', hl: target ? [press[1], C.open + 1.8] : null, pt: target ? 'row' : null }) +
           '><span class="vs-trow__date">' +
           esc(YES.fmt.date(tx.postedAt, 'short')) +
@@ -2264,7 +2271,7 @@
         '</span><span>' +
         esc(m.fees.length ? amt(feeTotal, 'always') : t('overview.video.feeNone')) +
         '</span></div></div>' +
-        '<div class="vs-actions"><span class="vs-btn vs-btn--ai"' +
+        '<div class="vs-actions"><span class="vs-spot vs-spot--aside" data-pt="aside"></span><span class="vs-btn vs-btn--ai"' +
         att({ hl: [press[2], press[3] - 0.2], pt: 'explain' }) +
         '>' +
         ui.icon('sparkle', { size: 14 }) +
@@ -2284,7 +2291,10 @@
       eyebrow(3) +
         '<div class="vs-card vs-app"' +
         att({ i: C.select + 0.15 }) +
-        '><div class="vs-app__journey"><p class="vs-label">' +
+        '><div class="vs-app__journey"' +
+        // On the phone frame the detail covers the journey too: it recedes as the list does.
+        (tx ? att({ p: [press[1] + 0.05, 0.3] }) : '') +
+        '><p class="vs-label">' +
         esc(t('overview.journey.title')) +
         '</p><ul class="vs-steps">' +
         steps +
@@ -2298,8 +2308,8 @@
         '</p><p class="vs-label"' +
         att({ i: press[0] + 0.3, fx: 'fade' }) +
         '>' +
-        esc(t('overview.panel.eyebrow')) +
-        (m.step ? ' · ' + esc(t('cat.' + m.step.id)) : '') +
+        // On a phone only the step's name is kept (the lead is left out).
+        (m.step ? '<span class="vs-label__lead">' + esc(t('overview.panel.eyebrow')) + ' · </span>' + esc(t('cat.' + m.step.id)) : esc(t('overview.panel.eyebrow'))) +
         '</p><ul class="vs-trows">' +
         rows +
         '</ul>' +
@@ -2316,7 +2326,7 @@
           : '') +
         '</div>' +
         sheet +
-        '</div><span class="vs-pointer" data-pointer></span>'
+        '<span class="vs-spot vs-spot--rest" data-pt="rest"></span></div><span class="vs-pointer" data-pointer></span>'
     );
   }
 
@@ -2496,7 +2506,7 @@
 
   function chaptersHtml() {
     return (
-      '<h3 class="ov-vchap__title" id="ov-vchap-title">' +
+      '<div class="ov-vchap__wrap"><h3 class="ov-vchap__title" id="ov-vchap-title">' +
       esc(t('overview.video.chapters')) +
       '</h3><ol class="ov-vchap" aria-labelledby="ov-vchap-title">' +
       VID.chapters
@@ -2521,7 +2531,7 @@
           );
         })
         .join('') +
-      '</ol>'
+      '</ol></div>'
     );
   }
 
@@ -2642,7 +2652,7 @@
     spokenCue: -1, // the cue the voice has handled on this pass
     shown: { sec: -1, cue: -2, ch: -2, cc: null },
     idle: 0,
-    sp: { token: 0, speaking: false, cue: -1, holdAt: 0 },
+    sp: { token: 0, speaking: false, cue: -1, holdAt: 0, calls: 0 }, // calls: speak() calls made
     audioFailed: {}, // language → the recording could not play: fall back to the device voice
     forcedCc: {} // language → captions were turned on because there is no voice
   };
@@ -2721,8 +2731,10 @@
     if (!stage || !stage.clientWidth) return null;
     var W = stage.clientWidth;
     var H = stage.clientHeight;
+    // Fixed spots on the 16:9 frame; the phone frame marks its own (.vs-spot).
     var out = { rest: { x: 72, y: 82 }, aside: { x: 87, y: 63 } };
     ui.$$('[data-pt]', stage).forEach(function (el) {
+      if (!el.offsetParent) return; // not drawn in this frame
       var x = 0;
       var y = 0;
       var n = el;
@@ -2901,10 +2913,37 @@
       VP.sp.speaking = false;
       VP.sp.holdAt = 0;
     };
+    VP.sp.calls++;
     try {
       s.speak(u);
     } catch (e) {
       VP.sp.speaking = false;
+    }
+  }
+  /**
+   * iOS Safari lets speech start from an animation frame only once speech has
+   * been started inside a user gesture. So a Play, resume, chapter, transcript
+   * (or unmute) gesture always speaks synchronously in its handler: the cue
+   * due now (startCue, already called), or, when the playhead is past the
+   * first 40% of a cue and nothing is due, a silent utterance (a space at
+   * volume 0). `before` is VP.sp.calls when the handler began. Nothing is
+   * spoken while paused or muted, or without a device voice for the language.
+   */
+  function gestureVoice(before) {
+    if (VP.sp.calls !== before || !VP.playing || VP.muted) return;
+    var md = mode();
+    var s = synth();
+    if ((md !== 'voice' && md !== 'pending') || !s) return;
+    try {
+      var u = new root.SpeechSynthesisUtterance(' ');
+      u.volume = 0;
+      u.lang = YES.i18n.locale();
+      var info = voiceInfo();
+      if (info.voice) u.voice = info.voice;
+      VP.sp.calls++;
+      s.speak(u);
+    } catch (e) {
+      /* no engine to unlock */
     }
   }
   function stopSpeech() {
@@ -3123,25 +3162,10 @@
     }
     if (r && r.catch) r.catch(function () {});
   }
-  /** On a phone held upright a 16:9 picture stays small in full screen: ask for landscape, as video players do. */
-  function fsOrientation(on) {
-    var o = root.screen && root.screen.orientation;
-    if (!o) return;
-    try {
-      if (!on) {
-        if (o.unlock) o.unlock();
-        return;
-      }
-      if (!o.lock || !root.matchMedia || !root.matchMedia('(pointer: coarse) and (orientation: portrait)').matches) return;
-      var r = o.lock('landscape');
-      if (r && r.catch) r.catch(function () {});
-    } catch (e) {
-      /* the browser keeps the orientation: the picture is letterboxed */
-    }
-  }
+  /* Full screen keeps the device's orientation: a phone held upright gets the
+     portrait frame (the narrow player's layout), a wide screen the 16:9 one. */
   function onFullscreen() {
     if (!VP.el) return;
-    fsOrientation(fsActive());
     VP.el.classList.toggle('is-fs', fsActive());
     VP.targets = null;
     draw();
@@ -3300,9 +3324,11 @@
       if (k === 'j' || k === 'J') to = VP.t - 10;
       else if (k === 'l' || k === 'L') to = VP.t + 10;
     }
+    var spoke = VP.sp.calls;
     if (to !== null) {
       e.preventDefault();
       vpSeek(to);
+      gestureVoice(spoke);
       return;
     }
     if ((k === ' ' && !onButton) || k === 'k' || k === 'K') vpToggle();
@@ -3311,6 +3337,7 @@
     else if (k === 'f' || k === 'F') vpFs();
     else return;
     e.preventDefault();
+    gestureVoice(spoke);
     wake();
   }
 
@@ -3318,20 +3345,26 @@
   function bindPlayer(el) {
     ui.delegate(el, 'click', '[data-vp]', function (e, b) {
       var act = b.getAttribute('data-vp');
+      var spoke = VP.sp.calls;
       if (act === 'toggle' || act === 'stage') {
         var fromBig = b.hasAttribute('data-vp-big');
         vpToggle();
+        gestureVoice(spoke);
         // The big button goes away once playing: carry focus to Pause.
         if (fromBig && VP.playing && doc.activeElement === b) {
           var tg = q('[data-fk="vp-toggle"]');
           if (tg) tg.focus({ preventScroll: true });
         }
-      } else if (act === 'mute') vpMute();
-      else if (act === 'cc') vpCc();
+      } else if (act === 'mute') {
+        vpMute();
+        gestureVoice(spoke);
+      } else if (act === 'cc') vpCc();
       else if (act === 'fs') vpFs();
     });
     ui.delegate(el, 'click', '[data-vp-seek]', function (e, b) {
+      var spoke = VP.sp.calls;
       vpSeek(parseFloat(b.getAttribute('data-vp-seek')), { play: true });
+      gestureVoice(spoke);
       var p = VP.el;
       if (p && p.getBoundingClientRect) {
         var r = p.getBoundingClientRect();
