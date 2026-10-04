@@ -410,7 +410,7 @@ export default async function (ctx) {
     assert.equal(await page.locator('#view-data [role="treeitem"][aria-selected="true"]').count(), 1, 'single selection');
     // Multi-character type-ahead.
     await page.keyboard.type('tr');
-    assert.equal(await key(), 'transactions');
+    assert.equal(await key(), 'transactions[]', 'type-ahead with several letters');
     assert.equal(await page.evaluate(() => document.activeElement.querySelector('.wt-jx__brackets').textContent), '[]', 'arrays show []');
     assert.match(await page.evaluate(() => document.activeElement.querySelector('.wt-jx__type').textContent), /^List of records$/);
     await page.keyboard.press('End');
@@ -444,7 +444,7 @@ export default async function (ctx) {
     assert.equal(await ctl.getAttribute('aria-selected'), 'false');
     await ctl.locator(':scope > .wt-jx__row .wt-jx__key').click();
     assert.equal(await ctl.getAttribute('aria-selected'), 'true');
-    assert.match(await page.locator('#view-data .wt-jx__details').innerText(), /Contains\s+2 fields/);
+    assert.match(await page.locator('#view-data .wt-jx__details').innerText(), /Contains\s+2 fields/i);
     // Details for a leaf: type in plain words and technically, required, source, example, needed-by links.
     await page.evaluate(() => document.querySelector('#view-data [data-dv="explorer"]')._wtJson.select('transactions[].amount'));
     const d = page.locator('#view-data .wt-jx__details');
@@ -838,6 +838,33 @@ export default async function (ctx) {
       } finally {
         await Q.close();
       }
+    }
+    // Inside any dialog the explorer is compact by default; destroy() cleans up.
+    const D = await openData('#/start');
+    try {
+      const r = await D.page.evaluate(() => {
+        const d = window.WT.dialog.create({ id: 't-dlg2', title: 'Data', body: '<div id="t-host2"></div>' });
+        const host = d.querySelector('#t-host2');
+        const x = window.WT.json.mount(host, { features: ['theme'] });
+        const compact = !!host.querySelector('.wt-jx--compact');
+        const same = window.WT.json.mount(host, { features: ['theme', 'language'] }) === x;
+        const merged = x.m.features.join();
+        x.destroy();
+        const cleared = host.innerHTML === '' && !host._wtJson;
+        const again = window.WT.json.mount(host, { features: ['theme'] });
+        return { compact, same, merged, cleared, fresh: again !== x && !!host.querySelector('[role="tree"]') };
+      });
+      assert.deepEqual(r, { compact: true, same: true, merged: 'language,theme', cleared: true, fresh: true });
+      const notCompact = await D.page.evaluate(() => {
+        const host = document.createElement('div');
+        document.querySelector('#view-start').appendChild(host);
+        window.WT.json.mount(host, { features: ['theme'] });
+        return !!host.querySelector('.wt-jx--compact');
+      });
+      assert.equal(notCompact, false, 'not compact on a page');
+      assertNoErrors(D.errors, assert, D.external);
+    } finally {
+      await D.close();
     }
     // WT.json.openDialog: the ready-made compact dialog.
     const P = await openPage(ctx, { viewport: 'phone' });

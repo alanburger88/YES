@@ -132,7 +132,7 @@
         '<section class="wt-dv__features" data-dv="features" aria-labelledby="dv-features-h" hidden>' +
           '<div class="wt-dv__section-head">' +
             '<h2 class="wt-dv__h2" id="dv-features-h">Features in this view</h2>' +
-            '<p class="wt-dv__summary">Field counts are each feature’s own fields. Every feature also needs the ' + ((WT.dataReq.$common && WT.dataReq.$common.fields.length) || 0) + ' fields of the statement envelope.</p>' +
+            '<p class="wt-dv__summary">Field counts are each feature’s own fields. Every feature also needs the ' + ((WT.dataReq && WT.dataReq.$common && WT.dataReq.$common.fields.length) || 0) + ' fields of the statement envelope.</p>' +
           '</div>' +
           '<ul class="wt-dv__cards" role="list" data-dv="cards"></ul>' +
         '</section>' +
@@ -180,7 +180,7 @@
     var groups = {};
     var order = [];
     WT.features.forEach(function (f) {
-      if (!WT.dataReq[f.id]) return;
+      if (!(WT.dataReq && WT.dataReq[f.id])) return;
       if (!groups[f.section]) {
         groups[f.section] = [];
         order.push(f.section);
@@ -338,8 +338,10 @@
           notes +
           '<div class="wt-dv__card-links">' +
             (alone ? '' : '<a class="wt-btn wt-btn--secondary wt-btn--sm" href="#/data/' + e + '">' + WT.icon('braces', { size: 18 }) + '<span>Only this feature<span class="wt-sr-only">: ' + WT.esc(f.title) + '</span></span></a>') +
-            '<a class="wt-dv__link" href="#/tour/' + e + '">' + WT.icon('play', { size: 16 }) + '<span>Walkthrough<span class="wt-sr-only">: ' + WT.esc(f.title) + '</span></span></a>' +
-            '<a class="wt-dv__link" href="#/results/' + e + '">' + WT.icon('chart', { size: 16 }) + '<span>Results<span class="wt-sr-only">: ' + WT.esc(f.title) + '</span></span></a>' +
+            '<span class="wt-dv__links">' +
+              '<a class="wt-dv__link" href="#/tour/' + e + '">' + WT.icon('play', { size: 16 }) + '<span>Walkthrough<span class="wt-sr-only">: ' + WT.esc(f.title) + '</span></span></a>' +
+              '<a class="wt-dv__link" href="#/results/' + e + '">' + WT.icon('chart', { size: 16 }) + '<span>Results<span class="wt-sr-only">: ' + WT.esc(f.title) + '</span></span></a>' +
+            '</span>' +
           '</div>' +
         '</div>' +
       '</li>'
@@ -394,7 +396,7 @@
   function applyParam(param) {
     state.missing = '';
     if (param) {
-      if (WT.feature(param) && WT.dataReq[param]) {
+      if (WT.feature(param) && WT.dataReq && WT.dataReq[param]) {
         state.scope = 'custom';
         state.custom = [param];
         state.fromParam = true;

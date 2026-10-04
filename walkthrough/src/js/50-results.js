@@ -310,7 +310,9 @@
           '<span class="wt-rs__count" data-count="answers"><strong>' + WT.fmt.num(d.answers) + '</strong> ' + (d.answers === 1 ? 'answer' : 'answers') + '</span>' +
           '<span class="wt-rs__count" data-count="comments"><strong>' + WT.fmt.num(d.comments) + '</strong> ' + (d.comments === 1 ? 'comment' : 'comments') + '</span>' +
         '</p>'
-      : '<p class="wt-rs__counts"><span class="wt-skeleton wt-skeleton--text wt-rs__sk"></span></p>';
+      : state.error
+        ? '<p class="wt-rs__counts"></p>'
+        : '<p class="wt-rs__counts"><span class="wt-skeleton wt-skeleton--text wt-rs__sk"></span></p>';
     var stamp = d
       ? '<p class="wt-rs__updated">' + WT.icon('refresh', { size: 16 }) +
           '<span>Last updated <time class="wt-rs__time" datetime="' + WT.esc(d.generatedAt) + '" title="' + WT.esc(WT.fmt.date(d.generatedAt)) + '">' + WT.esc(clock(d.generatedAt)) + '</time>' +
@@ -1071,6 +1073,13 @@
           load({ force: true });
         } else {
           state.loadedAt = 0;
+        }
+      });
+      // Back/Forward while the screenshot is open: close it rather than leave it over the next page.
+      WT.on('route', function () {
+        if (shotDlg && shotDlg.open) {
+          WT.dialog.setReturn(shotDlg, null);
+          WT.dialog.close(shotDlg, 'route');
         }
       });
       WT.on('moderated', function () {

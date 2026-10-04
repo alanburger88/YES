@@ -623,13 +623,15 @@
   /* Explorer instance                                                   */
   /* ================================================================== */
 
-  function normalise(opts, prev) {
+  function normalise(opts, prev, el) {
     opts = opts || {};
     prev = prev || {};
     var o = {};
     o.features = opts.features !== undefined ? opts.features : prev.features || [];
     var mode = opts.mode !== undefined ? opts.mode : prev.mode;
-    o.compact = opts.compact !== undefined ? !!opts.compact : mode === 'compact' ? true : !!prev.compact;
+    // Compact by default inside a dialog (the tour's "View data requirements").
+    var inDialog = !!(el && el.closest && el.closest('dialog, .wt-dialog'));
+    o.compact = opts.compact !== undefined ? !!opts.compact : mode === 'compact' ? true : prev.compact !== undefined ? !!prev.compact : inDialog;
     o.mode = TABS.indexOf(mode) !== -1 ? mode : 'tree';
     o.headingLevel = Math.min(5, Math.max(2, Number(opts.headingLevel || prev.headingLevel || 3)));
     o.label = opts.label || prev.label || 'Data fields';
@@ -652,7 +654,8 @@
   }
 
   Explorer.prototype.update = function (opts) {
-    var o = normalise(opts, this.opts);
+    if (this.destroyed) return this;
+    var o = normalise(opts, this.opts, this.el);
     var ids = scopeIds(o.features);
     var key = ids.join(',') + '|' + (o.compact ? 'c' : 'f') + '|' + o.headingLevel;
     var first = !this.m;
@@ -1256,10 +1259,32 @@
     return this.m.nodes[Number(item.getAttribute('data-i'))] || null;
   };
 
+  /** Remove listeners and timers and empty the element. */
+  Explorer.prototype.destroy = function () {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    var el = this.el;
+    (this._handlers || []).forEach(function (h) {
+      el.removeEventListener(h[0], h[1]);
+    });
+    this._handlers = [];
+    this.announceSearch.cancel();
+    this.runSearch.cancel();
+    clearTimeout(this.typedTimer);
+    if (el._wtJson === this) delete el._wtJson;
+    el.innerHTML = '';
+    this.root = this.tree = this.details = this.count = this.nomatch = null;
+  };
+
   Explorer.prototype._bind = function () {
     var self = this;
     var el = this.el;
-    el.addEventListener('click', function (e) {
+    this._handlers = [];
+    var on = function (type, fn) {
+      self._handlers.push([type, fn]);
+      el.addEventListener(type, fn);
+    };
+    on('click', function (e) {
       var btn = e.target.closest('[data-jx-act]');
       if (btn && el.contains(btn)) {
         self._act(btn.getAttribute('data-jx-act'), btn);
@@ -1283,7 +1308,7 @@
       self.select(n.path, 'click');
       if (n.children.length) self.toggle(n);
     });
-    el.addEventListener('focusin', function (e) {
+    on('focusin', function (e) {
       var n = e.target.getAttribute && e.target.getAttribute('role') === 'treeitem' ? self._node(e.target) : null;
       if (n && self.st.active !== n.path) {
         self.st.active = n.path;
@@ -1292,13 +1317,13 @@
         });
       }
     });
-    el.addEventListener('input', function (e) {
+    on('input', function (e) {
       if (e.target.classList && e.target.classList.contains('wt-jx__q')) {
         self.st.query = e.target.value;
         self.runSearch();
       }
     });
-    el.addEventListener('keydown', function (e) {
+    on('keydown', function (e) {
       if (e.target.classList && e.target.classList.contains('wt-jx__q')) {
         if (e.key === 'Escape' && e.target.value) {
           e.preventDefault();
@@ -1424,7 +1449,7 @@
     /** Mount (or update) an explorer in el. Returns the instance. */
     mount: function (el, opts) {
       if (!el) return null;
-      if (el._wtJson && el._wtJson.el === el) return el._wtJson.update(opts || {});
+      if (el._wtJson && el._wtJson.el === el && !el._wtJson.destroyed) return el._wtJson.update(opts || {});
       var x = new Explorer(el, opts || {});
       el._wtJson = x;
       return x;

@@ -67,8 +67,7 @@
 .wt-key--low {
   background: var(--chart-low);
 }
-.wt-mark--score,
-.wt-key--score {
+.wt-mark--score {
   background: var(--chart-score);
 }
 

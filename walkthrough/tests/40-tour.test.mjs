@@ -407,15 +407,17 @@ export default async function (ctx) {
 
   /* ------------------------------------------------------------------ */
   async function sweep(viewport, label, opts = {}) {
-    const P = await openTour({ viewport, colorScheme: opts.colorScheme }, '#/tour/' + first);
+    const list = opts.only || ids;
+    const P = await openTour({ viewport, colorScheme: opts.colorScheme, reducedMotion: opts.reducedMotion }, '#/tour/' + list[0]);
     const { page } = P;
     const problems = [];
     try {
-      await activated(page, first);
+      await activated(page, list[0]);
       const len0 = await page.evaluate(() => history.length);
-      for (let i = 0; i < N; i++) {
-        const id = ids[i];
-        if (i > 0) await page.evaluate((x) => window.WT.go('/tour/' + x), id);
+      for (let n = 0; n < list.length; n++) {
+        const id = list[n];
+        const i = ids.indexOf(id);
+        if (n > 0) await page.evaluate((x) => window.WT.go('/tour/' + x), id);
         try {
           await activated(page, id);
         } catch (e) {
@@ -442,13 +444,18 @@ export default async function (ctx) {
           if (!g.edge) problems.push(`${id}: off-screen without the indicator`);
         } else problems.push(`${id}: overlay state ${g.state}`);
         // Focus is back on the step heading (the statement pulls it into the frame, G4)
+        // (On first load the router leaves focus alone, but it must not be left in the frame.)
         await sleep(450);
         const fo = await focused(page);
-        if (fo.id !== 'tour-title') problems.push(`${id}: focus on ${fo.tag}#${fo.id}`);
+        if (n === 0 ? fo.tag === 'iframe' : fo.id !== 'tour-title') problems.push(`${id}: focus on ${fo.tag}#${fo.id}`);
         // No history leaks: the parent stays on the step, one entry per step
         const h = await page.evaluate(() => [location.hash, history.length]);
         if (h[0] !== '#/tour/' + id) problems.push(`${id}: parent moved to ${h[0]}`);
-        if (h[1] !== len0 + i) problems.push(`${id}: history.length ${h[1]}, expected ${len0 + i}`);
+        if (h[1] !== len0 + n) problems.push(`${id}: history.length ${h[1]}, expected ${len0 + n}`);
+        if (opts.check) {
+          const extra = await opts.check(page, id);
+          if (extra) problems.push(`${id}: ${extra}`);
+        }
         if (opts.shots && opts.shots.includes(id)) await shot(page, `tour-${label}-${id}`);
       }
       assertNoErrors(P.errors, assert, P.external);
@@ -465,6 +472,62 @@ export default async function (ctx) {
 
   await step('every feature at 390×844 (phone): outline matches, or the edge indicator shows', async () => {
     await sweep(PHONE, 'phone', { shots: ['summary', 'detail', 'language'] });
+  });
+
+  await step('1920×1080 with reduced motion: the docked Ask YES drawer (G7) and its reflow; no glide or pulse', async () => {
+    const only = ['summary', 'why', 'explain-ai', 'assistant', 'journey', 'fees'].filter(has);
+    await sweep({ width: 1920, height: 1080 }, 'wide', {
+      only,
+      reducedMotion: 'reduce',
+      check: async (page, id) => {
+        const r = await page.evaluate(() => ({
+          anim: document.getElementById('wt-tour-overlay').hasAttribute('data-anim'),
+          pulse: getComputedStyle(document.querySelector('.wt-spot__ring'), '::after').animationName,
+          docked: document.getElementById('wt-frame').contentDocument.documentElement.classList.contains('assistant-docked'),
+          mode: document.getElementById('wt-frame').contentWindow.YES.assistant.mode()
+        }));
+        if (r.anim) return 'glide with reduced motion';
+        if (r.pulse && r.pulse !== 'none') return 'pulse with reduced motion';
+        if (id === 'assistant' && r.mode !== 'docked') return 'drawer is ' + r.mode + ', expected docked';
+        if (id === 'summary' && r.docked) return 'drawer still docked';
+        return '';
+      }
+    });
+  });
+
+  /* ------------------------------------------------------------------ */
+  await step('a target that cannot be found: the panel shows the polite note with Try it; no outline', async () => {
+    const id = ids[1];
+    const P = await openTour({ viewport: DESKTOP }, '#/tour/' + first);
+    const { page } = P;
+    try {
+      await activated(page, first);
+      await page.evaluate((x) => {
+        const st = window.WT.steps[x];
+        st.target = { desktop: ['#no-such-part'], phone: ['#no-such-part'] };
+        window.WT.go('/tour/' + x);
+      }, id);
+      await activated(page, id, 25000);
+      const r = await page.evaluate(() => ({
+        state: document.getElementById('wt-tour-overlay').dataset.state,
+        note: document.querySelector('[data-tour="note"]').textContent.trim(),
+        role: document.querySelector('[data-tour="note"]').getAttribute('role'),
+        edge: document.querySelector('.wt-tour__edge').hidden,
+        ring: getComputedStyle(document.querySelector('.wt-spot__ring')).opacity
+      }));
+      assert.equal(r.state, 'failed');
+      assert.equal(r.role, 'status');
+      assert.match(r.note, /^We couldn’t highlight this part automatically\. Try it: .{20,}/);
+      assert.equal(r.edge, true, 'no Show it for a part that was never found');
+      assert.equal(r.ring, '0');
+      assert.equal((await focused(page)).id, 'tour-title');
+      await page.click('[data-act="next"]');
+      await activated(page, ids[2]);
+      assert.equal(await page.evaluate(() => document.querySelector('[data-tour="note"]').textContent), '', 'the note goes with the step');
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
   });
 
   /* ------------------------------------------------------------------ */
@@ -838,6 +901,31 @@ export default async function (ctx) {
   });
 
   /* ------------------------------------------------------------------ */
+  await step('resizing across the statement’s phone breakpoint sets the step up again and the outline follows', async () => {
+    const id = has('language') ? 'language' : ids[0];
+    const P = await openTour({ viewport: DESKTOP }, '#/tour/' + id);
+    const { page } = P;
+    try {
+      await activated(page, id);
+      const check = async () => {
+        const g = await page.evaluate(geometry);
+        if (g.state !== 'shown' || !g.expected) return false;
+        return ['l', 't', 'r', 'b'].every((k) => Math.abs(g.ring[k] - g.expected[k]) <= 3);
+      };
+      assert.ok(await check(), 'desktop outline');
+      await page.setViewportSize({ width: 600, height: 900 });
+      await until(async () => (await page.evaluate(() => window.WT.driver.isPhone(document.getElementById('wt-frame').contentWindow))) && (await check()), 15000, 'phone outline');
+      await page.waitForFunction((i) => document.querySelector('.wt-tour').getAttribute('data-activated') === i, id, { timeout: 15000 });
+      await until(check, 6000, 'phone outline after re-activation');
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await until(async () => !(await page.evaluate(() => window.WT.driver.isPhone(document.getElementById('wt-frame').contentWindow))) && (await check()), 15000, 'desktop outline again');
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
   await step('View data requirements: the JSON explorer for this feature, or the list of field paths', async () => {
     const id = ids[2];
     const P = await openTour({ viewport: DESKTOP }, '#/tour/' + id);
@@ -860,10 +948,26 @@ export default async function (ctx) {
       } else {
         for (const p of info.paths) assert.ok(info.text.includes(p), 'lists ' + p);
       }
+      await sleep(400);
       await shot(page, 'tour-datareq-desktop');
       await page.keyboard.press('Escape');
       await dlg.waitFor({ state: 'hidden' });
       assert.equal((await focused(page)).text, 'View data requirements', 'focus returns to the button');
+      // Without the explorer, the dialog lists the field paths
+      await page.evaluate(() => {
+        window.__json = window.WT.json;
+        delete window.WT.json;
+      });
+      await page.click('[data-act="datareq"]');
+      await dlg.waitFor({ state: 'visible' });
+      const text = await dlg.innerText();
+      assert.match(text, /The interactive explorer isn’t available right now/);
+      for (const p of info.paths) assert.ok(text.includes(p), 'fallback lists ' + p);
+      await page.keyboard.press('Escape');
+      await page.evaluate(() => {
+        window.WT.json = window.__json;
+      });
+      await dlg.waitFor({ state: 'hidden' });
       assertNoErrors(P.errors, assert, P.external);
     } finally {
       await P.close();

@@ -571,6 +571,33 @@ export default async function (ctx) {
   });
 
   /* ------------------------------------------------------------------ */
+  await step('screenshots that fail to load show a neutral placeholder', async () => {
+    const P = await openPage(ctx);
+    try {
+      await P.page.route('**/assets/shots/**', (route) => route.fulfill({ status: 404, body: '' }));
+      const f = features[2];
+      await openResults(P, '#/results/' + f.id);
+      const box = P.page.locator('.wt-detail__shot .wt-shot-box');
+      await until(async () => (await box.getAttribute('class')).includes('is-missing'), 5000, 'large placeholder');
+      assert.equal(await box.locator('img').count(), 0, 'broken image removed');
+      const ph = box.locator('.wt-shot-box__ph');
+      assert.ok(await ph.isVisible());
+      assert.equal(await ph.getAttribute('role'), 'img');
+      assert.equal(await ph.getAttribute('aria-label'), f.title + ' in the YES statement (screenshot not available yet)');
+      assert.equal(text(await ph.innerText()), 'Screenshot not available yet');
+      await openResults(P, '#/results/features');
+      const thumb = P.page.locator('.wt-rank__item').first().locator('.wt-shot-box');
+      await until(async () => (await thumb.getAttribute('class')).includes('is-missing'), 5000, 'thumbnail placeholder');
+      assert.ok(await thumb.locator('.wt-shot-box__ph').isVisible());
+      assert.equal(await thumb.locator('.wt-shot-box__ph').getAttribute('aria-hidden'), 'true', 'decorative thumbnail placeholder');
+      // 404s are expected here (the console noise is filtered by the helpers).
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
   await step('people: reviewers × features matrix with sticky headers, text alternatives and a legend', async () => {
     const P = await openPage(ctx);
     try {

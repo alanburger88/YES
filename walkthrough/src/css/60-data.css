@@ -330,7 +330,7 @@
   color: var(--heading);
 }
 .wt-jx__ex {
-  flex: 1 1 140px;
+  flex: 1 1 96px;
   min-width: 0;
   overflow: hidden;
   color: var(--muted);
@@ -1299,6 +1299,11 @@
   gap: var(--sp-2) var(--sp-4);
   margin-top: auto !important;
   padding-top: var(--sp-3);
+}
+.wt-dv__links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
 }
 .wt-dv__link {
   display: inline-flex;

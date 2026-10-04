@@ -51,6 +51,7 @@
     dim: true,
     pane: 'split',
     phone: null,
+    phoneAt: null, // the statement's layout when the step was set up
     tween: null,
     raf: 0,
     still: 0,
@@ -622,11 +623,13 @@
       S.phone = phone;
       return;
     }
-    // The statement switched between its phone and desktop layouts: set the step up again.
+    // The statement switched between its phone and desktop layouts: set the step up again
+    // (once it has settled, and only if the layout still differs from the one the step was set up in).
     S.phone = phone;
     clearTimeout(S.flipTimer);
     S.flipTimer = setTimeout(function () {
-      if (tourVisible() && S.activated === S.id) activate(S.id);
+      var fw = fwin();
+      if (tourVisible() && S.activated === S.id && fw && WT.driver.isPhone(fw) !== S.phoneAt) activate(S.id);
     }, 300);
   }
 
@@ -675,6 +678,11 @@
     els.overlay.removeAttribute('data-anim');
     els.busy.textContent = 'Showing ' + f.title + '…';
     setState('busy');
+    if (!els.edge.hidden) {
+      var edgeFocus = els.edge.contains(doc.activeElement);
+      els.edge.hidden = true;
+      if (edgeFocus) focusTitle();
+    }
     clearTimeout(S.slowTimer);
     els.overlay.classList.remove('is-slow');
     S.slowTimer = setTimeout(function () {
@@ -726,7 +734,7 @@
     setNote(el ? '' : failText(id));
     syncTheme();
     var w = fwin();
-    if (w && WT.driver) S.phone = WT.driver.isPhone(w);
+    if (w && WT.driver) S.phone = S.phoneAt = WT.driver.isPhone(w);
     S.aliveUntil = now() + 900;
     S.last = '';
     if (el) {
@@ -1211,6 +1219,11 @@
       if (!id) return;
       var focus = S.pendingFocus === null ? true : S.pendingFocus;
       S.pendingFocus = null;
+      if (id === S.id && S.built && els.content.querySelector('h1')) {
+        // e.g. "Walkthrough" in the masthead while already on this step: keep the statement as it is
+        if (focus) focusTitle();
+        return;
+      }
       showStep(id, { focus: focus });
     },
     leave: function () {
