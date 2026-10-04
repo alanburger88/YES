@@ -528,6 +528,16 @@
   background: var(--section);
   color: var(--body);
 }
+/* A plain card-coloured panel (no padding, border or radius), e.g. a side panel. */
+.wt-surface {
+  background: var(--surface);
+  color: var(--body);
+}
+/* A subtle grey fill (Neutral 1 in light, Slate 1 in dark). */
+.wt-fill {
+  background: var(--surface-2);
+  color: var(--body);
+}
 .wt-band :is(h1, h2, h3, h4) {
   color: var(--heading);
 }

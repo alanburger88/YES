@@ -324,6 +324,11 @@ html[data-view='tour'] .wt-mast__inner {
   }
 }
 
+/* Without JavaScript the nav, chip, toggle and Menu cannot work: hide them. */
+html:not(.wt-js) :is(.wt-mast__menu, .wt-mast__menu-btn) {
+  display: none !important;
+}
+
 /* =================================================================== */
 /* Views                                                               */
 /* =================================================================== */

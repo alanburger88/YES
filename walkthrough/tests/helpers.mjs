@@ -252,10 +252,28 @@ export async function seedReviewer(api, { secret = newSecret(), name, answers = 
   return { secret, rid: r.json.rid, record: r.json };
 }
 
-/** localStorage seed for openPage({ storage }) that makes this browser a reviewer with answers. */
+/**
+ * localStorage seed for openPage({ storage }) that makes this browser a reviewer.
+ * LOCAL ONLY: on load the app syncs with GET /api/me and the server wins, so
+ * answers the server doesn't have are dropped. To show answers in the app, use
+ * seedBrowserReviewer(api, …), which saves them to the server too.
+ */
 export function reviewerStorage({ secret = newSecret(), name = '', answers = {}, lastStep = '' } = {}) {
   const now = new Date().toISOString();
   const full = {};
   for (const [id, a] of Object.entries(answers)) full[id] = { vote: null, priority: null, reason: '', comment: '', updatedAt: now, ...a };
   return { 'infoslips.wt.reviewer': { secret, name, rid: ridFor(secret), answers: full, lastStep } };
+}
+
+/**
+ * Save a reviewer to the server AND return the matching localStorage seed:
+ *   const storage = await seedBrowserReviewer(api, { name: 'Robin', answers: { [id]: { vote: 'include' } }, lastStep: id });
+ *   const P = await openPage(ctx, { storage });
+ * The secret is storage['infoslips.wt.reviewer'].secret.
+ */
+export async function seedBrowserReviewer(api, opts = {}) {
+  const storage = reviewerStorage(opts);
+  const rec = storage['infoslips.wt.reviewer'];
+  if (Object.keys(rec.answers).length || rec.name) await seedReviewer(api, { secret: rec.secret, name: rec.name, answers: rec.answers });
+  return storage;
 }

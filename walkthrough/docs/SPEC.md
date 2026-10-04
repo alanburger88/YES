@@ -407,3 +407,343 @@ From `walkthrough/`, the Netlify CLI (`npx netlify-cli@latest`):
 3. `deploy --prod --dir public --functions netlify/functions`.
 
 The API credential is injected by the environment proxy for `api.netlify.com`.
+
+## 12. Components and helpers reference
+
+Written by foundation. **Reuse these instead of re-inventing them.** Everything below is in `src/js/00-core.js`, `05-shell.js` and `src/css/00-tokens.css` … `05-shell.css`. The demo is the start view (`10-start.js`).
+
+### 12.1 Rules every module must follow
+
+- **CSP** (section 9) applies to the app page: no `style="…"` attributes, no `<style>` elements (in SVG too), no inline `<script>` or `on…=` handlers, and no external URLs. For dynamic sizes, set CSSOM from JS (`el.style.setProperty('--w', pct + '%')`, which is allowed) or use SVG geometry attributes (`width`, `x`, `d` …). Colour SVG marks with classes in your CSS (`.bar--include { fill: var(--…) }`), because `fill="var(--…)"` does not work as an attribute. `img-src` allows `'self'` and `data:` only, so `blob:` images won't load. Downloads through `WT.download` work.
+- **Escaping.** Interpolate with `WT.esc(v)` or the `WT.h` tagged template, and render with `WT.render(el, html)`. Give every control a stable `data-fk` so re-renders keep focus and the text selection.
+- **Colour.** Use semantic tokens (`var(--heading)`, `var(--link)` …), never raw hex. Palette tokens (`--c-green`, `--c-slate-3` …) are only for charts and must be checked for 3:1 in both themes. For a rule that differs in dark mode, write it twice: `:root[data-theme='dark'] .x {…}` and `@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .x {…} }`.
+- **Surfaces re-scope the text tokens**, so text on them stays legible. Inside `.wt-card`, `.wt-dialog`, `.wt-notice` and `.wt-surface` in dark mode (Slate 2 #334155), `--body`/`--muted` become Slate 5, `--link` becomes Lime and `--border` becomes Slate 3. Inside `.wt-band`, `.wt-fill`, `.wt-card--fill` and `.wt-notice` in light mode, `--muted` becomes Slate 2 (Slate 3 is only 4.36:1 on #F5F5F5).
+- **Accessibility exceptions documented here** (section 4 asked for them to be recorded):
+  - Dark-mode control borders use **Slate 4 #94A3B8** (`--control-border`), not #64748B. #64748B is only 2.18:1 on Slate 2 cards, while Slate 4 is 4.04:1 on Slate 2 and 6.96:1 on Slate 1.
+  - Selected and current indicators (tab underline, nav "current" bar) use `--highlight` (Dark Green / Lime), because Green #4EAF60 is 2.75:1 on white.
+  - The progress fill is Medium Green #277656 in light mode, which is 4.47:1 on its track.
+  - No true error colour is used: errors are `--error-text` (Dark Green / Lime) with an alert icon and a bold label.
+- **Layout contract.**
+  - The masthead is sticky and `var(--mast-h)` (64px) tall.
+  - `<html data-view="start|tour|results|data|admin">` names the current view.
+  - `#view-tour` has no padding and the footer is hidden on the tour, so the tour can fill `calc(100svh - var(--mast-h))`.
+  - Other views get `padding-block: 32px 64px`. Wrap content in `.wt-container`.
+  - Breakpoints: phone below 720px; tablet 720–1023px; desktop 1024px and up (`WT.isNarrow()` means below 720px).
+  - `<html class="wt-js">` is present whenever JavaScript runs.
+- **Views.** Render exactly one `<h1 class="wt-title" tabindex="-1" data-fk="h1">` per view. The router focuses it on navigation, except on first load.
+
+### 12.2 `window.WT` helpers (`00-core.js`)
+
+**Escaping, DOM, utilities**
+
+| Helper | Use |
+|---|---|
+| `WT.esc(v)` | HTML-escape any value (text and attributes; also escapes `` ` ``). |
+| ``WT.h`…${v}…` `` | Tagged template that escapes every value. Arrays are joined; `null`/`undefined`/`false` render nothing; nested `WT.h` and `WT.raw(html)` pass through. Returns a Raw object, so use `String(x)` for the string. |
+| `WT.raw(html)` | Mark trusted HTML for `WT.h`, such as `WT.raw(WT.icon('check'))`. Never wrap user text in it. |
+| `WT.render(el, html)` | Replace content, then restore focus, the selection and the scroll position to the element with the same `data-fk`. |
+| `WT.$(sel, root?)`, `WT.$$(sel, root?)` | `querySelector`; `querySelectorAll` as an array. |
+| `WT.delegate(root, evt, selector, fn)` | Delegated listener: `fn(event, matchedEl)`. |
+| `WT.debounce(fn, ms)` | Debounced function with `.cancel()`. |
+| `WT.uid(prefix)` | Unique id for aria wiring (`'fld-3'`). |
+| `WT.attrs({ k: v })` | Escaped attribute string (`false`/`null` dropped, `true` → bare attribute). |
+| `WT.cssEscape(s)` | `CSS.escape` with a fallback. |
+| `WT.reducedMotion()`, `WT.isNarrow()` | Media checks. |
+| `WT.storage` / `WT.session` | localStorage / sessionStorage that never throw: `get(key, fallback)` (JSON), `getRaw(key)`, `set(key, value)`, `remove(key)`. |
+
+**Events, features, constants**
+
+| Helper | Use |
+|---|---|
+| `WT.on(evt, fn)` → `off()`, `WT.off`, `WT.emit` | Event bus. A listener that throws is logged and skipped. |
+| Events | `route` {view, param, path, prev} · `theme` ('light'\|'dark') · `reviewer` (reviewer copy) · `answers` (featureId, or null for "many changed") · `saving` {pending} · `saved` {ok, pending, savedAt?, error?, status?, offline?} · `admin` (true\|false) · `ready` · `results` (emitted by the results module). |
+| `WT.features` | Array from `shared/features.json`, inlined by the build. `WT.feature(id)` returns a feature with an extra `index` (0-based), or null. |
+| `WT.featureIndex(id)` | 0-based position, or -1. |
+| `WT.SECTIONS`, `WT.sectionLabel(section)` | `overview` → "Overview" … `everywhere` → "Throughout the statement". |
+| `WT.shot(id, thumb?)` | `'assets/shots/<id>.jpg'` or `'-thumb.jpg'`. |
+| `WT.ANONYMOUS` | "Anonymous reviewer". |
+| `WT.LIMITS` | `{ name: 60, reason: 500, comment: 2000 }`. |
+| `WT.VOTE_LABEL`, `WT.PRIORITY_LABEL`, `WT.VIEWS` | Display labels. |
+
+**Router**
+
+| Helper | Use |
+|---|---|
+| `WT.register({ name, view?, init(), render(param, route), onRoute?(param, route), leave?(), keepScroll?, manageFocus? })` | Register a module. `render` runs when the view is entered. `onRoute` (optional) runs instead when only the param changes within the same view (the tour uses this to avoid reloading the frame). `leave` runs when another view takes over (stop timers there). `manageFocus: true` stops the router focusing the h1. `keepScroll: true` keeps the scroll position on param changes. `render` may return a promise. A view with no module shows a polite placeholder. |
+| `WT.go(path, { replace?, force? })` | Navigate (`'/tour/journey'` or `'#/results'`). Pushes history and routes synchronously. |
+| `WT.refresh()` | Re-render the current route. |
+| `WT.route()` | Returns `{ view, param, path }`. |
+| `WT.parseRoute(hash)` | Parse a hash, or return null for non-route hashes such as `#main`. |
+| `WT.setTitle(part)` | `document.title = part + ' · YES statement review · InfoSlips'`. The router sets the view name before `render`, and modules may override it. |
+| `WT.focusView(view?)` | Focus the view's h1. |
+| `WT.module(name)` | A registered module, by name. |
+
+**Theme.** `WT.theme.get()` returns the saved choice or null; also `set('light'|'dark'|null)`, `toggle()`, `effective()` and `device()`. The choice is stored in localStorage `infoslips.wt.theme`. The tour mirrors `effective()` into the statement frame and listens to the `theme` event.
+
+**Reviewer** (localStorage `infoslips.wt.reviewer` = `{ secret, name, rid, answers, lastStep }`)
+
+| Helper | Use |
+|---|---|
+| `WT.reviewer.get()` | A copy of the record. `secret` is `''` until the first save. |
+| `WT.reviewer.secret()` | The secret; creates it if missing. |
+| `WT.reviewer.name()`, `WT.reviewer.displayName()` | The name, or "Anonymous reviewer". |
+| `WT.reviewer.setName(name)` | Clean, save locally, queue for the server; emits `reviewer`. |
+| `WT.reviewer.lastStep()`, `WT.reviewer.setLastStep(id)` | Resume point (no event). |
+| `WT.reviewer.rid()` | Promise of this browser's reviewer id, so results can mark "you". |
+| `WT.reviewer.hasProgress()` | True when there is a lastStep or any answer. |
+| `WT.reviewer.reset()` | Promise. "Start as a new reviewer": flushes, then sets a fresh identity. |
+| `WT.cleanName(s)` | The same cleaning as the server. |
+
+**Answers**
+
+| Helper | Use |
+|---|---|
+| `WT.answers.get(id)` | `{ vote, reason, priority, comment, updatedAt }` or null. |
+| `WT.answers.all()` | All answers. |
+| `WT.answers.set(id, patch)` | Merge, save locally, debounce to the server (600 ms); emits `answers`. An answer left empty is cleared. |
+| `WT.answers.clear(id)` | "Clear my answer". |
+| `WT.answers.stats()` | `{ total, answered, voted, include, exclude, prioritised, commented, firstUnanswered }`. |
+| `WT.answers.status()` | `{ saving, ok, pending, error, savedAt }`. Use with the `saving`/`saved` events for the autosave line. |
+| `WT.answers.pending()` | Number of queued changes. |
+| `WT.answers.flush()` / `WT.answers.retry()` | Send queued changes now. Promise<boolean>. |
+| `WT.answers.sync()` | Re-read the server. Runs at boot. |
+
+Failed saves stay in localStorage `infoslips.wt.pending` and are retried on the next change, on `online`, on load, and with backoff (5–60 s) after network or 5xx errors. **On load the server wins** for anything not queued: answers that exist only in the browser (deleted by an admin or a reset) are dropped. Bodies over about 60 KB are split across requests.
+
+**API client.** `WT.api` sends JSON, times out after 15 s, and throws `WT.ApiError { status, code, message }`; status 0 means offline or network.
+
+| Helper | Use |
+|---|---|
+| `WT.api.health()`, `me()`, `saveMe(body, secret?)`, `deleteMe()` | Health check and the reviewer's own record. |
+| `WT.api.results({ admin? })` | `{ admin: true }` adds `?admin=1` and the stored code. |
+| `WT.api.exportUrl('csv'|'json')` | Use as `<a href download>`. |
+| `WT.api.request(method, path, opts)` | Low-level request. |
+| `WT.api.admin.check(code)` | Promise: true (code stored in sessionStorage `infoslips.wt.admin`, emits `admin`) or false on 401. Rejects with status 503 when `ADMIN_CODE` isn't set. |
+| `WT.api.admin.code()`, `signedIn()`, `signOut()` | Stored-code helpers. Any admin call that gets 401 signs out. |
+| `WT.api.admin.hide({ rid, featureId, field, hidden })`, `deleteReviewer(rid)`, `reset()` | Moderation calls. |
+
+**Feedback**
+
+| Helper | Use |
+|---|---|
+| `WT.announce(msg, assertive?)` | Live-region message. It goes inside the top modal dialog when one is open. |
+| `WT.toast(msg, { kind: 'info'|'success'|'error', timeout })` | Short visual confirmation (also announced), shown above dialogs. No controls inside. |
+| `WT.copy(text)` | Promise<boolean>. |
+| `WT.download(filename, content, mime)` | Save a file. |
+
+**Icons.** `WT.icon(name, { size = 20, cls, label })` returns an inline SVG, `aria-hidden` unless `label` is given (`role="img"`). Names (`WT.ICONS`): arrow-left/right/up/down, restart, refresh, check, check-circle, x, x-circle, minus, plus, list, menu, sun, moon, user, users, chart, braces, download, upload, copy, search, chevron-down/up/left/right, external, info, alert, help, eye, eye-off, trash, lock, unlock, edit, comment, flag, play, image, filter, home, logout, target, expand, collapse, keyboard, sparkle, layers, dot.
+
+**Formatting** (en-GB):
+- `WT.fmt.date(iso)` → "4 Oct 2026, 18:40"
+- `WT.fmt.day(iso)` → "4 Oct 2026"
+- `WT.fmt.relative(iso)` → "just now" / "5 minutes ago" / "yesterday" / the date
+- `WT.fmt.pct(fraction)` or `pct(n, total)` → "67%", or "–" when there's nothing to divide
+- `WT.fmt.num(n)` → "1,234"
+- `WT.fmt.plural(n, one, many?)` → "3 reviewers"
+
+**Dialogs** (native `<dialog>`, a bottom sheet under 720px)
+
+| Helper | Use |
+|---|---|
+| `WT.dialog.create({ id, title, body, foot, size: 'sm'|'lg', wide })` | Build a standard dialog once and append it to `<body>`. It is labelled by `#<id>-title`, has a close button, and any `[data-wt-close]` button closes it. |
+| `WT.dialog.open(el, { trigger, initialFocus, lightDismiss, onClose(returnValue) })` | Open as a modal; focus returns to `trigger` on close. |
+| `WT.dialog.close(el, value)` | Close. |
+| `WT.dialog.setReturn(el, target)` | Change where focus returns. |
+| `WT.dialog.confirm({ title, body, html, confirmLabel, cancelLabel, danger, typeToConfirm: 'RESET', trigger })` | Promise<boolean>. Focus starts on Cancel, or on the type-to-confirm input. |
+
+**UI builders** (return HTML strings that use the classes in 12.3)
+
+| Helper | Use |
+|---|---|
+| `WT.ui.segmented({ name, legend, options: [{ value, label, icon? }], value, variant: 'vote'|'priority', size: 'lg', hint, fk, legendHidden, disabled })` | Segmented radio group. |
+| `WT.ui.voteGroup({ value, name?, fk?, hint? })` | Include / Exclude (big, with icons). |
+| `WT.ui.priorityGroup({ value, … })` | High / Medium / Low, legend "Priority if included", with help text. |
+| `WT.ui.field({ id, label, value, max, hint, multiline, rows, optional, placeholder, autocomplete, fk })` | Labelled input or textarea with a live counter ("120 / 500"). Counters update automatically on `input` for any control with `data-counter`, and announce the last 10% and the limit. |
+| `WT.ui.counter(id, n, max)` | The counter element on its own. |
+| `WT.ui.switch({ id, label, checked, hint, fk })` | Checkbox with `role="switch"` (for example "Dim the rest"). |
+| `WT.ui.badge(kind, text, icon?)`, `WT.ui.voteBadge(vote)`, `WT.ui.priorityBadge(p)` | Badges. |
+| `WT.ui.notice({ kind: 'info'|'brand'|'error'|'success', title, text \| html, compact, role })` | Notice box. |
+| `WT.ui.skeleton({ lines, title, block, label })` | Loading state (`aria-busy`, "Loading…" for screen readers). |
+| `WT.ui.progress({ id, value, max, label, hideLabel })` | Labelled native `<progress>`. |
+| `WT.ui.tableWrap(tableHtml, label, cls?)` | Focusable scroll region with a sticky header. |
+| `WT.ui.tabs(rootEl, onChange?)` | Wires a `role="tablist"`: arrow keys, Home/End, automatic activation, and toggling panels by `aria-controls`. |
+
+**Shell** (`05-shell.js`): `WT.brandNotice({ compact })` returns the section 3 branding text (`[data-brand-notice="full"|"compact"]`). `WT.shell.openNameDialog(trigger)` and `WT.shell.closeMenu()` are also available.
+
+### 12.3 CSS classes (`02-components.css` unless noted)
+
+**Base** (`01-base.css`)
+- Layout and type: `.wt-container` (max 1200px + gutters), `.wt-stack` (vertical rhythm via `--stack`), `.wt-cluster` (wrapping row via `--gap`) with `--end` and `--between`, `.wt-grid` (auto-fill via `--min`), `.wt-list-plain`, `.wt-prose`.
+- Headings and text: `.wt-display` (48/800), `.wt-title` (adds the 4px Green accent bar under a title), `.wt-eyebrow` (12/600 caps), `.wt-lead` (18px), `.wt-caption`, `.wt-label-caps`, `.wt-muted`, `.wt-num` (tabular figures).
+- `.wt-view` (view section padding).
+
+**Accessibility**
+- `.wt-sr-only` (visually hidden) and `.wt-sr-only-focusable`.
+- `.wt-skip` (skip link).
+- `:focus-visible` gives a global 3px `--focus` ring with a 2px offset; `forced-colors` and `prefers-reduced-motion` are handled globally.
+
+**Buttons:** `.wt-btn` plus one of:
+- `--primary` (Green, 6.5:1 text)
+- `--secondary` (outlined link colour)
+- `--ghost`
+- `--danger` (strong Slate 1/White, for destructive confirms)
+- `--link` (looks like a link, 24px target)
+- `--icon` (44×44; give it an `aria-label`)
+
+Sizes: `--sm` (36px), `--lg` (52px), `--block`. `:disabled` and `[aria-busy="true"]` (spinner) are styled. Put icons inside as `WT.icon(…)`.
+
+**Forms**
+- Field parts: `.wt-field`, `.wt-label`, `.wt-optional`, `.wt-hint`.
+- Controls: `.wt-input`, `.wt-textarea` and `.wt-select` (44px; `[aria-invalid="true"]` thickens the border).
+- Messages: `.wt-counter` (`[data-state="near"|"full"]`) and `.wt-error` (Dark Green/Lime, bold, with an icon).
+- Groups: `.wt-fieldset` (+ `--boxed`) and `.wt-legend`.
+
+**Segmented radio group:** `.wt-segmented` (on a fieldset) › `.wt-segmented__options` › `label.wt-segmented__option[--include|--exclude]` › `input.wt-segmented__input[type=radio]` + `span.wt-segmented__label`. The variants are:
+- `.wt-segmented--vote`: Include is Green; Exclude is Slate 2 in light and Slate 4 in dark.
+- `.wt-segmented--priority`.
+- `.wt-segmented--lg`: 56px.
+
+The radio covers its label, so the whole button is the click target. A radio dot shows the state, so colour is never the only signal.
+
+**Switch:** `label.wt-switch` › `input.wt-switch__input[type=checkbox][role=switch]` + `span.wt-switch__track` + `span.wt-switch__label`.
+
+**Surfaces**
+- `.wt-card`, with `--flat` (no shadow), `--fill` (grey), `--compact` and `--link` (the whole card is an `<a>`); `.wt-card__title`.
+- `.wt-band`: a full-width feature section with `--section` (#F5F5F5 / Dark Green).
+- `.wt-surface`: a card-coloured panel with no padding.
+- `.wt-fill`: a subtle grey.
+- `.wt-divider`.
+- `.wt-details`: a styled `<details>` disclosure.
+
+**Chips and badges**
+- `.wt-chip`: a pill button or link. `[aria-pressed="true"]`, `[aria-current]` and `.is-selected` style the selected state; `--static` makes it non-interactive.
+- `.wt-badge` with `--include` (✓, Green), `--exclude` (✗, Slate), `--high`, `--medium`, `--low`, `--none` / `--neutral` (no vote, counts), `--hidden` (dashed: "Hidden by admin") and `--brand`.
+
+**Notices:** `.wt-notice` › `.wt-notice__icon` + `.wt-notice__body` (+ `.wt-notice__title`), with `--info`, `--brand`, `--error`, `--success` and `--compact`. Use `WT.brandNotice()` for the branding notice.
+
+**Status:** `.wt-status[data-state="saving"|"saved"|"error"]` is the inline autosave line, with an icon and text.
+
+**Tables:** `.wt-table-wrap` (a scroll container; give it `role="region"`, `tabindex="0"` and an `aria-label`; `--table-max-h` caps its height) › `table.wt-table`. The `thead th` row is sticky. The variants are:
+- `.wt-table--sticky-col`: the first column is sticky too, for the people × features matrix.
+- `.wt-table--compact`.
+
+Use `.wt-num`, `td.is-num` or `th.is-num` to right-align numbers.
+
+**Loading:** `.wt-skeleton-group` › `.wt-skeleton` with `--title`, `--text`, `--block` or `--circle` (it pulses unless reduced motion is on).
+
+**Dialog:** `dialog.wt-dialog` with `--sm` or `--wide`. Its structure is `.wt-dialog__inner` › `.wt-dialog__head` (`.wt-dialog__title`, `.wt-dialog__close`), then `.wt-dialog__body` (scrolls) and `.wt-dialog__foot` (actions, right-aligned). `.wt-dialog__text` holds body copy. Under 720px the dialog becomes a bottom sheet with full-width actions.
+
+**Tabs:** `.wt-tabs[role=tablist]` › `button.wt-tab[role=tab][aria-selected]` and `.wt-tabpanel[role=tabpanel]`. Wire them with `WT.ui.tabs`.
+
+**Progress:** `.wt-progress` › `.wt-progress__label` + `progress.wt-progress__bar`.
+
+**Lists and states**
+- `.wt-steps` › `.wt-steps__item` › `.wt-steps__n` + `.wt-steps__h` (numbered steps).
+- `.wt-empty` (+ `.wt-empty__icon`) is the empty state; `.wt-placeholder` is the "not ready" view.
+- `.wt-kbd` / `kbd` styles key caps (for the Alt+→ help).
+
+**Toasts:** `.wt-toasts` › `.wt-toast` (`--error`). Created by `WT.toast`.
+
+**Shell** (`05-shell.css`)
+- Masthead: `.wt-mast` and its parts `__inner`, `__brand`, `__app`, `__menu`, `__menu-btn` and `__tools`.
+- Logos: `.wt-logo`, with `--light` / `--dark` showing one per theme.
+- Nav: `.wt-nav__list` and `.wt-nav__link` (`[aria-current="page"]`).
+- Controls: `.wt-reviewer-chip` and `.wt-theme-toggle` (with `__track`, `__knob`, `__sun`, `__moon` and `__label`).
+- Footer: `.wt-foot` and its parts `__inner`, `__logo`, `__text`, `__links` and `__admin`.
+- Name dialog: `.wt-name-form`, `.wt-name-dialog__other` and `.wt-name-dialog__h`.
+
+**Start** (`10-start.css`): the `.wt-start__*` classes are private to the start view.
+
+**Token quick list** (`00-tokens.css`):
+- Page and surfaces: `--bg`, `--section`, `--surface` (+ `--surface-shadow`, `--surface-border`), `--surface-2`, `--dialog-bg`.
+- Text and lines: `--heading`, `--body`, `--muted`, `--border`, `--border-strong`.
+- Controls: `--control-bg`, `--control-border`, `--hover-fill`.
+- Brand and links: `--accent`, `--link`, `--link-hover`, `--highlight`.
+- Buttons: `--btn-bg`, `--btn-text`, `--btn-hover-bg`, `--btn-hover-text`, `--btn-strong-bg`, `--btn-strong-text`.
+- Focus and states: `--focus`, `--spot`, `--selected-bg`, `--selected-text`.
+- Votes and priorities: `--include-bg`/`-text`, `--exclude-bg`/`-text`, `--high-*`, `--medium-*`, `--low-*` (+ `--low-border`).
+- Indicators: `--track`, `--fill`, `--switch-off`, `--switch-on`, `--switch-knob`.
+- Notices and errors: `--notice-bg`, `--notice-text`, `--error-text`.
+- Loading and tables: `--skeleton`, `--table-head-bg`, `--table-row-hover`.
+- Overlays: `--backdrop`, `--overlay-dim` (the tour spotlight, rgb(15 23 42 / .55)), `--toast-bg`, `--toast-text`, `--shadow-pop`, `--code-bg`.
+- Type: `--font-sans`, `--font-mono`, `--fs-*`, `--lh-*`, `--tracking-caps`.
+- Space and shape: `--sp-1…8`, `--radius-sm`, `--radius`, `--radius-lg`, `--radius-pill`, `--gutter`, `--container`.
+- Layout and layers: `--mast-h`, `--target` (44px), `--z-*`.
+- Motion: `--dur`, `--dur-slow`, `--ease`.
+- Brand palette: `--c-*`.
+
+### 12.4 API details beyond section 9
+
+**Response extras**
+- `GET /api/health` also returns `adminConfigured`.
+- `GET/PUT /api/me` return `{ rid, name, createdAt, updatedAt, answers, hidden }`, or `{ rid, name: '', answers: {} }` when nothing is stored. A PUT that would store nothing creates no record.
+- `DELETE /api/me` returns `{ ok, deleted, rid }`.
+- `GET /api/results` adds:
+  - `admin` (boolean);
+  - `features[id].comments` and `.reasons` (visible counts), with `score` rounded to 2 decimals (null with no priorities);
+  - `people[].createdAt`.
+  
+  People are reviewers with at least one answer, newest first. Responses are newest first.
+- Exports name anonymous reviewers `Anonymous reviewer (<first 6 of rid>)` so rows can be told apart. JSON export is `{ generatedAt, columns, rows }`. Both are sent as attachments named `yes-statement-review-YYYY-MM-DD.csv|json`.
+
+**Errors**
+
+| Status | `error.code` |
+|---|---|
+| 401 | `no_secret` |
+| 400 | `bad_secret`, `bad_json` |
+| 422 | `invalid`, `unknown_feature`, `too_long`, `confirm_required` |
+| 413 | `too_large` |
+| 401 | `bad_admin_code` |
+| 503 | `admin_not_configured` |
+| 404 | `not_found` |
+| 405 | `method_not_allowed` (with an `Allow` header) |
+| 409 | `conflict` (Blobs write kept conflicting; very rare) |
+| 500 | `server_error` |
+
+**Text cleaning**
+- Control characters except `\n`, bidi overrides/isolates and BOMs are stripped. CRLF becomes `\n`.
+- Names collapse whitespace to single spaces.
+- Limits are measured after trimming.
+
+**Stores** also implement `update(key, fn)`, an atomic read-modify-write. Memory and file stores use a per-key lock. The Blobs store uses `getWithMetadata` and `setJSON` with `onlyIfMatch`/`onlyIfNew`, retrying on conflict.
+
+**Local development**
+- `npm run dev` builds to `public/` and serves on :8888 with a file store in `walkthrough/.data/`.
+- `node server/dev.mjs --root <dir> --port 0 --store memory` prints `WT_LISTENING <url>`.
+- Set `ADMIN_CODE=… node server/dev.mjs …` to enable admin.
+- `startServer({ root, port, store, adminCode })` is exported for in-process use.
+
+**Build:** `build({ out, quiet })` is exported. It refuses to empty a non-empty directory that isn't a previous build. JS files must match `NN-name.js`; `src/js/theme-boot.js` is the only non-bundled script. Assets are copied to `assets/brand/`, `assets/shots/`, `assets/icons/` and `assets/fonts/`.
+
+### 12.5 Writing tests (`tests/run.mjs`, `tests/helpers.mjs`)
+
+- **Shape.** A test file exports `export default async function (ctx)`, plus an optional `export const meta = { timeout }` (180 s by default).
+- **`ctx`** is `{ base, browser, api, assert, log, step, reset, adminCode, features, root, out, file, shotsDir }`:
+  - `assert` is `node:assert/strict`.
+  - `step(name, async fn)` records a failure and carries on, so name every check.
+  - `api(path, { method, body, secret, admin, headers, rawBody })` returns `{ status, ok, headers, json, text, bytes }`.
+  - `reset()` empties the database. The runner calls it before each file, so every file starts with no reviewers.
+  - `features` is read from `shared/features.json`. Never hard-code ids or counts.
+- **Commands.**
+  - `node tests/run.mjs --only <substring>` runs matching files.
+  - `--keep` keeps the temp build.
+  - Each file is also importable directly; see `tests/32-datareq.test.mjs`, which also runs standalone.
+- **`helpers.mjs` exports**
+
+| Helper | Use |
+|---|---|
+| `openPage(ctx, { viewport, colorScheme, reducedMotion, storage, timezoneId, javaScriptEnabled })` | Returns `{ context, page, errors, ignored, external, close }`. Everything except `base` is blocked and recorded in `external`. Console errors and page errors are collected (offline noise is filtered by `IGNORED_CONSOLE`). `storage` seeds localStorage once, before the app runs. |
+| `VIEWPORTS` | desktop 1280×900, wide 1920×1080, tablet 900×1100, phone 390×844, narrow 320×640. |
+| `gotoApp(page, base, '#/results')` | Waits for `<html data-wt-ready="1">`. |
+| `waitForView(page, view, param?)` | Waits for the router to show a view. |
+| `focused(page)` | `{ tag, id, text, fk, role, label }`. |
+| `axe(page, { include, exclude, disableRules, tags })` | Injects via `page.evaluate`, which works under the CSP. Returns violations; use `formatViolations` for the message. |
+| `shot(page, name, { fullPage })` | Writes `$WT_SHOTS/<name>.png` (`walkthrough/test-results/screens`, gitignored). |
+| `assertNoErrors(errors, assert, external?)` | Fails on errors and unexpected requests. |
+| `features()`, `newSecret()`, `ridFor(secret)`, `sleep(ms)`, `apiClient(base)` | Data and timing utilities. |
+| `seedReviewer(api, { secret?, name?, answers })` | Server only. |
+| `seedBrowserReviewer(api, { name, answers, lastStep })` | Server and the matching localStorage seed. **Use this to show answers in the app.** |
+| `reviewerStorage({ … })` | Local only; the load-time sync drops answers the server doesn't have. |
+
+- **Tour tests** run the statement in a same-origin frame. UserWay requests are aborted, as in the statement's own tests.

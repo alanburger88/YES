@@ -3,7 +3,8 @@
  * saved light/dark choice (localStorage 'infoslips.wt.theme'), or the device
  * setting when nothing is saved, to <html data-theme>. It is an external file
  * (assets/theme-boot.<hash>.js) because the CSP allows no inline script.
- * WT.theme (00-core.js) takes over once the app loads.
+ * It also adds class "wt-js" to <html>, so controls that need JavaScript can
+ * stay hidden when it is off. WT.theme (00-core.js) takes over once the app loads.
  */
 (function () {
   'use strict';
@@ -20,5 +21,7 @@
       theme = 'light';
     }
   }
-  document.documentElement.setAttribute('data-theme', theme);
+  var root = document.documentElement;
+  root.setAttribute('data-theme', theme);
+  root.className += (root.className ? ' ' : '') + 'wt-js'; // JS runs: show JS-only controls
 })();

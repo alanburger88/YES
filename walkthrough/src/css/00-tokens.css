@@ -279,11 +279,12 @@
  */
 .wt-band,
 .wt-notice,
-.wt-fill {
+.wt-fill,
+.wt-card--fill {
   --muted: #334155;
 }
 
-:root[data-theme='dark'] :is(.wt-card, .wt-dialog, .wt-notice, .wt-surface, .wt-menu-surface) {
+:root[data-theme='dark'] :is(.wt-card, .wt-dialog, .wt-notice, .wt-surface) {
   --muted: #cbd5e1;
   --body: #cbd5e1;
   --link: #dbe64c;
@@ -305,7 +306,7 @@
   --focus: #dbe64c;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) :is(.wt-card, .wt-dialog, .wt-notice, .wt-surface, .wt-menu-surface) {
+  :root:not([data-theme='light']) :is(.wt-card, .wt-dialog, .wt-notice, .wt-surface) {
     --muted: #cbd5e1;
     --body: #cbd5e1;
     --link: #dbe64c;

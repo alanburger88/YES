@@ -102,7 +102,7 @@
             '<p class="wt-start__meta">' + WT.icon('info', { size: 18 }) + '<span>About 15 minutes · ' + N + ' features · You can stop and continue at any time.</span></p>' +
             WT.brandNotice() +
           '</div>' +
-          '<aside class="wt-card wt-start__you" aria-labelledby="start-you-h">' +
+          '<section class="wt-card wt-start__you" aria-labelledby="start-you-h">' +
             '<h2 class="wt-card__title" id="start-you-h">' + WT.icon('user') + '<span>About you</span></h2>' +
             '<form class="wt-start__name" id="start-name-form" novalidate>' +
               WT.ui.field({
@@ -117,7 +117,7 @@
             '</form>' +
             '<p class="wt-start__privacy">' + WT.icon('lock', { size: 18 }) +
               '<span>Your answers are saved to a shared database as you go and are visible to everyone with this link. They’re linked to this browser, not to an account.</span></p>' +
-          '</aside>' +
+          '</section>' +
         '</div>' +
 
         '<section class="wt-band wt-start__how" aria-labelledby="start-how-h">' +
