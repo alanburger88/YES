@@ -33,6 +33,14 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+// Node's built-in fetch ignores HTTPS_PROXY unless NODE_USE_ENV_PROXY=1 (Node ≥ 22.21).
+// In a cloud session the proxy is also what attaches the API credential.
+if ((process.env.HTTPS_PROXY || process.env.https_proxy) && !process.env.NODE_USE_ENV_PROXY) {
+  const { spawnSync } = await import('node:child_process');
+  const r = spawnSync(process.execPath, process.argv.slice(1), { stdio: 'inherit', env: { ...process.env, NODE_USE_ENV_PROXY: '1', NODE_NO_WARNINGS: '1' } });
+  process.exit(r.status == null ? 1 : r.status);
+}
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CACHE = join(ROOT, '.cache', 'voiceover');
 const MEDIA = join(ROOT, 'src', 'media');
@@ -94,6 +102,30 @@ async function speak(voiceId, text, prev, next) {
 
 /** Captions use no-break and thin spaces (amount units, date ranges); compare them as plain spaces. */
 const norm = (str) => String(str).replace(/[\u00a0\u2009\u202f]/g, ' ');
+/* ElevenLabs' standard library voices (female), by id: used for names when the
+   key may not read the voice list (a key restricted to text to speech). */
+const KNOWN = {
+  EXAVITQu4vr4xnSDxMaL: 'Sarah',
+  XrExE9yKIg1WjnnlVkGX: 'Matilda',
+  '21m00Tcm4TlvDq8ikWAM': 'Rachel',
+  Xb7hH8MSUJpSbSDYk0k2: 'Alice',
+  FGY2WhTYpPnrIDTdsKH5: 'Laura',
+  pFZP5JQG7iQjIQuC4Bku: 'Lily',
+  cgSgspJ2msm6clMCkdW9: 'Jessica',
+  '9BWtsMINqrJLrRacOk9x': 'Aria'
+};
+/** Voice name by id: the account's list when the key may read it, else KNOWN, else the id. */
+async function voiceName(id) {
+  try {
+    const headers = KEY ? { 'xi-api-key': KEY } : {};
+    const res = await fetch(`${API}/voices/${encodeURIComponent(id)}`, { headers });
+    if (res.ok) return (await res.json()).name || KNOWN[id] || id;
+  } catch (e) {
+    /* fall through */
+  }
+  return KNOWN[id] || id;
+}
+
 const duration = (file) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]).toString().trim());
 
 /** The player's cues and script fingerprint per language, read from the built file. */
@@ -133,9 +165,8 @@ async function samples() {
   mkdirSync(outDir, { recursive: true });
   const script = JSON.parse(readFileSync(join(ROOT, 'scripts', 'voiceover-script.json'), 'utf8'));
   const pick = (lang) => ['hello', 'period', 'closing'].map((k) => script[lang][k].voice).join(' ');
-  const all = await (await api('/voices')).json();
   for (const id of ids) {
-    const name = ((all.voices || []).find((v) => v.voice_id === id) || {}).name || id;
+    const name = await voiceName(id);
     const en = await speak(id, pick('en'));
     const es = await speak(id, pick('es'));
     const out = join(outDir, `sample-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.mp3`);
@@ -149,10 +180,9 @@ async function record() {
   if (!voiceId) die('Pass --voice <voice id> (see: voices)');
   const script = JSON.parse(readFileSync(join(ROOT, 'scripts', 'voiceover-script.json'), 'utf8'));
   const player = await playerScript();
-  const all = await (await api('/voices')).json();
-  const voiceName = opt('--name') || ((all.voices || []).find((v) => v.voice_id === voiceId) || {}).name || voiceId;
+  const name = opt('--name') || (await voiceName(voiceId));
   mkdirSync(MEDIA, { recursive: true });
-  const manifest = { voice: { id: voiceId, name: voiceName }, model: MODEL, settings: SETTINGS, generatedAt: new Date().toISOString(), languages: {} };
+  const manifest = { voice: { id: voiceId, name: name }, model: MODEL, settings: SETTINGS, generatedAt: new Date().toISOString(), languages: {} };
 
   for (const lang of ['en', 'es']) {
     const { cues, hash, duration: total } = player[lang];
