@@ -3,11 +3,14 @@
  * 2 "self-contained", 5.4 inquiry versus dispute).
  *
  * The Help view (#help-root) gathers contextual help, placeholder support
- * destinations, a local-only clarity prompt, the statement record, the
+ * destinations, a local-only clarity prompt, "Download or print" (the
+ * statement record: print, PDF and CSV with the facts that identify it), the
  * integrity checks, the accessibility statement with the live UserWay status,
  * and an honest list of what is connected in this file. It also owns the
  * statement-of-record print view (#print-root), rendered from the same data
- * and kept current on language change and on 'beforeprint'.
+ * and kept current on language change and on 'beforeprint', and the
+ * statement-of-record PDF (YES.help.downloadPdf), drawn with YES.pdf from the
+ * same data and strings in the current language.
  *
  * Context that must survive a language switch lives in YES.state.help
  * (section, feedback draft, error, editing) and YES.state.feedback.clarity
@@ -22,7 +25,7 @@
   var doc = root.document;
 
   var SECTIONS = ['contact', 'feedback', 'record', 'integrity', 'accessibility', 'about'];
-  var SECTION_ICONS = { contact: 'phone', feedback: 'thumbsUp', record: 'book', integrity: 'shield', accessibility: 'accessibility', about: 'info' };
+  var SECTION_ICONS = { contact: 'phone', feedback: 'thumbsUp', record: 'file-down', integrity: 'shield', accessibility: 'accessibility', about: 'info' };
   var RATINGS = ['very_clear', 'mostly_clear', 'little_confusing', 'confusing'];
   var UW_STATES = { idle: 'clock', loading: 'clock', loaded: 'check-circle', unavailable: 'info', host: 'check-circle', disabled: 'info' };
   var FEATURES = [
@@ -451,7 +454,59 @@
     return section('feedback', ui.illustrativeTag('demo.only'), '<div id="help-fb-body">' + feedbackBodyHtml() + '</div>');
   }
 
-  /* ---------------------------- Record ----------------------------- */
+  /* ---------------------- Download or print ----------------------- */
+  /*
+   * The 'record' section: every way to keep the statement of record, side by
+   * side (print, a PDF file, the complete-record CSV), then the facts that
+   * identify it. The masthead's "Download or print" button lands here
+   * (YES.help.open('record')).
+   */
+  var DL_OPTIONS = [
+    { id: 'print', icon: 'print', attr: 'data-help-print', fk: 'help-print', label: 'common.print', primary: true },
+    { id: 'pdf', icon: 'file-down', attr: 'data-help-pdf', fk: 'help-pdf', label: 'help.dl.pdf.button', primary: true },
+    { id: 'csv', icon: 'download', attr: 'data-help-csv', fk: 'help-csv', label: 'help.rec.csv', primary: false }
+  ];
+  function downloadOptionsHtml() {
+    return (
+      '<ul class="help-dl" data-help-dl>' +
+      DL_OPTIONS.map(function (o) {
+        var desc = 'help-dl-' + o.id + '-desc';
+        var body = o.id === 'pdf' ? t('help.dl.pdf.body', { size: t('help.pdf.size.' + pdfPageSize()) }) : t('help.dl.' + o.id + '.body');
+        return (
+          '<li class="help-dl__opt help-dl__opt--' +
+          o.id +
+          '">' +
+          '<span class="help-dl__icon">' +
+          icon(o.icon, { size: 22 }) +
+          '</span>' +
+          '<h3 class="help-dl__title">' +
+          esc(t('help.dl.' + o.id + '.title')) +
+          '</h3>' +
+          '<p class="help-dl__body" id="' +
+          desc +
+          '">' +
+          esc(body) +
+          '</p>' +
+          '<button type="button" class="btn' +
+          (o.primary ? ' btn--primary' : '') +
+          ' help-dl__btn" ' +
+          o.attr +
+          ' data-fk="' +
+          o.fk +
+          '" aria-describedby="' +
+          desc +
+          '">' +
+          icon(o.icon === 'print' ? 'print' : 'download', { size: 18 }) +
+          '<span>' +
+          esc(t(o.label)) +
+          '</span></button>' +
+          '</li>'
+        );
+      }).join('') +
+      '</ul>'
+    );
+  }
+
   function recordHtml() {
     var s = st();
     var rows = [
@@ -475,25 +530,22 @@
       '<p class="help-sec__lede">' +
         esc(t('help.rec.lede')) +
         '</p>' +
+        downloadOptionsHtml() +
+        '<p class="help-fine help-dl__hint">' +
+        icon('info', { size: 16 }) +
+        '<span>' +
+        esc(t('help.rec.printHint') + (YES.config.demo ? ' ' + t('help.rec.watermarkHint') : '')) +
+        '</span></p>' +
+        '<h3 class="help-sub" id="help-rec-facts">' +
+        esc(t('help.rec.factsTitle')) +
+        '</h3>' +
+        '<p class="help-sub__lede">' +
+        esc(t('help.rec.factsLede')) +
+        '</p>' +
         '<dl class="kv help-kv">' +
         kv +
         '</dl>' +
         notice('info', 'lock', '<p><strong>' + esc(t('help.rec.snapshot')) + '</strong></p><p>' + esc(t('help.rec.live')) + '</p>', 'help-gap-top') +
-        '<div class="help-actions help-actions--record">' +
-        '<button type="button" class="btn btn--primary" data-help-print data-fk="help-print">' +
-        icon('print', { size: 18 }) +
-        '<span>' +
-        esc(t('common.print')) +
-        '</span></button>' +
-        '<button type="button" class="btn" data-help-csv data-fk="help-csv">' +
-        icon('download', { size: 18 }) +
-        '<span>' +
-        esc(t('help.rec.csv')) +
-        '</span></button>' +
-        '</div>' +
-        '<p class="help-fine">' +
-        esc(t('help.rec.printHint')) +
-        '</p>' +
         '<p class="help-fine">' +
         icon('info', { size: 16 }) +
         '<span>' +
@@ -1237,6 +1289,582 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Statement-of-record PDF                                             */
+  /* ------------------------------------------------------------------ */
+  /*
+   * The downloadable statement of record: the print view's content, drawn
+   * with YES.pdf (07-pdf.js) in the current language, offline, with real,
+   * selectable text. Every figure comes from YES.calc and YES.fmt (the writer
+   * maps U+2212 and the no-break spaces to plain characters).
+   *
+   * Page size follows the language: US Letter for English, A4 for Spanish.
+   * YES.config.pdf.pageSize ('letter' | 'a4', or { en, es }) overrides it.
+   *
+   * The colours are fixed print values, never the screen tokens, so the file
+   * is the same in the light and dark themes. Tables use rules rather than
+   * filled rows, so the demo watermark (drawn beneath the content of every
+   * page) shows through everywhere.
+   */
+  var PDF_PAGE_SIZE = { en: 'letter', es: 'a4' };
+  var PDF_INK = '#111820';
+  var PDF_INK_2 = '#3f4a57';
+  var PDF_MUTED = '#5d6874';
+  var PDF_RULE = '#8c96a2';
+  var PDF_HAIR = '#cfd5dc';
+  var PDF_MARK = '#e3e3e3';
+  var PDF_FS = { body: 7.5, sub: 6.5, head: 6.8, note: 7.5, h2: 11 };
+  var PDF_PAD_X = 3;
+  var PDF_PAD_Y = 3.2;
+
+  function pdfPageSize() {
+    var cfg = YES.config.pdf && YES.config.pdf.pageSize;
+    var lang = YES.i18n.lang;
+    var size = (cfg && (typeof cfg === 'string' ? cfg : cfg[lang])) || PDF_PAGE_SIZE[lang] || 'letter';
+    return YES.pdf && YES.pdf.sizes && YES.pdf.sizes[size] ? size : 'letter';
+  }
+  /** "YES-statement-<statement id>-DEMO.pdf" (no -DEMO outside the showcase). */
+  function pdfFileName() {
+    var id = String(st().id || 'record').replace(/[^A-Za-z0-9._-]+/g, '-');
+    return 'YES-statement-' + id + (YES.config.demo ? '-DEMO' : '') + '.pdf';
+  }
+  /** The [YES_LOGO] slot's wordmark; the writer draws no images, so artwork prints as its name. */
+  function logoText() {
+    var slot = YES.config.slots.YES_LOGO || {};
+    return String(slot.text || t('brand.logoAlt'));
+  }
+  function upper(s) {
+    return String(s).toLocaleUpperCase(YES.i18n.locale());
+  }
+  /** Keep a phrase on one line: the writer's wrap() never breaks at a no-break space. */
+  function keep(s) {
+    return String(s).replace(/ /g, ' ');
+  }
+
+  /** Compose the statement of record. Returns the YES.pdf document. */
+  function composePdf() {
+    var s = st();
+    var a = asset();
+    var demo = !!YES.config.demo;
+    var cust = s.customer || {};
+    var period = YES.fmt.range(s.periodStart, s.periodEnd);
+    var pdf = YES.pdf.create({
+      size: pdfPageSize(),
+      margin: { top: 46, right: 44, bottom: 70, left: 44 },
+      title: t('help.pdf.docTitle', { period: period, id: s.id }),
+      author: logoText(),
+      subject: t('help.print.title') + ' · ' + YES.L(YES.config.slots.PRODUCT_NAME),
+      keywords: demo ? t('demo.badgeLong') : '',
+      lang: YES.i18n.locale()
+    });
+    if (demo) pdf.watermark(t('demo.watermark'), { color: PDF_MARK });
+    var M = pdf.margin;
+    var L = M.left;
+    var R = pdf.width - M.right;
+    var CW = R - L;
+    var BOTTOM = pdf.height - M.bottom;
+    var y = M.top;
+
+    /* --------------------------------------------------------- Drawing */
+    function text(str, x, yy, o) {
+      pdf.text(str, x, yy, o);
+    }
+    function para(str, x, yy, width, o) {
+      o = o || {};
+      var size = o.size || PDF_FS.body;
+      var lh = o.lh || size * 1.32;
+      pdf.wrap(str, o.font || 'regular', size, width).forEach(function (ln) {
+        text(ln, x, yy, { font: o.font, size: size, color: o.color || PDF_INK });
+        yy += lh;
+      });
+      return yy;
+    }
+    function paraH(str, width, o) {
+      o = o || {};
+      var size = o.size || PDF_FS.body;
+      return pdf.wrap(str, o.font || 'regular', size, width).length * (o.lh || size * 1.32);
+    }
+    function dashedBox(x, yy, w, h) {
+      var o = { width: 0.75, color: PDF_INK, dash: [2.5, 2] };
+      pdf.line(x, yy, x + w, yy, o);
+      pdf.line(x + w, yy, x + w, yy + h, o);
+      pdf.line(x + w, yy + h, x, yy + h, o);
+      pdf.line(x, yy + h, x, yy, o);
+    }
+    /* Continuation pages open with a slim running header. */
+    function pageHeader() {
+      var logo = logoText();
+      text(logo, L, y, { font: 'bold', size: 8 });
+      text(t('help.print.title') + ' · ' + period, L + pdf.measure(logo, 'bold', 8) + 6, y + 0.6, { size: 7.5, color: PDF_INK_2 });
+      text(cust.displayName || '', R, y + 0.6, { size: 7.5, color: PDF_INK_2, align: 'right' });
+      y += 11;
+      pdf.line(L, y, R, y, { width: 0.5, color: PDF_RULE });
+      y += 12;
+    }
+    function newPage() {
+      pdf.addPage();
+      y = M.top;
+      pageHeader();
+    }
+    /** Section heading with a rule (dashed for the not-in-balance section). */
+    function heading(title, x, w, dash) {
+      text(title, x, y, { font: 'bold', size: PDF_FS.h2 });
+      y += PDF_FS.h2 + 3.5;
+      pdf.line(x, y, x + w, y, { width: 0.9, color: PDF_INK, dash: dash ? [2.5, 2] : null });
+      y += 6;
+    }
+    /** Start a section: on a new page unless the heading and `minBody` points fit here. */
+    function section(title, minBody) {
+      if (y + 16 + PDF_FS.h2 + 10 + (minBody || 0) > BOTTOM) newPage();
+      else y += 16;
+      heading(title, L, CW);
+    }
+    function label(str, x, yy) {
+      text(upper(str), x, yy, { font: 'bold', size: 6.5, color: PDF_MUTED });
+      return yy + 9.5;
+    }
+
+    /* ---------------------------------------------------------- Tables */
+    /*
+     * cols: [{ w, align }]. A cell is null or { items: [{ text, font, size,
+     * color, flag, gap }], span, align }; each item wraps inside the cell.
+     */
+    function cols(widths, aligns, total) {
+      return widths.map(function (f, i) {
+        return { w: f * total, align: aligns[i] || 'left' };
+      });
+    }
+    function cell(textOrItems, o) {
+      var c = o || {};
+      c.items = typeof textOrItems === 'string' ? [{ text: textOrItems }] : textOrItems || [];
+      return c;
+    }
+    function layoutRow(cs, cells, bold) {
+      var out = [];
+      var h = 0;
+      var x = 0;
+      var col = 0;
+      var k = 0;
+      while (col < cs.length) {
+        var c = cells[k++] || null;
+        var span = Math.max(1, (c && c.span) || 1);
+        var w = 0;
+        for (var j = col; j < col + span && j < cs.length; j++) w += cs[j].w;
+        var lines = [];
+        var ch = 0;
+        ((c && c.items) || []).forEach(function (it) {
+          if (it.text == null || it.text === '') return;
+          var size = it.size || PDF_FS.body;
+          var font = it.font || (bold ? 'bold' : 'regular');
+          var lh = size * 1.28;
+          ch += it.gap || 0;
+          pdf.wrap(String(it.text), font, size, w - PDF_PAD_X * 2 - (it.flag ? 4 : 0)).forEach(function (ln) {
+            lines.push({ text: ln, font: font, size: size, color: it.color || PDF_INK, flag: !!it.flag, top: ch });
+            ch += lh;
+          });
+        });
+        out.push({ x: x, w: w, align: (c && c.align) || cs[col].align, lines: lines });
+        h = Math.max(h, ch);
+        x += w;
+        col += span;
+      }
+      return { cells: out, h: h + PDF_PAD_Y * 2 };
+    }
+    function drawRow(row, x0, yy) {
+      row.cells.forEach(function (c) {
+        var right = c.align === 'right';
+        var tx = right ? x0 + c.x + c.w - PDF_PAD_X : x0 + c.x + PDF_PAD_X;
+        c.lines.forEach(function (ln) {
+          var ty = yy + PDF_PAD_Y + ln.top;
+          if (ln.flag) {
+            var fw = pdf.measure(ln.text, ln.font, ln.size) + 4;
+            var fx = right ? tx - fw : tx;
+            pdf.rect(fx, ty - 1.2, fw, ln.size * 0.93 + 2.2, { stroke: PDF_INK, lineWidth: 0.5 });
+            text(ln.text, fx + 2, ty, { font: ln.font, size: ln.size, color: ln.color });
+          } else {
+            text(ln.text, tx, ty, { font: ln.font, size: ln.size, color: ln.color, align: right ? 'right' : 'left' });
+          }
+        });
+      });
+    }
+    function headerCells(labels) {
+      return labels.map(function (l) {
+        return cell([{ text: l, font: 'bold', size: PDF_FS.head }]);
+      });
+    }
+    function tableHeight(cs, header, rows) {
+      return rows.reduce(function (sum, r) {
+        return sum + layoutRow(cs, r.cells, r.kind).h;
+      }, layoutRow(cs, header).h + 4);
+    }
+    /*
+     * A table that flows across pages: rows never split, the column headers
+     * repeat on every page under a "(continued)" line, and a closing or total
+     * row moves to the next page together with the row above it.
+     *   rows: [{ cells, kind: 'total' | 'closing' }]
+     */
+    function table(cs, header, rows, o) {
+      o = o || {};
+      var x0 = o.x != null ? o.x : L;
+      var tw = cs.reduce(function (sum, c) {
+        return sum + c.w;
+      }, 0);
+      var head = layoutRow(cs, header);
+      var laid = rows.map(function (r) {
+        return layoutRow(cs, r.cells, r.kind);
+      });
+      function drawHead() {
+        drawRow(head, x0, y);
+        y += head.h;
+        pdf.line(x0, y, x0 + tw, y, { width: 0.9, color: PDF_INK });
+      }
+      drawHead();
+      rows.forEach(function (r, i) {
+        var next = rows[i + 1];
+        var keepNext = next && next.kind === 'closing';
+        var need = laid[i].h + (keepNext ? laid[i + 1].h + 3 : 0) + (r.kind === 'closing' ? 3 : 0);
+        if (!(r.kind === 'closing' && i > 0) && y + need > BOTTOM) {
+          newPage();
+          if (o.continued) {
+            text(o.continued, x0, y, { font: 'bold', size: 8.5 });
+            y += 14;
+          }
+          drawHead();
+        }
+        if (r.kind === 'closing') pdf.line(x0, y, x0 + tw, y, { width: 1.2, color: PDF_INK });
+        drawRow(laid[i], x0, y);
+        y += laid[i].h;
+        if (r.kind === 'closing') {
+          pdf.line(x0, y, x0 + tw, y, { width: 0.6, color: PDF_INK });
+          pdf.line(x0, y + 1.8, x0 + tw, y + 1.8, { width: 0.6, color: PDF_INK });
+          y += 3;
+        } else if (!keepNext && i < rows.length - 1) {
+          pdf.line(x0, y, x0 + tw, y, { width: 0.4, color: PDF_HAIR });
+        }
+      });
+    }
+
+    /* ------------------------------------------------------- Data */
+    var cats = YES.calc.categories();
+    var posted = YES.calc.posted();
+    var pending = YES.calc.notInBalance();
+    var balanceAfter = {};
+    YES.calc.running().forEach(function (r) {
+      balanceAfter[r.txId] = r.balance;
+    });
+    var periodStartMs = Date.parse(s.periodStart);
+    function dateItems(iso) {
+      return iso
+        ? [
+            { text: YES.fmt.date(iso, 'medium') },
+            { text: YES.fmt.date(iso, 'time'), size: PDF_FS.sub, color: PDF_MUTED }
+          ]
+        : [];
+    }
+    function descItems(tx, withParent) {
+      var items = [
+        { text: YES.L(tx.description), font: 'bold' },
+        { text: YES.L(tx.counterparty), size: PDF_FS.sub, color: PDF_MUTED }
+      ];
+      var parent = withParent && tx.parentId ? YES.calc.tx(tx.parentId) : null;
+      if (parent) items.push({ text: t('help.print.feeFor', { ref: parent.reference }), size: PDF_FS.sub, color: PDF_MUTED });
+      return items;
+    }
+
+    /* ------------------------------------------------- Page 1 header */
+    var logo = logoText();
+    var logoSize = 14;
+    var logoW = pdf.measure(logo, 'bold', logoSize) + 14;
+    var logoH = 26;
+    pdf.rect(L, y, logoW, logoH, { stroke: PDF_INK, lineWidth: 1.2 });
+    text(logo, L + logoW / 2, y + (logoH - logoSize * 0.718) / 2, { font: 'bold', size: logoSize, align: 'center' });
+    var demoW = demo ? Math.min(176, CW * 0.36) : 0;
+    var hx = L + logoW + 12;
+    var hw = R - hx - (demo ? demoW + 14 : 0);
+    text(upper(YES.L(YES.config.slots.PRODUCT_NAME)), hx, y, { font: 'bold', size: 6.8, color: PDF_MUTED });
+    var hy = para(t('help.print.title'), hx, y + 10, hw, { font: 'bold', size: 17, lh: 19 });
+    hy = para(period, hx, hy + 2, hw, { font: 'bold', size: 9.5 });
+    var headH = Math.max(logoH, hy - y);
+    if (demo) {
+      var dLines = pdf.wrap(upper(t('demo.badgeLong')), 'bold', 6.6, demoW - 12);
+      var dH = dLines.length * 8.6 + 9;
+      dashedBox(R - demoW, y, demoW, dH);
+      dLines.forEach(function (ln, i) {
+        text(ln, R - demoW + 6, y + 5 + i * 8.6, { font: 'bold', size: 6.6 });
+      });
+      headH = Math.max(headH, dH);
+    }
+    y += headH + 7;
+    pdf.line(L, y, R, y, { width: 1.6, color: PDF_INK });
+    y += 12;
+
+    /* ---------------------------------------- Customer, account, facts */
+    var leftW = CW * 0.42;
+    var boxX = L + leftW + 16;
+    var boxW = R - boxX;
+    var top = y;
+    var ly = label(t('help.print.customer'), L, y);
+    text(cust.displayName || '', L, ly, { font: 'bold', size: 9 });
+    ly += 12;
+    (cust.address || []).forEach(function (line) {
+      ly = para(line, L, ly, leftW, { size: 8.5, lh: 11 });
+    });
+    ly = label(t('help.print.account'), L, ly + 7);
+    ly = para(YES.L(s.account.label) + ' ' + keep(s.account.maskedId), L, ly, leftW, { size: 8.5, lh: 11 });
+    if (s.account.walletMasked) ly = para(t('help.print.wallet') + ' ' + keep(s.account.walletMasked), L, ly, leftW, { size: 8.5, lh: 11 });
+    ly = para(t('help.print.masked'), L, ly + 1, leftW, { size: 7, color: PDF_MUTED });
+
+    var facts = [
+      ['help.rec.id', s.id],
+      ['help.rec.version', s.version],
+      ['help.rec.issue', issueLabel()],
+      ['help.rec.period', period],
+      ['help.rec.generated', dateTime(s.generatedAt) + ' ' + tzShort(s.generatedAt)],
+      ['help.rec.asOf', dateTime(s.asOf) + ' ' + tzShort(s.asOf)],
+      ['help.rec.timezone', YES.fmt.tz(s.asOf)],
+      ['help.rec.basis', t('term.postedDate')],
+      ['help.print.asset', YES.L(a.name) + ' (' + a.symbol + ')']
+    ];
+    var keyW = (boxW - 16) * 0.42;
+    var valW = boxW - 16 - keyW - 8;
+    var fy = top + 7;
+    facts.forEach(function (f) {
+      var k = pdf.wrap(t(f[0]), 'regular', 7.5, keyW);
+      var v = pdf.wrap(String(f[1]), 'bold', 7.5, valW);
+      k.forEach(function (ln, i) {
+        text(ln, boxX + 8, fy + i * 9.6, { size: 7.5, color: PDF_MUTED });
+      });
+      v.forEach(function (ln, i) {
+        text(ln, boxX + 8 + keyW + 8, fy + i * 9.6, { font: 'bold', size: 7.5 });
+      });
+      fy += Math.max(k.length, v.length) * 9.6 + 1.6;
+    });
+    var boxH = fy - top + 4;
+    pdf.rect(boxX, top, boxW, boxH, { stroke: PDF_RULE, lineWidth: 0.75 });
+    y = Math.max(ly, top + boxH);
+
+    /* ------------------------------------------------- Balance summary */
+    section(t('help.print.summary'), 120);
+    var sw = Math.min(CW, 340);
+    var sc = cols([0.56, 0.17, 0.27], ['left', 'right', 'right'], sw);
+    var sumRows = [{ kind: 'total', cells: [cell(t('cat.opening')), null, cell(amt(s.opening))] }]
+      .concat(
+        cats.map(function (c) {
+          return { cells: [cell(t('cat.' + c.id)), cell(YES.fmt.count(c.count)), cell(amt(c.total, 'always'))] };
+        })
+      )
+      .concat([{ kind: 'closing', cells: [cell(t('cat.closing')), null, cell(YES.fmt.amount(s.closing))] }]);
+    table(sc, headerCells([t('help.print.colItem'), t('help.print.colCount'), t('help.print.colAmount')]), sumRows);
+    // The arithmetic in one line; each term stays whole when it wraps.
+    var eq = YES.calc
+      .journey()
+      .map(function (step) {
+        var v = YES.fmt.amount(Math.abs(step.value), { sign: 'never', unit: step.id === 'closing' });
+        var term = keep(t('cat.' + step.id) + ' ' + v);
+        if (step.id === 'opening') return term;
+        return keep((step.id === 'closing' ? '=' : step.value < 0 ? YES.fmt.MINUS : '+') + ' ') + term;
+      })
+      .join(' ');
+    var eqLines = pdf.wrap(eq, 'bold', 8, CW - 16);
+    var eqH = eqLines.length * 11 + 8;
+    y += 8;
+    if (y + eqH + 24 > BOTTOM) newPage();
+    pdf.rect(L, y, CW, eqH, { stroke: PDF_INK, lineWidth: 0.8 });
+    eqLines.forEach(function (ln, i) {
+      text(ln, L + 8, y + 5 + i * 11, { font: 'bold', size: 8 });
+    });
+    y += eqH + 6;
+    y = para(
+      t('help.print.net', { net: YES.fmt.amount(YES.calc.netChange(), { sign: 'always' }), count: YES.txCount(posted.length) }) + ' ' + t('help.print.unit', { symbol: a.symbol }),
+      L,
+      y,
+      CW,
+      { size: PDF_FS.note, color: PDF_INK_2 }
+    );
+
+    /* ------------------------------------------------- Posted ledger */
+    var ledgerTitle = t('help.print.ledger');
+    var lc = cols([0.112, 0.118, 0.3, 0.11, 0.13, 0.11, 0.12], ['left', 'left', 'left', 'left', 'left', 'right', 'right'], CW);
+    var ledgerHead = headerCells([
+      t('term.postedDate'),
+      t('term.initiatedDate'),
+      t('help.print.colDesc'),
+      t('help.print.colType'),
+      t('help.print.colRef'),
+      t('help.print.colAmount'),
+      t('help.print.colBalance')
+    ]);
+    var ledgerRows = [
+      {
+        kind: 'total',
+        cells: [cell(YES.fmt.date(s.periodStart, 'medium')), null, cell(t('cat.opening'), { span: 3 }), null, cell(amt(s.opening))]
+      }
+    ]
+      .concat(
+        posted.map(function (tx) {
+          var initiated = dateItems(tx.initiatedAt);
+          if (Date.parse(tx.initiatedAt) < periodStartMs) initiated.push({ text: t('help.print.prevPeriod'), font: 'bold', size: 6, flag: true, gap: 2.5 });
+          return {
+            cells: [
+              cell(dateItems(tx.postedAt)),
+              cell(initiated),
+              cell(descItems(tx, true)),
+              cell(ui.typeLabel(tx)),
+              cell([{ text: tx.reference, size: 7 }]),
+              cell(amt(tx.amount, 'always')),
+              cell(amt(balanceAfter[tx.id]))
+            ]
+          };
+        })
+      )
+      .concat([
+        {
+          kind: 'closing',
+          cells: [cell(YES.fmt.date(s.periodEnd, 'medium')), null, cell(t('cat.closing'), { span: 3 }), null, cell(amt(s.closing))]
+        }
+      ]);
+    section(ledgerTitle, 34 + layoutRow(lc, ledgerHead).h + layoutRow(lc, ledgerRows[0].cells, 'total').h + layoutRow(lc, ledgerRows[1].cells).h);
+    y = para(t('help.print.ledgerNote', { count: YES.txCount(posted.length), tz: YES.fmt.tz(s.asOf) }), L, y, CW, { size: PDF_FS.note, color: PDF_INK_2 }) + 3;
+    table(lc, ledgerHead, ledgerRows, { continued: t('help.pdf.continued', { section: ledgerTitle }) });
+
+    /* ------------------------------- Not included in the statement balance */
+    var pendTitle = t('help.print.pending');
+    var pendNote = t('help.print.pendingNote', { date: dateTime(s.asOf) + ' ' + tzShort(s.asOf) });
+    var inX = L + 9;
+    var inW = CW - 18;
+    var pc = cols([0.14, 0.31, 0.14, 0.15, 0.13, 0.13], ['left', 'left', 'left', 'left', 'left', 'right'], inW);
+    var pendHead = headerCells([t('term.initiatedDate'), t('help.print.colDesc'), t('help.print.colType'), t('help.print.colRef'), t('help.print.colStatus'), t('help.print.colAmount')]);
+    var pendRows = pending.map(function (tx) {
+      var stKey = { pending: 1, failed: 1 }[tx.status] ? 'status.' + tx.status : 'status.unknown';
+      return {
+        cells: [
+          cell(dateItems(tx.initiatedAt)),
+          cell(descItems(tx, false)),
+          cell(ui.typeLabel(tx)),
+          cell([{ text: tx.reference, size: 7 }]),
+          cell([
+            { text: t(stKey), font: 'bold' },
+            { text: t('status.notInBalance'), size: PDF_FS.sub, color: PDF_MUTED }
+          ]),
+          cell(amt(tx.amount, 'always'))
+        ]
+      };
+    });
+    var pendBodyH = pending.length ? tableHeight(pc, pendHead, pendRows) : paraH(t('common.none'), inW);
+    var pendH = 8 + PDF_FS.h2 + 9.5 + paraH(pendNote, inW, { size: PDF_FS.note }) + 3 + pendBodyH + 8;
+    var boxed = pendH <= BOTTOM - M.top - 40;
+    if (y + 16 + pendH > BOTTOM) newPage();
+    else y += 16;
+    var pendTop = y;
+    y += boxed ? 8 : 0;
+    heading(pendTitle, boxed ? inX : L, boxed ? inW : CW, true);
+    y = para(pendNote, boxed ? inX : L, y, boxed ? inW : CW, { size: PDF_FS.note, color: PDF_INK_2 }) + 3;
+    if (pending.length) table(pc, pendHead, pendRows, { x: boxed ? inX : L, continued: t('help.pdf.continued', { section: pendTitle }) });
+    else y = para(t('common.none'), boxed ? inX : L, y, inW);
+    if (boxed) {
+      y += 8;
+      dashedBox(L, pendTop, CW, y - pendTop);
+    }
+
+    /* ------------------------------------------------------- Fees */
+    var feeCat = YES.calc.category('fees');
+    var fc = cols([0.17, 0.43, 0.22, 0.18], ['left', 'left', 'left', 'right'], CW);
+    var feeHead = headerCells([t('term.postedDate'), t('help.print.colFee'), t('help.print.colFeeFor'), t('help.print.colAmount')]);
+    var feeRows = (feeCat ? feeCat.txIds : [])
+      .map(function (id) {
+        var tx = YES.calc.tx(id);
+        var parent = tx.parentId ? YES.calc.tx(tx.parentId) : null;
+        return {
+          cells: [cell(YES.fmt.date(tx.postedAt, 'medium')), cell(YES.L(tx.description)), cell([{ text: parent ? parent.reference : '', size: 7 }]), cell(amt(tx.amount, 'always'))]
+        };
+      })
+      .concat([
+        {
+          kind: 'closing',
+          cells: [cell(t('help.print.feesTotal', { count: YES.txCount(feeCat ? feeCat.count : 0) }), { span: 3 }), cell(amt(YES.calc.feesTotal(), 'always'))]
+        }
+      ]);
+    var feesTitle = t('help.print.fees');
+    section(feesTitle, Math.min(tableHeight(fc, feeHead, feeRows), 90));
+    table(fc, feeHead, feeRows, { continued: t('help.pdf.continued', { section: feesTitle }) });
+    y = para(t(YES.calc.foreignFees().length ? 'help.print.foreignFees' : 'help.print.noForeignFees'), L, y + 4, CW, { size: PDF_FS.note, color: PDF_INK_2 });
+
+    /* ---------------------- Disclosures and the record's identification */
+    // Printed as one block, so the identification never sits alone on a page.
+    var discParas = [YES.L(YES.config.slots.DISCLOSURES), t('help.print.issuer', { value: YES.L(YES.config.slots.ISSUER_OR_PARTNER) }), t('help.print.snapshot')];
+    var endParas = [t('footer.statementId', { id: s.id, version: s.version }) + ' · ' + t('footer.generated', { date: dateTime(s.generatedAt) + ' ' + tzShort(s.generatedAt) }), t('footer.poweredBy')];
+    var endH =
+      PDF_FS.h2 +
+      10 +
+      discParas.reduce(function (sum, p) {
+        return sum + paraH(p, CW, { size: 8 }) + 3;
+      }, 0) +
+      22 +
+      (demo ? 10 + paraH(t('help.pdf.demoNote'), CW, { size: 7.5 }) : 0) +
+      endParas.reduce(function (sum, p) {
+        return sum + paraH(p, CW, { size: 7.5 });
+      }, 0);
+    section(t('footer.disclosures'), endH - PDF_FS.h2 - 10);
+    discParas.forEach(function (p) {
+      y = para(p, L, y, CW, { size: 8 }) + 3;
+    });
+    y += 8;
+    pdf.line(L, y, R, y, { width: 0.9, color: PDF_INK });
+    y += 6;
+    if (demo) {
+      text(t('demo.watermark') + '.', L, y, { font: 'bold', size: 7.5 });
+      y = para(t('help.pdf.demoNote'), L, y + 10, CW, { size: 7.5, color: PDF_INK_2 });
+    }
+    endParas.forEach(function (p) {
+      y = para(p, L, y, CW, { size: 7.5, color: PDF_INK_2 });
+    });
+
+    /* --------------------------- Running footer on every page */
+    var n = pdf.pageCount();
+    for (var i = 0; i < n; i++) {
+      pdf.setPage(i);
+      var footY = pdf.height - M.bottom + 18;
+      pdf.line(L, footY, R, footY, { width: 0.5, color: PDF_RULE });
+      text(t('footer.statementId', { id: s.id, version: s.version }), L, footY + 6, { size: 7, color: PDF_INK_2 });
+      text(t('help.print.pageOf', { page: YES.fmt.count(i + 1), pages: YES.fmt.count(n) }), R, footY + 6, { font: 'bold', size: 7, color: PDF_INK_2, align: 'right' });
+      if (demo) text(t('demo.badgeLong'), L, footY + 15.5, { size: 6.5, color: PDF_MUTED });
+    }
+    pdf.setPage(n - 1);
+    return pdf;
+  }
+
+  /**
+   * The statement-of-record PDF as bytes, in the current language:
+   * { name, bytes (Uint8Array), pages, size ('letter' | 'a4') }.
+   */
+  function buildPdf() {
+    var pdf = composePdf();
+    return { name: pdfFileName(), bytes: pdf.save(), pages: pdf.pageCount(), size: pdfPageSize() };
+  }
+
+  /**
+   * Download the statement of record as a PDF (one click, created on this
+   * device, nothing sent) and confirm it. Returns the file name, or null when
+   * no PDF could be made (a withheld statement, or an error).
+   */
+  function downloadPdf() {
+    if (YES.integrity && YES.integrity.ok === false) {
+      ui.toast(t('help.pdf.withheld'));
+      return null;
+    }
+    var out;
+    try {
+      out = buildPdf();
+    } catch (e) {
+      if (root.console) console.error('[YES] help: the statement PDF could not be created', e);
+      ui.toast(t('help.pdf.failed'));
+      return null;
+    }
+    ui.download(out.name, out.bytes, 'application/pdf');
+    ui.toast(t('help.pdf.done', { pages: t(out.pages === 1 ? 'help.pdf.page' : 'help.pdf.pages', { n: YES.fmt.count(out.pages) }) }));
+    return out.name;
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Rendering                                                           */
   /* ------------------------------------------------------------------ */
   function render() {
@@ -1268,17 +1896,30 @@
     sec.scrollIntoView({ block: 'start', behavior: ui.reducedMotion() ? 'auto' : 'smooth' });
   }
 
-  /** Navigate to Help and focus a section (contact, feedback, record, integrity, accessibility, about). */
+  /* Other names for a section: #/help/download (and print, pdf) lead to "Download or print". */
+  var SECTION_ALIASES = { download: 'record', print: 'record', pdf: 'record' };
+  function sectionOf(id) {
+    var sec = Object.prototype.hasOwnProperty.call(SECTION_ALIASES, id) ? SECTION_ALIASES[id] : id;
+    return SECTIONS.indexOf(sec) !== -1 ? sec : null;
+  }
+
+  /**
+   * Navigate to Help and focus a section (contact, feedback, record,
+   * integrity, accessibility, about). 'record' is "Download or print", the
+   * masthead button's destination; 'download' is accepted for it too.
+   */
   function open(sectionId) {
-    var sec = SECTIONS.indexOf(sectionId) !== -1 ? sectionId : null;
+    var sec = sectionOf(sectionId);
     if (sec) setH({ section: sec });
     YES.nav.go('help', { param: sec, focus: !sec });
   }
 
   function onRoute(r) {
     if (!r || r.view !== 'help') return;
-    var sec = SECTIONS.indexOf(r.param) !== -1 ? r.param : null;
+    var sec = sectionOf(r.param);
     if (!sec) return;
+    // An alias in the address becomes the section's own route.
+    if (sec !== r.param) YES.nav.setParam(sec);
     setH({ section: sec });
     // Defer until the router has finished (it may scroll to the top or focus the h1).
     clearTimeout(focusTimer);
@@ -1322,7 +1963,15 @@
   /* ------------------------------------------------------------------ */
   /* Public API and registration                                         */
   /* ------------------------------------------------------------------ */
-  YES.help = { open: open, renderPrint: renderPrint, sections: SECTIONS.slice() };
+  YES.help = {
+    open: open,
+    renderPrint: renderPrint,
+    /** Download the statement-of-record PDF (Help's "Download PDF", the explorer toolbar). Returns the file name or null. */
+    downloadPdf: downloadPdf,
+    /** The same PDF without downloading it: { name, bytes, pages, size }. */
+    buildPdf: buildPdf,
+    sections: SECTIONS.slice()
+  };
 
   YES.register({
     name: 'help',
@@ -1334,7 +1983,7 @@
 
         'help.sec.contact': 'Contact support',
         'help.sec.feedback': 'Feedback',
-        'help.sec.record': 'Statement record',
+        'help.sec.record': 'Download or print',
         'help.sec.integrity': 'Statement integrity',
         'help.sec.accessibility': 'Accessibility',
         'help.sec.about': 'About this demo',
@@ -1395,7 +2044,9 @@
         'help.issue.original': 'Original',
         'help.issue.corrected': 'Corrected (new version)',
         'help.rec.tag': 'Period snapshot',
-        'help.rec.lede': 'The facts that identify this statement of record.',
+        'help.rec.lede': 'Print the statement of record, or save it on this device as a PDF or a spreadsheet file. Files are created here, offline — nothing is sent.',
+        'help.rec.factsTitle': 'Statement record',
+        'help.rec.factsLede': 'The facts that identify this statement of record.',
         'help.rec.id': 'Statement ID',
         'help.rec.version': 'Version',
         'help.rec.issue': 'Issue status',
@@ -1407,7 +2058,25 @@
         'help.rec.snapshot': 'This is a period snapshot; an issued statement is never changed — corrections are issued as a new version.',
         'help.rec.live': 'It does not show live balances or current transaction status. In production, live information would appear in a separate, timestamped area.',
         'help.rec.csv': 'Download CSV — complete record',
-        'help.rec.printHint': 'The printed statement lists every posted transaction, the balance summary, pending items and fees, with a demo watermark on each page. The CSV file is created on this device; nothing is sent.',
+        'help.rec.printHint': 'The printed statement and the PDF include the balance summary, every posted transaction, the items not included in the balance and the fees, with the statement ID and page numbers on every page.',
+        'help.rec.watermarkHint': 'Each page carries an “Illustrative demo data” watermark.',
+        'help.dl.print.title': 'Print',
+        'help.dl.print.body': 'Opens your browser’s print dialog with the statement of record laid out for paper.',
+        'help.dl.pdf.title': 'PDF file',
+        'help.dl.pdf.body': 'The same statement of record as a PDF file ({size}) to keep or share, created on this device.',
+        'help.dl.pdf.button': 'Download PDF',
+        'help.dl.csv.title': 'Spreadsheet (CSV)',
+        'help.dl.csv.body': 'Every transaction, including items not yet in the balance, as a CSV file for a spreadsheet.',
+        'help.pdf.size.letter': 'US Letter size',
+        'help.pdf.size.a4': 'A4 size',
+        'help.pdf.docTitle': 'YES statement of record, {period} ({id})',
+        'help.pdf.continued': '{section} (continued)',
+        'help.pdf.demoNote': 'Showcase statement with illustrative demo data. No real customer, account or blockchain information is used. This PDF was created on the device that downloaded it; nothing was sent.',
+        'help.pdf.done': 'PDF saved to this device ({pages}). Nothing was sent.',
+        'help.pdf.page': '{n} page',
+        'help.pdf.pages': '{n} pages',
+        'help.pdf.failed': 'The PDF could not be created. Use Print and choose “Save as PDF” instead.',
+        'help.pdf.withheld': 'This statement is withheld, so no PDF can be created.',
         'help.rec.retention': 'Retention, archival and correction handling are defined with YES and InfoSlips before live use.',
 
         'help.int.summary': '{n} of {total} checks passed',
@@ -1547,7 +2216,7 @@
 
         'help.sec.contact': 'Contactar con soporte',
         'help.sec.feedback': 'Tu opinión',
-        'help.sec.record': 'Registro del estado de cuenta',
+        'help.sec.record': 'Descargar o imprimir',
         'help.sec.integrity': 'Integridad del estado de cuenta',
         'help.sec.accessibility': 'Accesibilidad',
         'help.sec.about': 'Acerca de esta demostración',
@@ -1608,7 +2277,9 @@
         'help.issue.original': 'Original',
         'help.issue.corrected': 'Corregido (nueva versión)',
         'help.rec.tag': 'Instantánea del período',
-        'help.rec.lede': 'Los datos que identifican este estado de cuenta oficial.',
+        'help.rec.lede': 'Imprime el estado de cuenta oficial o guárdalo en este dispositivo como PDF o como hoja de cálculo. Los archivos se crean aquí, sin conexión: no se envía nada.',
+        'help.rec.factsTitle': 'Registro del estado de cuenta',
+        'help.rec.factsLede': 'Los datos que identifican este estado de cuenta oficial.',
         'help.rec.id': 'ID del estado de cuenta',
         'help.rec.version': 'Versión',
         'help.rec.issue': 'Estado de emisión',
@@ -1620,7 +2291,25 @@
         'help.rec.snapshot': 'Esta es una instantánea del período; un estado de cuenta emitido nunca se modifica: las correcciones se emiten como una nueva versión.',
         'help.rec.live': 'No muestra saldos en vivo ni el estado actual de los movimientos. En producción, la información en vivo aparecería en un área separada y con fecha y hora.',
         'help.rec.csv': 'Descargar CSV — registro completo',
-        'help.rec.printHint': 'El estado de cuenta impreso incluye todos los movimientos registrados, el resumen del saldo, los pendientes y las comisiones, con una marca de agua de demostración en cada página. El archivo CSV se crea en este dispositivo; no se envía nada.',
+        'help.rec.printHint': 'El estado de cuenta impreso y el PDF incluyen el resumen del saldo, todos los movimientos registrados, los movimientos no incluidos en el saldo y las comisiones, con el ID del estado de cuenta y el número de página en cada página.',
+        'help.rec.watermarkHint': 'Cada página lleva la marca de agua «Datos ilustrativos de demostración».',
+        'help.dl.print.title': 'Imprimir',
+        'help.dl.print.body': 'Abre el diálogo de impresión del navegador con el estado de cuenta oficial preparado para papel.',
+        'help.dl.pdf.title': 'Archivo PDF',
+        'help.dl.pdf.body': 'El mismo estado de cuenta oficial en un archivo PDF ({size}) para guardarlo o compartirlo, creado en este dispositivo.',
+        'help.dl.pdf.button': 'Descargar PDF',
+        'help.dl.csv.title': 'Hoja de cálculo (CSV)',
+        'help.dl.csv.body': 'Todos los movimientos, incluidos los que aún no están en el saldo, en un archivo CSV para hojas de cálculo.',
+        'help.pdf.size.letter': 'tamaño carta de EE. UU.',
+        'help.pdf.size.a4': 'tamaño A4',
+        'help.pdf.docTitle': 'Estado de cuenta oficial de YES del {period} ({id})',
+        'help.pdf.continued': '{section} (continuación)',
+        'help.pdf.demoNote': 'Estado de cuenta de muestra con datos ilustrativos de demostración. No se usa información real de clientes, cuentas ni blockchain. Este PDF se creó en el dispositivo que lo descargó; no se envió nada.',
+        'help.pdf.done': 'PDF guardado en este dispositivo ({pages}). No se envió nada.',
+        'help.pdf.page': '{n} página',
+        'help.pdf.pages': '{n} páginas',
+        'help.pdf.failed': 'No se pudo crear el PDF. Usa Imprimir y elige «Guardar como PDF».',
+        'help.pdf.withheld': 'Este estado de cuenta está retenido, así que no se puede crear un PDF.',
         'help.rec.retention': 'La conservación, el archivo y la gestión de correcciones se definen con YES e InfoSlips antes del uso real.',
 
         'help.int.summary': '{n} de {total} controles superados',
@@ -1774,6 +2463,9 @@
       ui.delegate(r, 'click', '[data-help-print]', function () {
         renderPrint();
         if (typeof root.print === 'function') root.print();
+      });
+      ui.delegate(r, 'click', '[data-help-pdf]', function () {
+        downloadPdf();
       });
       ui.delegate(r, 'click', '[data-help-csv]', function () {
         YES.explorer.exportCsv('all');

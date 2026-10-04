@@ -5,6 +5,14 @@
  * text always stays in ink tokens.
  */
 
+/* A word too long for its line (a heading, "(America/New_York)") breaks
+   rather than scroll the page sideways with very large text (200%). Words
+   that fit are never split, and min-content sizes are unchanged. */
+#overview-root,
+.ov-vdlg {
+  overflow-wrap: break-word;
+}
+
 /* ------------------------------------------------------------ Heading */
 .ov-head {
   margin-bottom: var(--s5);
@@ -47,8 +55,12 @@
   line-height: 1.05;
 }
 .ov-hero__num {
-  /* Hero figure: ≥48px, same sans, proportional figures; sized by the card. */
-  font-size: clamp(3rem, 5.5cqi + 1rem, 4rem);
+  /* Hero figure: ≥48px, same sans, proportional figures; sized by the card,
+     and never wider than its column: --ov-hero-em (set by the script) is the
+     figure's width in em, so very large text (200%) on a phone shrinks the
+     figure to fit instead of scrolling the page sideways (WCAG 1.4.4/1.4.10).
+     One column: the whole card; two columns: the left 1.2fr of the grid. */
+  font-size: min(clamp(3rem, 5.5cqi + 1rem, 4rem), calc(100cqi / var(--ov-hero-em, 5)));
   font-weight: 650;
   letter-spacing: -0.025em;
   font-variant-numeric: proportional-nums;
@@ -74,8 +86,12 @@
   font-size: var(--fs-sm);
 }
 .ov-asof .icon {
+  flex: none;
   margin-top: 2px;
   color: var(--muted);
+}
+.ov-asof > span {
+  min-width: 0;
 }
 .ov-fiat {
   padding-top: var(--s3);
@@ -138,6 +154,15 @@
 .ov-change__value .dir {
   flex: none;
 }
+/* Amounts whose unit may drop to its own line (wrapAmountHtml): the number
+   and the unit stay whole, the space between them may wrap. */
+.ov-amt {
+  white-space: normal;
+}
+.ov-amt__n,
+.ov-amt__u {
+  white-space: nowrap;
+}
 .ov-change__text {
   margin: 0;
   color: var(--ink-2);
@@ -179,6 +204,9 @@
   }
   .ov-balance__main {
     grid-area: main;
+  }
+  .ov-hero__num {
+    font-size: min(clamp(3rem, 5.5cqi + 1rem, 4rem), calc((100cqi - var(--s8)) * 6 / 11 / var(--ov-hero-em, 5)));
   }
   .ov-balance__fiat {
     grid-area: fiat;
@@ -456,6 +484,12 @@ button.jr-step:hover {
   overflow-wrap: break-word;
   hyphens: manual;
 }
+/* A word wider than the whole column (only with very large text) may break
+   rather than run out of its step. */
+.jr-label > span,
+.jr-group__label > span {
+  min-width: 0;
+}
 .jr-check {
   display: none;
   align-items: center;
@@ -551,6 +585,29 @@ button.jr-step:hover {
     display: none;
   }
 }
+/* Very narrow for the text size (a phone with 200% text; never at 100% on a
+   320px screen, where the column is ~15.4rem): label, value, count and
+   mini-bridge each take a full line, so nothing scrolls sideways (WCAG 1.4.4,
+   1.4.10). Rows are not indented here, so every mini-bridge keeps one scale;
+   the group headers' side bars still show the grouping. */
+@container ov-journey (max-width: 14rem) {
+  .jr {
+    --indent: 0px;
+  }
+  .jr-step,
+  .jr-step--delta {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'label'
+      'value'
+      'sub'
+      'plot';
+    row-gap: 4px;
+  }
+  .jr-value {
+    justify-content: flex-start;
+  }
+}
 
 /* Group headers (Incoming activity / Outgoing activity and fees) */
 .jr-group {
@@ -613,6 +670,17 @@ button.jr-step:hover {
 }
 .jr-group__bracket {
   display: none;
+}
+/* Very narrow for the text size (see the steps above): label, total and
+   count on their own lines. */
+@container ov-journey (max-width: 14rem) {
+  .jr-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .jr-group__value {
+    grid-row: auto;
+    grid-column: 1;
+  }
 }
 
 /* Selection: wash + outline (shape, not only colour); others recede. */
@@ -1103,6 +1171,21 @@ button.jr-step:hover {
     display: none;
   }
 }
+/* Very narrow for the text size (a phone with 200% text; at 100% a 320px
+   phone's panel is ~13.75rem): who, then when and type, then the amount, each
+   on its own line, so nothing is clipped. */
+@container ov-panel (max-width: 12rem) {
+  .ov-tx {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'cp'
+      'when'
+      'amt';
+  }
+  .ov-tx__amt {
+    text-align: left;
+  }
+}
 /* A table-like row once the panel is wide enough for every column. */
 @container ov-panel (min-width: 36rem) {
   .ov-txhead,
@@ -1245,15 +1328,21 @@ button.jr-step:hover {
 .jr-eq__term {
   display: inline-flex;
   flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
 }
 .jr-eq__num {
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.jr-eq__num.ov-amt {
+  white-space: normal;
+}
 .jr-eq__lbl {
   font-size: var(--fs-xs);
   color: var(--muted);
+  overflow-wrap: break-word;
 }
 .jr-eq__op {
   font-weight: 650;
@@ -1707,6 +1796,7 @@ button.jr-step:hover {
 .ov-video {
   margin-top: var(--s10);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s5);
   align-items: center;
 }
@@ -1715,6 +1805,10 @@ button.jr-step:hover {
     grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
     gap: var(--s6);
   }
+}
+.ov-video__media {
+  container: ov-media / inline-size;
+  min-width: 0;
 }
 .ov-video__poster {
   /* Deep in both schemes: in dark mode the brand primary is a light tint, and a
@@ -1727,8 +1821,17 @@ button.jr-step:hover {
   overflow: hidden;
   background: var(--poster-bg);
 }
-@media (prefers-color-scheme: dark) {
-  .ov-video__poster {
+/* Dark scheme: the two entry points of 00-tokens.css (the device setting unless
+   the visitor chose light; the visitor's dark choice on any device). Screen
+   only, so print keeps the light poster. */
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ov-video__poster {
+    --poster-bg: color-mix(in srgb, var(--primary) 26%, var(--surface));
+    --poster-ink: var(--ink);
+  }
+}
+@media screen {
+  :root[data-theme='dark'] .ov-video__poster {
     --poster-bg: color-mix(in srgb, var(--primary) 26%, var(--surface));
     --poster-ink: var(--ink);
   }
@@ -1876,6 +1979,41 @@ button.jr-step:hover {
   margin: 0;
   font-size: var(--fs-xs);
   color: var(--ink-2);
+}
+.ov-video__ph .tag {
+  max-width: 100%;
+  white-space: normal;
+}
+
+/* A poster narrow for the text size (200% text; at 100% the narrowest poster
+   is ~15.4rem): the play control and the duration sit below the artwork, on
+   the poster colour, instead of colliding on it. */
+@container ov-media (max-width: 15rem) {
+  .ov-video__poster {
+    aspect-ratio: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s2);
+    padding-bottom: var(--s3);
+  }
+  .ov-poster__svg,
+  .ov-poster__img {
+    flex: 1 1 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+  .ov-video__play {
+    position: static;
+    max-width: calc(100% - 2 * var(--s3));
+    margin-left: var(--s3);
+    text-align: left;
+  }
+  .ov-video__dur {
+    position: static;
+    margin: 0 var(--s3) 0 auto;
+  }
 }
 
 /* Video storyboard dialog */

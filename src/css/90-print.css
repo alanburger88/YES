@@ -1,13 +1,17 @@
 /*
  * Print: the screen UI is replaced by the statement-of-record view rendered into
  * #print-root (owned by the Help/record module). A demo watermark repeats on
- * every page in the showcase.
+ * every page in the showcase. Print is always light, whatever the screen theme.
  */
 #print-root {
   display: none;
 }
 @media print {
-  :root {
+  /* Always light on paper. The dark tokens are screen-only (00-tokens.css),
+     and this selector also wins over :root[data-theme='dark'] (same
+     specificity, later in the cascade), so a dark choice never reaches print. */
+  :root,
+  :root[data-theme] {
     color-scheme: light;
     --bg: #fff;
     --surface: #fff;

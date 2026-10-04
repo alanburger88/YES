@@ -8,6 +8,13 @@
  * fictional local reference. Nothing is sent, nothing is stored outside
  * YES.state, and no contact details are ever requested.
  *
+ * Language: the dialog has no language switch of its own (ARCHITECTURE rule 7).
+ * It renders in the language chosen in the masthead when it opens. To change
+ * language mid-flow the customer closes it (the draft is kept), switches in the
+ * masthead (the phone Menu) and reopens it: same transaction, step and answers,
+ * now in the new language. A language change made while it is open (YES.setLang
+ * from script) re-renders it in place, focus kept.
+ *
  * State (YES.state.inquiry) — survives closing the dialog and language switches:
  *   { txId, step: 'transaction'|'details'|'review'|'done', reason, description,
  *     channel, status: 'draft'|'submitted', ref, attempt, seq,
@@ -349,17 +356,14 @@
       '<span>' +
       esc(t('inquiry.backToTx')) +
       '</span></button>' +
-      // The page behind this modal is inert, so the inquiry carries its own
-      // language switch (handled globally): it re-renders in place, same step,
-      // same answers, focus kept on the pressed language.
-      '<div class="inq-head__tools">' +
-      ui.langSwitchHtml({ fk: 'inq-lang', compact: true }) +
+      // No language switch here (ARCHITECTURE rule 7): the inquiry uses the
+      // language chosen in the masthead before it opened. To change language
+      // the customer closes it (the draft is kept) and switches in the masthead.
       '<button type="button" class="btn btn--icon btn--ghost inq-head__close" data-inq-close data-fk="inq-close" aria-label="' +
       esc(t(done ? 'inquiry.closeDone' : 'inquiry.closeDraft')) +
       '">' +
       ui.icon('close', { size: 20 }) +
       '</button>' +
-      '</div>' +
       '</div>' +
       '<div class="inq-head__titlebar">' +
       '<h2 id="inquiry-dialog-title" class="dlg__title inq-head__title" tabindex="-1" data-fk="inq-title">' +
@@ -1191,8 +1195,8 @@
       }
     }
     els.dlg.removeAttribute('data-step');
-    // No stale controls (a second language switch) or old-language text left in
-    // the closed dialog: start() renders it afresh from state.
+    // No stale controls or old-language text left in the closed dialog (the
+    // language may change before it reopens): start() renders it afresh from state.
     if (els.shell) els.shell.textContent = '';
     // If focus was not returned (trigger hidden or gone), land on the current view's heading.
     setTimeout(function () {

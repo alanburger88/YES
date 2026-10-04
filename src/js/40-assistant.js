@@ -23,8 +23,13 @@
  *   modal   720–1099px: modal side drawer with a backdrop; <720px: full-screen sheet.
  *   stacked opened while another modal dialog is open: a modal on top of it,
  *           closing returns focus inside that dialog.
- * While modal, the page behind is inert, so the header carries its own language
- * switch (ui.langSwitchHtml); docked, the masthead's switch is beside it.
+ *
+ * Language (ARCHITECTURE rule 7): the drawer has no language switch of its own
+ * and never offers one. It renders in the language chosen in the masthead (the
+ * phone Menu) and re-renders the whole thread when that changes. Docked, the
+ * masthead's switch is right beside it; modal, the page behind is inert, so the
+ * visitor closes the drawer to change language, and the conversation (thread,
+ * feedback, draft question) is kept in YES.state for when it is reopened.
  */
 (function (root) {
   'use strict';
@@ -1384,8 +1389,7 @@
     );
   }
 
-  /** offerLang: this answer is in another language than the page; offer to switch the page. */
-  function answerHtml(e, m, s, offerLang) {
+  function answerHtml(e, m, s) {
     var id = 'asst-' + esc(e.id);
     var h = '<article class="asst-ans' + (m.policy ? ' asst-ans--policy' : '') + (m.plain ? ' asst-ans--welcome' : '') + '" aria-labelledby="' + id + '-h">';
     h += '<p class="asst-ans__tags">' + demoTag(id + '-tag') + (m.policy ? '<span class="tag asst-tag-policy">' + ui.icon('shield', { size: 14 }) + '<span>' + esc(t('assistant.policyTag')) + '</span></span>' : '') + (m.illustrative ? ui.illustrativeTag('assistant.illustrativeTag') : '') + '</p>';
@@ -1493,37 +1497,30 @@
         '</span></p></div>';
     }
     h += '<div class="asst-ans__links">';
-    if (offerLang) {
-      h +=
-        '<button type="button" class="btn btn--ghost" data-asst-lang="' +
-        esc(offerLang) +
-        '" data-fk="' +
-        id +
-        '-lang">' +
-        ui.icon('globe', { size: 16 }) +
-        '<span>' +
-        esc(t('assistant.langOffer')) +
-        '</span></button>';
-    }
     if (m.more) h += '<button type="button" class="btn btn--ghost" data-asst-read="' + esc(m.more) + '" data-fk="' + id + '-read">' + ui.icon('book', { size: 16 }) + '<span>' + esc(t('assistant.readMore')) + '</span></button>';
     h += '<button type="button" class="btn btn--ghost" data-asst-talk data-fk="' + id + '-talk">' + ui.icon('user', { size: 16 }) + '<span>' + esc(t('assistant.talk')) + '</span></button>';
     h += '</div></div></article>';
     return h;
   }
 
-  /** An entry pinned to a language other than the page's (see push). */
+  /**
+   * An entry pinned to a language other than the page's (see push): a typed
+   * question clearly written in the other language is answered in that language
+   * (PRD 5.5 language-matched answers). The page language itself only changes in
+   * the masthead (rule 7), and that choice unpins every answer (onState).
+   */
   function pinned(e) {
     return !!(e && e.lang && e.lang !== YES.i18n.lang && isLang(e.lang));
   }
   /** A turn, rendered in its pinned language when it has one. */
-  function turnFor(e, s, offer) {
-    if (!pinned(e)) return turnHtml(e, s, null, false);
+  function turnFor(e, s) {
+    if (!pinned(e)) return turnHtml(e, s, null);
     return withLang(e.lang, function () {
-      return turnHtml(e, s, e.lang, offer);
+      return turnHtml(e, s, e.lang);
     });
   }
 
-  function turnHtml(e, s, lang, offer) {
+  function turnHtml(e, s, lang) {
     var m = model(e);
     var you = '';
     if (e.via === 'typed') you = esc(e.text || '');
@@ -1538,14 +1535,9 @@
       (lang ? ' lang="' + esc(lang) + '"' : '') +
       '>' +
       (you ? '<p class="asst-you' + (e.via === 'context' ? ' asst-you--ctx' : '') + '"' + (e.via === 'typed' && e.qlang && e.qlang !== YES.i18n.lang ? ' lang="' + esc(e.qlang) + '"' : '') + '><span class="sr-only">' + esc(t('assistant.you')) + ' </span>' + you + '</p>' : '') +
-      answerHtml(e, m, s, offer ? lang : null) +
+      answerHtml(e, m, s) +
       '</li>'
     );
-  }
-
-  /** The header's own language switch: only while the drawer is open and modal. */
-  function langSwitchShown() {
-    return (mode === 'modal' || mode === 'stacked') && typeof ui.langSwitchHtml === 'function';
   }
 
   function drawerHtml() {
@@ -1555,10 +1547,8 @@
     var h = '';
     h += '<div class="asst__head"><div class="asst__bar"><span class="asst__mark">' + ui.icon('chat', { size: 20 }) + '</span>';
     h += '<h2 id="asst-title" class="asst__title" tabindex="-1" data-fk="asst-title">' + esc(t('assistant.title')) + '</h2>';
-    // While the drawer is modal the masthead behind it is inert, so the header
-    // carries its own language switch (as the transaction detail does). Docked,
-    // the masthead's switch is right beside it.
-    h += '<div class="asst__tools">' + (langSwitchShown() ? ui.langSwitchHtml({ fk: 'asst-lang', compact: true }) : '');
+    // Only the close button: no language switch here (rule 7, see the top of this file).
+    h += '<div class="asst__tools">';
     h += '<button type="button" class="btn btn--icon btn--ghost asst__close" data-asst-close data-fk="asst-close" aria-label="' + esc(t('assistant.close')) + '">' + ui.icon('close', { size: 20 }) + '</button></div>';
     h += '<p class="asst__tagline">' + demoTag() + '</p></div>';
     h += '<p class="asst__ctx" data-asst-ctx><span class="asst__ctx-k">' + esc(t('assistant.about')) + '</span> <span class="asst__ctx-v">' + subjectHtml(sub) + '</span></p></div>';
@@ -1578,13 +1568,8 @@
       '</summary><p>' +
       esc(t('assistant.privacy.prod')) +
       '</p></details></div></div>';
-    // Only the most recent answer in another language offers to switch the page.
-    var offerId = null;
-    s.thread.forEach(function (e) {
-      if (pinned(e)) offerId = e.id;
-    });
     h += '<ol class="asst-thread" aria-label="' + esc(t('assistant.threadLabel')) + '">' + s.thread.map(function (e) {
-      return turnFor(e, s, e.id === offerId);
+      return turnFor(e, s);
     }).join('') + '</ol>';
     h += '<section class="asst-sugg" aria-labelledby="asst-sugg-h"><h3 id="asst-sugg-h" class="asst-sugg__h">' + esc(t('assistant.suggestTitle')) + '</h3><ul class="asst-qlist">' + QUESTIONS.map(function (q) {
       return qButton(q, 'asst-q-' + q);
@@ -1692,10 +1677,6 @@
   function finishClose(opts) {
     if (mode === null) return;
     mode = null;
-    // No language controls are left behind in the closed drawer (the masthead's
-    // switch is the page's only one again).
-    var sw = els.dlg.querySelector('.asst__tools .seg');
-    if (sw) sw.parentNode.removeChild(sw);
     var html = doc.documentElement;
     html.classList.remove('assistant-docked');
     html.classList.toggle('has-modal', ui.anyModalOpen());
@@ -1750,7 +1731,8 @@
     d.close(); // the async 'close' event sees the dialog open again and is ignored
     openAs(want);
     if (want === 'docked') doc.documentElement.classList.toggle('has-modal', ui.anyModalOpen());
-    render(); // adds or removes the header's language switch
+    // The content is the same in every mode: only the frame changes, so the
+    // focused control is still there and gets focus back.
     b = scrollerEl();
     if (b) b.scrollTop = top;
     var target = fk ? d.querySelector(fkSel(fk)) : null;
@@ -1922,14 +1904,6 @@
         YES.inquiry.start(id, { trigger: b });
       }
     });
-    ui.delegate(d, 'click', '[data-asst-lang]', function (e, b) {
-      var l = b.getAttribute('data-asst-lang');
-      var turn = b.closest('.asst-turn');
-      var eid = turn ? turn.id.replace(/^asst-turn-/, '') : null;
-      if (!isLang(l) || l === YES.i18n.lang) return;
-      YES.setLang(l);
-      focusEntry(eid); // the offer is gone once the page matches the answer
-    });
     ui.delegate(d, 'click', '[data-asst-talk]', function () {
       handOff(function () {
         YES.help.open('contact');
@@ -2031,7 +2005,6 @@
         'assistant.helpfulThanks': 'Thanks. Your feedback is kept only in this browser session for the demo. Nothing was sent.',
         'assistant.talk': 'Talk to a person',
         'assistant.readMore': 'Read more in Understand',
-        'assistant.langOffer': 'Show the whole statement in English',
         'assistant.inquiry.new': 'Ask about this transaction',
         'assistant.inquiry.draft': 'Continue your inquiry',
         'assistant.inquiry.done': 'View your demo inquiry',
@@ -2308,7 +2281,6 @@
         'assistant.helpfulThanks': 'Gracias. Tu opinión se guarda solo en esta sesión del navegador para la demostración. No se envió nada.',
         'assistant.talk': 'Hablar con una persona',
         'assistant.readMore': 'Leer más en Entender',
-        'assistant.langOffer': 'Ver todo el estado de cuenta en español',
         'assistant.inquiry.new': 'Preguntar por este movimiento',
         'assistant.inquiry.draft': 'Continuar tu consulta',
         'assistant.inquiry.done': 'Ver tu consulta de demostración',

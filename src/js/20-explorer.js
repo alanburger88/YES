@@ -2,7 +2,10 @@
  * Transactions explorer (PRD 4 layer 3, 5.3, 5.6 on-chain sample, 5.8).
  *
  * Search, combined filters, sort, a compact desktop table and readable mobile
- * cards, the transaction detail dialog and CSV export. Everything is derived
+ * cards, the transaction detail dialog, CSV export, and Print / Download PDF
+ * for the statement of record (the PDF itself is composed by the help module,
+ * YES.help.downloadPdf). The detail has no language switch of its own: it uses
+ * the language chosen in the masthead (ARCHITECTURE rule 7). Everything is derived
  * from YES.data / YES.calc; the view keeps its context in YES.state
  * (filters, sort, selectedTx, explorer.filtersOpen) so a language switch
  * re-renders without losing anything.
@@ -881,7 +884,19 @@
     );
   }
 
+  /**
+   * The statement-of-record PDF is composed by the help module (the same record
+   * as its print view, see "Download or print" in Help). A build without that
+   * module has no PDF, so the button is left out rather than shown dead.
+   */
+  function pdfAvailable() {
+    return !!(YES.help && typeof YES.help.downloadPdf === 'function');
+  }
+
   function exportHtml(count) {
+    var pdf = pdfAvailable();
+    // The statement of record first (Print, and the same record as a PDF file
+    // beside it), then the two CSV exports of the ledger.
     return (
       '<section class="tx-export card card--flat" aria-labelledby="tx-export-title">' +
       '<div class="tx-export__text"><h2 id="tx-export-title" class="tx-export__title">' +
@@ -890,9 +905,19 @@
       esc(t('explorer.export.title')) +
       '</span></h2>' +
       '<p class="tx-export__body">' +
-      esc(t('explorer.export.body')) +
+      esc(t(pdf ? 'explorer.export.bodyPdf' : 'explorer.export.body')) +
       '</p></div>' +
-      '<div class="tx-export__actions">' +
+      '<div class="tx-export__actions' +
+      (pdf ? ' tx-export__actions--pairs' : '') +
+      '">' +
+      '<button type="button" class="btn" data-tx-print data-fk="tx-print">' +
+      ui.icon('print', { size: 18 }) +
+      '<span>' +
+      esc(t('common.print')) +
+      '</span></button>' +
+      (pdf
+        ? '<button type="button" class="btn" data-tx-pdf data-fk="tx-pdf">' + ui.icon('file-down', { size: 18 }) + '<span>' + esc(t('explorer.export.pdf')) + '</span></button>'
+        : '') +
       '<button type="button" class="btn" data-tx-csv="all" data-fk="tx-csv-all">' +
       ui.icon('download', { size: 18 }) +
       '<span>' +
@@ -904,11 +929,6 @@
       ui.icon('download', { size: 18 }) +
       '<span data-tx-csv-label>' +
       esc(t('explorer.export.view', { n: YES.fmt.count(count) })) +
-      '</span></button>' +
-      '<button type="button" class="btn" data-tx-print data-fk="tx-print">' +
-      ui.icon('print', { size: 18 }) +
-      '<span>' +
-      esc(t('common.print')) +
       '</span></button>' +
       '</div>' +
       '</section>'
@@ -1841,21 +1861,22 @@
       '<div class="dlg__head tx-dlg__head">' +
       dirIcon(tx) +
       '<div class="tx-dlg__headtext"><p class="tx-dlg__eyebrow">' +
-      // The date never splits across lines beside the language switch on a narrow sheet.
-      esc(t('explorer.dlg.eyebrow', { type: ui.typeLabel(tx), date: tx.postedAt ? YES.fmt.date(tx.postedAt, 'medium').replace(/\s/g, ' ') : statusLabel(statusOf(tx)) })) +
+      // The date never splits across lines beside the close button on a narrow sheet.
+      esc(t('explorer.dlg.eyebrow', { type: ui.typeLabel(tx), date: tx.postedAt ? YES.fmt.date(tx.postedAt, 'medium').replace(/\s/g, '\u00a0') : statusLabel(statusOf(tx)) })) +
       '</p><h2 id="tx-dialog-title" class="dlg__title" tabindex="-1" data-fk="txd-title">' +
       esc(YES.L(tx.description)) +
       '</h2></div>' +
-      // The page behind this modal is inert, so the detail carries its own
-      // language switch: switching re-renders it in place, still selected.
-      '<div class="tx-dlg__tools">' +
-      ui.langSwitchHtml({ fk: 'txd-lang', compact: true }) +
+      // No language switch here (ARCHITECTURE rule 7): the detail uses the
+      // language chosen in the masthead. To change it the customer closes the
+      // detail (focus returns to its row; filters and sort stay in YES.state),
+      // switches in the masthead and reopens the same row. A programmatic
+      // YES.setLang while it is open re-renders it in place (render() below),
+      // still on the same transaction.
       '<button type="button" class="btn btn--icon btn--ghost tx-dlg__close" data-txd-close data-fk="txd-close" aria-label="' +
       esc(t('explorer.dlg.close')) +
       '">' +
       ui.icon('close', { size: 20 }) +
       '</button>' +
-      '</div>' +
       '</div>' +
       '<div class="dlg__body tx-dlg__body">' +
       '<div class="tx-dlg__hero' +
@@ -1969,7 +1990,7 @@
     var closedId = els.dlg.getAttribute('data-tx') || YES.state.selectedTx;
     YES.set({ selectedTx: null });
     els.dlg.removeAttribute('data-tx');
-    // No stale controls (language switch, copy buttons) linger in the closed dialog.
+    // No stale controls (close, copy, pager, actions) linger in the closed dialog.
     els.dlg.textContent = '';
     dlgCtx.view = null;
     dlgCtx.list = null;
@@ -2339,6 +2360,11 @@
     ui.delegate(r, 'click', '[data-tx-print]', function () {
       if (typeof root.print === 'function') root.print();
     });
+    // The help module builds and downloads the PDF (and confirms it), so this
+    // button and the one in Help produce the same file.
+    ui.delegate(r, 'click', '[data-tx-pdf]', function () {
+      if (pdfAvailable()) YES.help.downloadPdf();
+    });
 
     var d = els.dlg;
     if (d) {
@@ -2554,6 +2580,8 @@
 
         'explorer.export.title': 'Download or print',
         'explorer.export.body': 'CSV files are created on this device from the same statement data, and every row is marked as illustrative demo data. Nothing is sent.',
+        'explorer.export.bodyPdf': 'Print the statement of record or save it as a PDF, or download the transactions as CSV. Files are created on this device from the same statement data and marked as illustrative demo data. Nothing is sent.',
+        'explorer.export.pdf': 'Download PDF statement',
         'explorer.export.all': 'Download CSV — complete record',
         'explorer.export.view': 'Download CSV — current view ({n})',
         'explorer.export.done': 'CSV download started ({count}). Nothing was sent.',
@@ -2772,6 +2800,8 @@
 
         'explorer.export.title': 'Descargar o imprimir',
         'explorer.export.body': 'Los archivos CSV se crean en este dispositivo con los mismos datos del estado de cuenta, y cada fila está marcada como datos ilustrativos de demostración. No se envía nada.',
+        'explorer.export.bodyPdf': 'Imprime el estado de cuenta oficial o guárdalo en PDF, o descarga los movimientos en CSV. Los archivos se crean en este dispositivo con los mismos datos del estado de cuenta y están marcados como datos ilustrativos de demostración. No se envía nada.',
+        'explorer.export.pdf': 'Descargar estado de cuenta en PDF',
         'explorer.export.all': 'Descargar CSV — registro completo',
         'explorer.export.view': 'Descargar CSV — vista actual ({n})',
         'explorer.export.done': 'Descarga del CSV iniciada ({count}). No se envió nada.',

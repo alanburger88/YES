@@ -4,8 +4,11 @@
 // routes, statement versus live balance, the sample on-chain reference, the
 // illustrative reserve/transparency panel and its unavailable state, the
 // governance rules, language switch, copy quality (no repeated words, EN + ES),
-// accessibility (axe, light + dark), touch targets, mobile reflow and the
-// desktop layout (no empty column in any state, docked-assistant widths).
+// accessibility (axe, touch targets), light and dark themes (the masthead
+// toggle, or the phone Menu: dark chosen on a light device, light chosen on a
+// dark device, following a dark device; every colour in the view follows the
+// tokens; axe in each), mobile reflow and the desktop layout (no empty column
+// in any state, docked-assistant widths).
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
@@ -42,16 +45,20 @@ export default async function (t) {
     await page.waitForFunction((x) => document.activeElement && document.activeElement.id === x, id, { timeout: 3000 }).catch(() => {});
     t.eq(await activeId(), id, msg);
   };
-  // Element is scrolled into view below the sticky masthead.
+  // Element is visible, and its topic or panel is scrolled to just below the part
+  // of the sticky masthead that stays pinned (scroll-padding from --masthead-h;
+  // on phones the demo badge band scrolls away), not left further down.
   const inView = async (sel, msg) => {
     const ok = await page
       .waitForFunction(
         (s) => {
           const el = document.querySelector(s);
           if (!el) return false;
+          const block = el.closest('.und-acc__item, .und-panel') || el;
           const mast = document.getElementById('masthead').getBoundingClientRect();
           const r = el.getBoundingClientRect();
-          return r.top >= mast.bottom - 1 && r.top < window.innerHeight - 40;
+          const b = block.getBoundingClientRect();
+          return r.top >= mast.bottom - 1 && r.bottom <= window.innerHeight && b.top >= mast.bottom - 1 && b.top - Math.max(0, mast.bottom) <= 24;
         },
         sel,
         { timeout: 3000 }
@@ -146,6 +153,61 @@ export default async function (t) {
     const h = await page.addStyleTag({ content: '#masthead{visibility:hidden!important}' });
     await page.locator(sel).first().screenshot({ path: join(SHOTS, `understand-${t.viewport}-${label}.png`) });
     await h.evaluate((n) => n.remove());
+  };
+  // Light/dark. The computed colours of every element (and drawn pseudo-element)
+  // in the view, read once transitions settle (buttons fade their colours on a
+  // theme switch), with no hover or focus inside the view.
+  const colours = async () => {
+    await page.mouse.move(0, 0);
+    return page.evaluate(async () => {
+      if (document.activeElement && document.getElementById('understand-root').contains(document.activeElement)) document.activeElement.blur();
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null)));
+      const out = {};
+      [...document.querySelectorAll('#understand-root, #understand-root *')].forEach((el, i) => {
+        const name = i + ':' + (el.getAttribute('data-fk') || el.id || (typeof el.className === 'string' && el.className) || el.tagName);
+        for (const pseudo of [null, '::before', '::after']) {
+          const cs = getComputedStyle(el, pseudo);
+          if (pseudo && (cs.content === 'none' || cs.content === 'normal')) continue;
+          const v = { color: cs.color, background: cs.backgroundColor };
+          for (const side of ['Top', 'Right', 'Bottom', 'Left']) {
+            if (parseFloat(cs[`border${side}Width`]) > 0 && cs[`border${side}Style`] !== 'none') v[`border${side}`] = cs[`border${side}Color`];
+          }
+          if (cs.boxShadow !== 'none') v.shadow = cs.boxShadow;
+          if (el instanceof SVGElement) Object.assign(v, { stroke: cs.stroke, fill: cs.fill });
+          out[name + (pseudo || '')] = v;
+        }
+      });
+      return out;
+    });
+  };
+  const NO_COLOUR = /^(rgba\(0, 0, 0, 0\)|transparent|none)$/;
+  // Colours that stayed the same from one theme to the other: a hard-coded colour would.
+  const unchanged = (a, b) =>
+    Object.keys(a).flatMap((k) =>
+      Object.keys(a[k])
+        .filter((p) => !NO_COLOUR.test(a[k][p]) && b[k] && a[k][p] === b[k][p])
+        .map((p) => `${k} ${p}=${a[k][p]}`)
+    );
+  const differs = (a, b) =>
+    Object.keys(a)
+      .flatMap((k) =>
+        Object.keys(a[k])
+          .filter((p) => !b[k] || a[k][p] !== b[k][p])
+          .map((p) => `${k} ${p}: ${a[k][p]} → ${b[k] && b[k][p]}`)
+      )
+      .slice(0, 8);
+  // [choice, effective, <html data-theme>]
+  const themeState = () => page.evaluate(() => [YES.theme.get(), YES.theme.effective(), document.documentElement.getAttribute('data-theme')]);
+  // The visitor's control: the masthead toggle, or the Dark mode row in the phone Menu.
+  const toggleTheme = async () => {
+    if (mobile) {
+      await page.click('#masthead [data-mast-menu]');
+      await page.click('#mast-menu [data-fk="menu-theme"]');
+      await page.keyboard.press('Escape');
+    } else {
+      await page.click('#masthead [data-fk="theme"]');
+    }
   };
 
   /* ------------------------------------------------------------------ */
@@ -556,7 +618,7 @@ export default async function (t) {
   await setExpanded(IDS.slice());
   await page.evaluate(() => document.querySelectorAll('#understand-root details').forEach((d) => (d.open = true)));
   await settle(150);
-  await seriousAxe('#view-understand', 'Understand view (all expanded, light)');
+  await seriousAxe('#view-understand', `Understand view (all expanded, ${await page.evaluate(() => YES.theme.effective())})`);
   if (mobile) {
     const small = await page.$$eval('#understand-root button, #understand-root a, #understand-root summary', (els) =>
       els
@@ -566,13 +628,63 @@ export default async function (t) {
     );
     t.eq(small, [], 'touch targets are at least 44×44 px');
   }
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await settle(150);
-  await seriousAxe('#view-understand', 'Understand view (all expanded, dark)');
+
+  /* ------------------------------------------------------------------ */
+  t.step('light and dark themes');
+  // Start from a light device with no choice, whatever the run's device setting.
+  const deviceAtStart = await page.evaluate(() => YES.theme.device());
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.evaluate(() => YES.theme.set(null));
+  t.eq(await themeState(), [null, 'light', 'light'], 'light device, no choice: light');
+  const lightColours = await colours();
+  const openRecords = () => page.$$eval('#understand-root details[open]', (d) => d.length);
+  const openBefore = await openRecords();
+
+  // Dark chosen with the masthead toggle on a light device.
+  await toggleTheme();
+  t.eq(await themeState(), ['dark', 'dark', 'dark'], 'the masthead toggle chooses dark on a light device');
+  t.eq(await page.evaluate(() => YES.state.understand.expanded.length), IDS.length, 'a theme switch keeps every topic open');
+  t.eq(await openRecords(), openBefore, 'a theme switch keeps the open content records');
+  const darkColours = await colours();
+  t.eq(unchanged(lightColours, darkColours).slice(0, 8), [], 'every colour in the view follows the theme tokens (none is the same in light and dark)');
+  await seriousAxe('#view-understand', 'Understand view (all expanded, dark choice)');
+  // The focus ring uses the dark focus colour, with a transparent outline for forced colours.
+  await page.focus('#und-btn-token_units');
+  await page.keyboard.press('ArrowDown');
+  const ring = await page.evaluate(() => {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--focus)';
+    document.body.append(probe);
+    const focus = getComputedStyle(probe).color;
+    probe.remove();
+    const cs = getComputedStyle(document.activeElement);
+    return { id: document.activeElement.id, ring: cs.boxShadow.includes(focus), outline: [cs.outlineStyle, cs.outlineWidth, cs.outlineColor] };
+  });
+  t.eq(ring, { id: 'und-btn-usd_equivalent', ring: true, outline: ['solid', '2px', 'rgba(0, 0, 0, 0)'] }, 'dark focus ring on a topic toggle');
   await page.evaluate(() => window.scrollTo(0, 0));
+  await settle(150);
   await t.shot('dark', { fullPage: !mobile });
   if (!mobile) await shotEl('.und-pair', 'dark-pair');
-  await page.emulateMedia({ colorScheme: 'light' });
+  else await shotEl('#und-onchain', 'dark-onchain');
+
+  // A dark device with light chosen (data-theme="light") looks exactly like light.
+  await page.emulateMedia({ colorScheme: 'dark' });
+  t.eq(await themeState(), ['dark', 'dark', 'dark'], 'dark device keeps the dark choice');
+  await toggleTheme();
+  t.eq(await themeState(), ['light', 'light', 'light'], 'the toggle chooses light on a dark device');
+  t.eq(differs(lightColours, await colours()), [], 'light chosen on a dark device: the view is exactly the light theme');
+  await seriousAxe('#view-understand', 'Understand view (all expanded, light choice on a dark device)');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await settle(150);
+  await t.shot('dark-os-light');
+
+  // No choice on a dark device: the view follows the device, exactly like the dark choice.
+  await page.evaluate(() => YES.theme.set(null));
+  t.eq(await themeState(), [null, 'dark', 'dark'], 'no choice on a dark device: dark');
+  t.eq(differs(darkColours, await colours()), [], 'following a dark device: the view is exactly the dark theme');
+
+  await page.emulateMedia({ colorScheme: deviceAtStart });
+  await page.evaluate(() => YES.theme.set(null));
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.evaluate(() => YES.understand.openTopic('usd_equivalent'));
   t.eq(await page.locator('#und-panel-usd_equivalent.anim-in').count(), 0, 'no expand animation under reduced motion');

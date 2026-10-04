@@ -1,15 +1,26 @@
-/* Shell: masthead, navigation, views, footer, withheld state. */
+/* Shell: masthead, navigation, phone menu, views, footer, withheld state. */
 /*
  * The masthead is a size container: its layout follows the space it actually
  * has, so the docked assistant (which narrows #app) needs no special case.
- *   ≥1000px  one row: brand · demo badge · language · Ask YES
- *   <1000px  the demo badge becomes a slim full-width band above the brand row;
- *            the band scrolls away (negative sticky top, set from 05-shell.js)
- *            and only the brand row and the navigation stay pinned
- *   <720px   compact language switch (EN/ES; names stay in the accessibility
- *            tree), short "Ask" label, short period, four tabs sharing the width;
- *            on a phone the band, brand row and tabs take about 125px of the
- *            first screen and under 100px stays pinned
+ * Breakpoints are in em (16px at the default text size), so very large text
+ * moves to the roomier layouts instead of overflowing:
+ *   ≥ 68em (1088px)  one row: brand · demo badge · language · light/dark ·
+ *                    Download or print · Ask YES, then the section tabs.
+ *                    Languages other than English (longer) use the compact
+ *                    switch (EN/ES) and put the demo badge in the band
+ *                    described below, so "Descargar o imprimir" stays whole.
+ *   < 68em           the demo badge becomes a slim full-width band above the
+ *                    brand row; the band scrolls away (negative sticky top,
+ *                    set from 05-shell.js) and only the brand row and the
+ *                    tabs stay pinned. Compact language switch (EN/ES; the
+ *                    names stay in the accessibility tree) and "Download"
+ *                    (the button's name stays "Download or print").
+ *   < 52em (832px)   Ask YES shows its short word ("Ask" / "Pregunta").
+ *   < 45em (720px)   phone: logo · short period · Ask · Menu. The sections,
+ *                    Download or print, the language switch and the
+ *                    light/dark toggle move into the Menu's dropdown panel.
+ *                    The band and the brand row take about 80px of the first
+ *                    screen and under 70px stays pinned.
  */
 .masthead {
   position: sticky;
@@ -75,21 +86,49 @@
 .brand__period-short {
   display: none;
 }
-.masthead__actions {
+.masthead__actions,
+.mast-wide {
   display: flex;
-  flex-wrap: wrap; /* very large text: Ask YES moves under the switch, never off screen */
   justify-content: flex-end;
   align-items: center;
   gap: var(--s2);
-  margin-left: auto;
   min-width: 0;
 }
-.btn--ask {
-  min-height: 42px;
+.masthead__actions {
+  flex-wrap: wrap; /* very large text: Ask YES moves under the switch, never off screen */
+  margin-left: auto;
 }
-.btn--ask .btn__label--short {
+.btn--ask,
+.btn--record {
+  min-height: 44px;
+}
+.btn--ask .btn__label--short,
+.btn--record .btn__label--short {
   display: none;
 }
+
+/* Light/dark toggle: "Dark mode", pressed when dark is on. Pressed reads by
+   shape too (filled moon, inset ring), not by colour alone. */
+.theme-toggle.btn--icon {
+  flex: none;
+}
+.theme-toggle .icon {
+  color: var(--ink-2);
+}
+.theme-toggle[aria-pressed='true'] .icon {
+  color: var(--ink);
+  fill: currentColor;
+}
+.theme-toggle.btn--icon[aria-pressed='true'] {
+  background: var(--surface-3);
+  border-color: var(--ink-2);
+  box-shadow: inset 0 0 0 1px var(--ink-2);
+}
+.theme-toggle.btn--icon[aria-pressed='true']:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--ink-2), var(--focus-ring);
+}
+
+/* Section tabs (720px and up). */
 .nav {
   position: relative;
   border-top: 1px solid var(--line);
@@ -99,7 +138,7 @@
   gap: var(--s1);
   list-style: none;
   margin-block: 0;
-  overflow-x: auto;
+  overflow-x: auto; /* safety only: em breakpoints keep the four tabs in view */
   scrollbar-width: none;
 }
 .nav__list::-webkit-scrollbar {
@@ -132,21 +171,42 @@
 .nav__link:focus-visible {
   outline-offset: -4px;
 }
-/* Last resort (very large text): the row scrolls, and an edge fade says so. */
-.nav.has-more-right .nav__list {
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
-  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
-}
-.nav.has-more-left .nav__list {
-  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
-  mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
-}
-.nav.has-more-left.has-more-right .nav__list {
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
-  mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+
+/* Phone only (see the 45em query below). */
+.mast-menu-btn,
+.mast-menu {
+  display: none;
 }
 
-@container mast (max-width: 999px) {
+@container mast (width < 68em) {
+  /* Compact language switch: "EN"/"ES" shown, "English"/"Español" kept as each
+     button's accessible name (visually hidden, never display:none). */
+  .mast-wide .seg--lang .seg__long {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+  .mast-wide .seg--lang .seg__short {
+    display: inline;
+  }
+  .mast-wide .seg--lang .seg__icon {
+    display: none;
+  }
+  /* "Download" stays visible; the button's name is still "Download or print". */
+  .btn--record .btn__label {
+    display: none;
+  }
+  .btn--record .btn__label--short {
+    display: inline;
+  }
+
   /* Demo badge: a slim, full-width band above the brand row, fully worded. It
      is the first thing on the screen and scrolls away with the page. */
   .masthead__bar.has-demo {
@@ -166,8 +226,65 @@
     white-space: normal;
   }
 }
+/* Other languages run longer than English (Spanish needs about 200px more for
+   the same row): the compact switch and "Descargar" at every width. */
+@container mast (width >= 68em) {
+  /* Compact language switch: "EN"/"ES" shown, "English"/"Español" kept as each
+     button's accessible name (visually hidden, never display:none). */
+  html:not([lang|='en']) .mast-wide .seg--lang .seg__long {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+  html:not([lang|='en']) .mast-wide .seg--lang .seg__short {
+    display: inline;
+  }
+  html:not([lang|='en']) .mast-wide .seg--lang .seg__icon {
+    display: none;
+  }
+  /* The longer demo badge moves to the slim band above the brand row (as below
+     68em), so the row keeps the full "Descargar o imprimir" label. */
+  html:not([lang|='en']) .masthead__bar.has-demo {
+    padding-top: 0;
+    row-gap: 6px;
+  }
+  html:not([lang|='en']) .demo-badge {
+    order: -1;
+    /* Full bleed across the masthead even where the bar is narrower than the
+       screen: 100cqw is the masthead's own width (also correct when docked). */
+    flex: 0 0 100cqw;
+    margin-inline: calc(50% - 50cqw);
+    justify-content: center;
+    padding: 2px var(--gutter);
+    border-width: 0 0 1px;
+    border-radius: 0;
+    line-height: 1.5;
+    text-align: center;
+    white-space: normal;
+  }
+}
+@container mast (width < 52em) {
+  /* Ask YES keeps a visible word ("Ask" / "Pregunta"), contained in its name. */
+  .btn--ask {
+    gap: 4px;
+    padding: 0 12px 0 10px;
+  }
+  .btn--ask .btn__label {
+    display: none;
+  }
+  .btn--ask .btn__label--short {
+    display: inline;
+  }
+}
 
-@container mast (max-width: 719px) {
+@container mast (width < 45em) {
   .masthead__bar {
     min-height: 0;
     gap: var(--s2);
@@ -175,7 +292,7 @@
   }
   .masthead__bar.has-demo {
     row-gap: 6px;
-    padding-block: 0 4px;
+    padding-block: 0 6px;
   }
   .brand {
     gap: var(--s2);
@@ -206,67 +323,195 @@
     font-weight: 650;
     color: var(--ink-2);
   }
-  /* Compact language switch: "EN"/"ES" shown, "English"/"Español" kept as each
-     button's accessible name (visually hidden, never display:none). */
-  .seg--lang .seg__long {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    clip-path: inset(50%);
-    white-space: nowrap;
-    border: 0;
-  }
-  .seg--lang .seg__short {
-    display: inline;
-  }
-  .seg--lang .seg__icon {
+  /* The header keeps the logo, the period, Ask and Menu; the rest is in the menu. */
+  .mast-wide,
+  .nav {
     display: none;
   }
-  /* Ask YES keeps a visible word ("Ask" / "Pregunta"), contained in its name. */
-  .btn--ask {
+  .mast-menu-btn {
+    display: inline-flex;
     gap: 4px;
-    padding: 0 10px 0 8px;
+    padding: 0 12px 0 10px;
   }
-  .btn--ask .btn__label {
-    display: none;
+  .mast-menu-btn[aria-expanded='true'] {
+    background: var(--surface-2);
+    border-color: var(--ink-2);
   }
-  .btn--ask .btn__label--short {
-    display: inline;
-  }
-  /* Four tabs share the width. */
-  .nav__list {
-    gap: 0;
-    padding-inline: 4px;
-  }
-  .nav__list > li {
-    flex: 1 1 auto;
-  }
-  .nav__link {
-    flex: 1 1 auto;
-    justify-content: center;
-    min-height: 44px;
-    padding: 0 4px;
+  /* The dropdown hangs under the header, as wide as the screen, and scrolls
+     inside itself when taller than the room left (--menu-max, 05-shell.js). */
+  .mast-menu:not([hidden]) {
+    display: block;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: var(--menu-max, 70vh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--s2) var(--gutter) var(--s4);
+    background: var(--surface);
+    border-bottom: 1px solid var(--line-strong);
+    box-shadow: var(--shadow-2);
+    animation: yes-fade-up var(--dur) var(--ease);
   }
 }
-@container mast (max-width: 399px) {
-  .nav__link {
-    font-size: var(--fs-xs);
+@container mast (width < 22.5em) {
+  /* Narrowest phones: Ask and Menu keep their words with less padding. */
+  .btn--ask,
+  .mast-menu-btn {
+    padding: 0 8px 0 6px;
   }
 }
 /* Logo only when the brand row would otherwise wrap (narrowest phones, or a
    longer language: 05-shell.js sets .is-tight); the link's name still includes
    the statement and period. */
-@container mast (max-width: 359px) {
-  .brand__period-short {
-    display: none;
-  }
-}
 .masthead__bar.is-tight .brand__period-short {
   display: none;
+}
+
+/* ------------------------------------------------------------- Phone menu */
+.mast-menu__list {
+  display: grid;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.mast-menu__link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-height: 48px;
+  padding: 0 var(--s3);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+.mast-menu__link:hover {
+  background: var(--surface-2);
+}
+/* The current section: tinted, a bar at the start and a check mark — not colour alone. */
+.mast-menu__link[aria-current='page'] {
+  background: var(--primary-wash);
+  box-shadow: inset 3px 0 0 var(--primary);
+  font-weight: 700;
+}
+.mast-menu__current {
+  visibility: hidden;
+  color: var(--primary-ink);
+}
+.mast-menu__link[aria-current='page'] .mast-menu__current {
+  visibility: visible;
+}
+.mast-menu__link:focus-visible,
+.mast-menu__theme:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.mast-menu__group {
+  margin-top: var(--s2);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--line);
+}
+.mast-menu__record {
+  width: 100%;
+  justify-content: flex-start;
+  border-radius: var(--radius-sm);
+  padding-inline: var(--s3);
+  text-align: start; /* large text wraps the label: keep it aligned with the sections */
+}
+.mast-menu__record .btn__label--short {
+  display: none;
+}
+.mast-menu__pref {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2) var(--s3);
+  min-height: 48px;
+  padding: 0 0 0 var(--s3);
+}
+.mast-menu__pref-label {
+  font-weight: 600;
+}
+.mast-menu__theme {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  min-height: 48px;
+  margin-top: 2px;
+  padding: 0 var(--s3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+  text-align: start;
+}
+.mast-menu__theme:hover {
+  background: var(--surface-2);
+}
+.mast-menu__theme-label {
+  flex: 1;
+  min-width: 0;
+}
+/* Switch visual (the button itself carries aria-pressed). */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  flex: none;
+}
+.switch__text {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.switch__track {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid var(--field-line);
+  background: var(--surface-2);
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.switch__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  transition: transform var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+[aria-pressed='true'] > .switch .switch__track {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+[aria-pressed='true'] > .switch .switch__thumb {
+  transform: translateX(18px);
+  background: var(--on-primary);
+}
+@media (forced-colors: active) {
+  .switch__track {
+    border-color: CanvasText;
+  }
+  .switch__thumb {
+    background: CanvasText;
+  }
+  [aria-pressed='true'] > .switch .switch__track {
+    background: Highlight;
+  }
+  .mast-menu:not([hidden]),
+  .mast-menu__link[aria-current='page'] {
+    border: 1px solid CanvasText;
+  }
 }
 
 /* Views */
@@ -295,8 +540,15 @@ main:focus {
 }
 html.is-withheld main,
 html.is-withheld .masthead .nav,
-html.is-withheld .btn--ask {
+html.is-withheld .btn--ask,
+html.is-withheld [data-mast-record],
+html.is-withheld .mast-menu__nav {
   display: none;
+}
+html.is-withheld .mast-menu__group {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 .withheld {
   padding-block: var(--s8);

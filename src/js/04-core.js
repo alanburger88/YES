@@ -181,7 +181,8 @@
   };
   YES.assistant = { open: stub('assistant', 'open'), close: stub('assistant', 'close'), ask: stub('assistant', 'ask') };
   YES.understand = { openTopic: stub('understand', 'openTopic') };
-  YES.help = { open: stub('help', 'open') };
+  /* help.open('record') is also the masthead's "Download or print" destination. */
+  YES.help = { open: stub('help', 'open'), downloadPdf: stub('help', 'downloadPdf') };
 
   /* ------------------------------------------------------------------ */
   /* Router: #/view[/param][?key=value]                                  */
@@ -380,6 +381,93 @@
   };
 
   /* ------------------------------------------------------------------ */
+  /* Theme: light or dark                                                */
+  /* ------------------------------------------------------------------ */
+  /*
+   * The page follows the device (prefers-color-scheme), live, until the visitor
+   * chooses; the choice is remembered in this browser (localStorage 'yes.theme',
+   * read again by a tiny script in <head> before the first paint). The effective
+   * theme is mirrored into <html data-theme="light|dark">, which 00-tokens.css
+   * reads. Print and the PDF are always light. Emits 'theme' (effective theme).
+   */
+  var THEME_KEY = 'yes.theme';
+  var THEMES = ['light', 'dark'];
+  var themeMq = null;
+  var themeChoice = null; // 'light' | 'dark' | null (follow the device)
+  var themeShown = null; // effective theme last applied
+  var themeInited = false;
+  function readThemeChoice() {
+    try {
+      var v = root.localStorage.getItem(THEME_KEY);
+      return THEMES.indexOf(v) !== -1 ? v : null;
+    } catch (e) {
+      return null; // storage blocked (private mode, sandbox): follow the device
+    }
+  }
+  function applyTheme() {
+    var eff = theme.effective();
+    var el = doc && doc.documentElement;
+    if (el) el.setAttribute('data-theme', eff);
+    if (eff !== themeShown) {
+      var first = themeShown === null;
+      themeShown = eff;
+      if (!first) YES.emit('theme', eff);
+    }
+  }
+  var theme = (YES.theme = {
+    /** The visitor's explicit choice ('light' | 'dark'), or null while following the device. */
+    get: function () {
+      return themeChoice;
+    },
+    /** The device setting: 'dark' when prefers-color-scheme is dark. */
+    device: function () {
+      return themeMq && themeMq.matches ? 'dark' : 'light';
+    },
+    /** The theme on screen: the choice, else the device setting. */
+    effective: function () {
+      return themeChoice || theme.device();
+    },
+    /** Choose 'light' or 'dark' (remembered), or null / 'system' to follow the device again. */
+    set: function (mode) {
+      themeChoice = THEMES.indexOf(mode) !== -1 ? mode : null;
+      try {
+        if (themeChoice) root.localStorage.setItem(THEME_KEY, themeChoice);
+        else root.localStorage.removeItem(THEME_KEY);
+      } catch (e) {
+        /* storage unavailable: the choice still applies to this page view */
+      }
+      applyTheme();
+      return theme.effective();
+    },
+    /** Switch to the other theme (an explicit choice). Returns the new effective theme. */
+    toggle: function () {
+      return theme.set(theme.effective() === 'dark' ? 'light' : 'dark');
+    },
+    /** Apply the remembered choice and start following the device (idempotent; runs at load and boot). */
+    init: function () {
+      if (themeInited) return;
+      themeInited = true;
+      themeChoice = readThemeChoice();
+      themeMq = root.matchMedia ? root.matchMedia('(prefers-color-scheme: dark)') : null;
+      var onDevice = function () {
+        if (!themeChoice) applyTheme();
+      };
+      if (themeMq && themeMq.addEventListener) themeMq.addEventListener('change', onDevice);
+      else if (themeMq && themeMq.addListener) themeMq.addListener(onDevice);
+      // A choice made in another tab of this statement applies here too.
+      if (root.addEventListener) {
+        root.addEventListener('storage', function (e) {
+          if (e.key !== THEME_KEY && e.key !== null) return;
+          themeChoice = readThemeChoice();
+          applyTheme();
+        });
+      }
+      applyTheme();
+    }
+  });
+  if (doc && doc.documentElement) theme.init();
+
+  /* ------------------------------------------------------------------ */
   /* UI toolkit                                                          */
   /* ------------------------------------------------------------------ */
   var ui = (YES.ui = {});
@@ -568,7 +656,11 @@
     }
   };
 
-  /** Save a generated file locally (no network). */
+  /**
+   * Save a generated file locally (no network). `content` is a string or bytes
+   * (e.g. a Uint8Array from YES.pdf's save()). The helper link is hidden and
+   * removed at once, so it never sits in the page as an empty, focusable link.
+   */
   ui.download = function (filename, content, mime) {
     var blob = new Blob([content], { type: mime || 'text/plain;charset=utf-8' });
     var url = URL.createObjectURL(blob);
@@ -576,11 +668,14 @@
     a.href = url;
     a.download = filename;
     a.rel = 'noopener';
+    a.hidden = true;
+    a.tabIndex = -1;
+    a.setAttribute('aria-hidden', 'true');
     doc.body.appendChild(a);
     a.click();
+    a.remove();
     setTimeout(function () {
       URL.revokeObjectURL(url);
-      a.remove();
     }, 1000);
   };
 
@@ -707,6 +802,9 @@
     thumbsUp: '<path d="M7 11v9H4v-9z"/><path d="M7 11l4-7c1.5 0 2.5 1 2.5 2.5V10H19a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 17.8 20H7"/>',
     thumbsDown: '<path d="M7 13V4H4v9z"/><path d="M7 13l4 7c1.5 0 2.5-1 2.5-2.5V14H19a2 2 0 0 0 2-2.3l-1.2-6A2 2 0 0 0 17.8 4H7"/>',
     menu: '<path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/>',
+    moon: '<path d="M19.5 14.6A7.8 7.8 0 0 1 9.4 4.5 7.8 7.8 0 1 0 19.5 14.6z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.8v2.1"/><path d="M12 19.1v2.1"/><path d="m5.5 5.5 1.5 1.5"/><path d="m17 17 1.5 1.5"/><path d="M2.8 12h2.1"/><path d="M19.1 12h2.1"/><path d="m5.5 18.5 1.5-1.5"/><path d="m17 7 1.5-1.5"/>',
+    'file-down': '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6"/><path d="m9 14 3 3 3-3"/>',
     eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
     video: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/>',
     accessibility: '<circle cx="12" cy="4.5" r="1.5"/><path d="M5 8.5 12 10l7-1.5"/><path d="M12 10v4"/><path d="m8.5 20 3.5-6 3.5 6"/>',
@@ -813,10 +911,13 @@
   };
 
   /**
-   * Language switch markup (the masthead uses it; a module may place one inside
-   * a modal dialog, where the masthead is inert). Each button's accessible name
-   * is the language's own name ("English", "Español") at every width; compact
-   * layouts show "EN"/"ES" and keep the name in the accessibility tree.
+   * Language switch markup, for the shell only: the masthead and the phone
+   * menu. The masthead is the ONE place to change language; dialogs, sheets
+   * and the assistant drawer do not carry a switch and keep the language
+   * chosen before they opened (to change it, the visitor closes the dialog;
+   * drafts and conversations are kept in YES.state). Each button's accessible
+   * name is the language's own name ("English", "Español") at every width;
+   * compact layouts show "EN"/"ES" and keep the name in the accessibility tree.
    *   opts.fk — focus-key prefix (default 'lang'); opts.compact — always show EN/ES
    * Clicks on any [data-lang] control are handled globally.
    */

@@ -1,6 +1,7 @@
 // Shell, offline operation, navigation, language switch, integrity gate, and the
 // foundation contracts other modules build on (formatting, routing, focus,
-// top-layer toast, masthead layout at every width).
+// top-layer toast, masthead layout at every width), plus the light/dark theme,
+// the masthead's Download or print, the phone Menu and the UserWay position.
 export const meta = { name: 'shell', viewports: ['desktop', 'mobile'] };
 
 const BAD = ['serious', 'critical'];
@@ -23,26 +24,109 @@ export default async function (t) {
     );
     return v;
   };
-  const langNames = async () => page.locator('#masthead .seg').ariaSnapshot();
+  const activeFk = () => state(() => document.activeElement && document.activeElement.getAttribute('data-fk'));
+  const menuOpen = () => state(() => document.querySelector('#masthead [data-mast-menu]').getAttribute('aria-expanded') === 'true' && !document.getElementById('mast-menu').hidden);
+  const openMenu = async () => {
+    if (!(await menuOpen())) await page.click('#masthead [data-mast-menu]');
+    await page.waitForSelector('#mast-menu:not([hidden])');
+  };
+  // Phones reach the sections, the language switch and the theme toggle through the Menu.
+  const go = async (v) => {
+    if (mobile) {
+      await openMenu();
+      await page.click(`#mast-menu .mast-menu__link[data-nav="${v}"]`);
+    } else {
+      await page.click(`.nav__link[data-nav="${v}"]`);
+    }
+    await page.waitForFunction((x) => YES.state.view === x, v);
+  };
+  const setLang = async (l) => {
+    if (mobile) {
+      await openMenu();
+      await page.click(`#mast-menu [data-lang="${l}"]`);
+      await page.keyboard.press('Escape');
+    } else {
+      await page.click(`#masthead .mast-wide [data-lang="${l}"]`);
+    }
+    await page.waitForFunction((x) => YES.i18n.lang === x, l);
+  };
+  const themeFk = mobile ? 'menu-theme' : 'theme';
+  const toggleTheme = async () => {
+    if (mobile) await openMenu();
+    await page.click(`[data-fk="${themeFk}"]`);
+  };
+  const theme = () =>
+    state(() => ({
+      attr: document.documentElement.getAttribute('data-theme'),
+      choice: YES.theme.get(),
+      effective: YES.theme.effective(),
+      stored: (() => {
+        try {
+          return localStorage.getItem('yes.theme');
+        } catch (e) {
+          return 'blocked';
+        }
+      })(),
+      bg: getComputedStyle(document.body).backgroundColor,
+      scheme: getComputedStyle(document.documentElement).colorScheme
+    }));
+  const LIGHT_BG = 'rgb(245, 246, 248)';
+  const DARK_BG = 'rgb(14, 17, 22)';
 
   t.step('boot');
   t.assert(await state(() => YES.integrity.ok), 'statement reconciles');
   t.assert(await page.locator('.demo-badge').first().isVisible(), 'demo badge is visible');
   t.eq(await state(() => document.documentElement.lang), 'en', 'html lang');
   t.assert((await page.title()).includes('YES'), 'document title names YES');
+  // The device setting is light by default (run with --color-scheme dark to flip it).
+  const deviceDark = await state(() => matchMedia('(prefers-color-scheme: dark)').matches);
+  const dev = deviceDark ? 'dark' : 'light';
+  const th0 = await theme();
+  t.eq([th0.attr, th0.choice, th0.stored, th0.bg, th0.scheme], [dev, null, null, deviceDark ? DARK_BG : LIGHT_BG, dev], `follows the (${dev}) device: data-theme="${dev}", no stored choice`);
 
   t.step('i18n parity');
   t.eq(await state(() => YES.i18n.audit()), {}, 'every string exists in both languages');
 
-  t.step('language buttons are named at every width (WCAG 4.1.2)');
-  // Phones show "EN"/"ES"; the name stays the language's own name.
+  t.step('masthead controls: names, states and layout');
+  if (mobile) {
+    // Phones: logo, period, Ask and Menu; the rest is in the Menu's panel.
+    const btn = page.locator('#masthead [data-mast-menu]');
+    t.eq((await btn.innerText()).trim(), 'Menu', 'Menu button shows the word "Menu"');
+    t.eq(await page.getByRole('button', { name: 'Menu', exact: true }).count(), 1, 'Menu button named "Menu"');
+    t.eq([await btn.getAttribute('aria-expanded'), await btn.getAttribute('aria-controls')], ['false', 'mast-menu'], 'disclosure: aria-expanded false, aria-controls the panel');
+    t.assert(!(await page.locator('#mast-menu').isVisible()), 'panel closed at first');
+    t.assert(!(await page.locator('#masthead .nav').isVisible()) && !(await page.locator('#masthead .mast-wide').isVisible()), 'no tab row, language switch, theme or download in the phone header');
+    t.eq((await page.locator('[data-ask] .btn__label--short').innerText()).trim(), 'Ask', 'Ask YES keeps a visible word on phones');
+    t.eq(await page.getByRole('button', { name: 'English', exact: true }).count(), 0, 'language switch only inside the menu');
+    await openMenu();
+  }
+  // Language buttons are named by the language at every width (WCAG 4.1.2).
   t.eq(await page.getByRole('button', { name: 'English', exact: true }).count(), 1, 'button named "English"');
   t.eq(await page.getByRole('button', { name: 'Español', exact: true }).count(), 1, 'button named "Español"');
-  t.assert(/button "English" \[pressed\]/.test(await langNames()) && /button "Español"/.test(await langNames()), 'aria snapshot names both buttons: ' + (await langNames()));
+  const langNames = await page.locator(mobile ? '#mast-menu .seg' : '#masthead .mast-wide .seg').ariaSnapshot();
+  t.assert(/button "English" \[pressed\]/.test(langNames) && /button "Español"/.test(langNames), 'aria snapshot names both buttons: ' + langNames);
+  const darkBtn = page.getByRole('button', { name: 'Dark mode', exact: true });
+  t.eq(await darkBtn.count(), 1, 'one light/dark toggle named "Dark mode"');
+  t.eq(await darkBtn.getAttribute('aria-pressed'), String(deviceDark), `pressed only when the theme is dark (now ${dev})`);
+  const rec = page.getByRole('button', { name: 'Download or print', exact: true });
+  t.eq(await rec.count(), 1, 'one "Download or print" button');
+  t.assert((await rec.innerText()).includes(mobile ? 'Download or print' : 'Download or print'), 'shows "Download or print"');
   if (mobile) {
-    t.assert(await page.locator('[data-lang="es"] .seg__short').isVisible(), 'phones show the short code "ES"');
-    t.assert(((await page.locator('[data-lang="es"] .seg__long').boundingBox()) || { width: 0 }).width <= 1, 'the full name is visually hidden, not removed');
-    t.eq((await page.locator('[data-ask] .btn__label--short').innerText()).trim(), 'Ask', 'Ask YES keeps a visible word on phones');
+    const links = await page.$$eval('#mast-menu .mast-menu__link', (els) => els.map((e) => [e.getAttribute('data-nav'), e.textContent.trim(), e.getAttribute('aria-current')]));
+    t.eq(links, [['overview', 'Overview', 'page'], ['transactions', 'Transactions', null], ['understand', 'Understand', null], ['help', 'Help', null]], 'the four sections, the current one marked');
+    t.eq(await page.locator('#mast-menu nav[aria-label="Statement sections"]').count(), 1, 'the sections are a named navigation landmark');
+    await axeBad('phone menu open');
+    await t.shot('menu-open');
+    await page.keyboard.press('Escape');
+  } else {
+    t.eq(await page.locator('.mast-wide [data-lang="es"] .seg__long').isVisible(), true, '1280px: full language names');
+    await page.setViewportSize({ width: 1000, height: 900 });
+    await page.waitForTimeout(150);
+    t.assert(await page.locator('.mast-wide [data-lang="es"] .seg__short').isVisible(), '1000px: the short code "ES"');
+    t.assert(((await page.locator('.mast-wide [data-lang="es"] .seg__long').boundingBox()) || { width: 0 }).width <= 1, 'the full name is visually hidden, not removed');
+    t.eq((await page.locator('.btn--record .btn__label--short').innerText()).trim(), 'Download', '1000px: "Download" shown');
+    t.eq(await page.getByRole('button', { name: 'Download or print', exact: true }).count(), 1, 'its name is still "Download or print" (contains the visible word)');
+    await page.setViewportSize({ width: 1280, height: 900 });
   }
   await axeBad('first screen');
   if (!mobile) {
@@ -54,17 +138,39 @@ export default async function (t) {
     await page.waitForFunction(() => !document.documentElement.classList.contains('assistant-docked'));
   }
 
+  t.step('Download or print goes to the record section');
+  await state(() => {
+    window.__helpCalls = [];
+    window.__helpOpen = YES.help.open;
+    YES.help.open = (s) => window.__helpCalls.push(s);
+  });
+  if (mobile) await openMenu();
+  await page.click(mobile ? '[data-fk="menu-record"]' : '[data-fk="mast-record"]');
+  t.eq(await state(() => window.__helpCalls), ['record'], 'calls YES.help.open("record")');
+  if (mobile) t.eq(await menuOpen(), false, 'and closes the menu');
+  await state(() => {
+    YES.help.open = window.__helpOpen;
+  });
+  if (mobile) await openMenu();
+  await page.click(mobile ? '[data-fk="menu-record"]' : '[data-fk="mast-record"]');
+  await page.waitForFunction(() => YES.state.view === 'help');
+  t.eq(await state(() => location.hash), '#/help/record', 'arrives at #/help/record');
+  await go('overview');
+
   t.step('navigation');
   for (const v of ['transactions', 'understand', 'help', 'overview']) {
-    await page.click(`.nav__link[data-nav="${v}"]`);
+    await go(v);
     await page.waitForFunction((v) => location.hash.startsWith('#/' + v), v);
     t.assert(await state((v) => !document.getElementById('view-' + v).hidden, v), `view ${v} shown`);
-    t.eq(await page.locator('.nav__link[aria-current="page"]').getAttribute('data-nav'), v, 'aria-current follows view');
+    t.eq(await page.$$eval('#masthead [aria-current="page"]', (els) => els.map((e) => e.getAttribute('data-nav'))), [v, v], 'aria-current follows the view in the tabs and in the menu');
+    await page.waitForFunction((v) => document.activeElement && document.activeElement.id === 'h-' + v, v).catch(() => {});
+    t.eq(await state(() => document.activeElement.id), 'h-' + v, 'focus moves to the view heading');
+    if (mobile) t.eq(await menuOpen(), false, 'choosing a section closes the menu');
   }
 
   t.step('browser Back/Forward move focus to the view and announce it');
-  await page.click('.nav__link[data-nav="transactions"]');
-  await page.click('.nav__link[data-nav="help"]');
+  await go('transactions');
+  await go('help');
   await page.goBack();
   await page.waitForFunction(() => YES.state.view === 'transactions');
   await page.waitForTimeout(200);
@@ -99,10 +205,12 @@ export default async function (t) {
 
   t.step('language switch');
   await fresh();
-  await page.click('[data-lang="es"]');
+  await setLang('es');
   t.eq(await state(() => document.documentElement.lang), 'es', 'html lang es');
-  t.eq((await page.locator('.nav__link[data-nav="transactions"]').innerText()).trim(), 'Movimientos', 'nav translated');
-  t.eq(await page.locator('[data-lang="es"]').getAttribute('aria-pressed'), 'true', 'es pressed');
+  t.eq((await page.locator(`${mobile ? '.mast-menu__link' : '.nav__link'}[data-nav="transactions"]`).textContent()).trim(), 'Movimientos', 'nav translated');
+  t.eq(await page.locator(`${mobile ? '#mast-menu' : '.mast-wide'} [data-lang="es"]`).getAttribute('aria-pressed'), 'true', 'es pressed');
+  t.eq((await page.locator('#masthead [data-mast-record]').first().getAttribute('aria-label')), 'Descargar o imprimir', 'Download or print translated');
+  if (mobile) t.eq((await page.locator('#masthead [data-mast-menu]').innerText()).trim(), 'Menú', 'Menu translated');
   t.eq((await page.locator('.skip-link').textContent()).trim(), 'Ir al estado de cuenta', 'skip link translated');
 
   t.step('Spanish formatting');
@@ -120,7 +228,7 @@ export default async function (t) {
   t.eq(es.range, '1 al 30 de septiembre de 2026', 'period reads naturally after "del"');
   t.eq(es.cross, '30 de septiembre al 2 de octubre de 2026', 'cross-month range');
   t.eq(es.masked, 'Tarjeta de débito que termina en 1190', 'masked identifier spoken without bullets');
-  await page.click('[data-lang="en"]');
+  await setLang('en');
   t.eq(await state(() => document.documentElement.lang), 'en', 'back to en');
   t.eq((await state(() => YES.fmt.range(YES.data.statement.periodStart, YES.data.statement.periodEnd))).replace(/\s/g, ''), 'September1–30,2026', 'English range');
 
@@ -223,35 +331,59 @@ export default async function (t) {
   t.assert(long.width > (mobile ? 0.85 : 0.35) * (await state(() => innerWidth)) && long.left >= 15 && long.right >= 15, 'a wrapped toast uses the width (not half the screen) and keeps the gutters: ' + JSON.stringify(long));
   await state(() => document.getElementById('toast').classList.remove('is-visible'));
 
-  t.step('masthead: one brand row, all four sections fit, small pinned area');
-  const widths = mobile ? [320, 360, 375, 390, 414, 600, 719] : [720, 768, 900, 1000, 1280];
+  t.step('masthead: one brand row at every width, both languages, no horizontal scroll');
+  const widths = mobile ? [320, 360, 375, 390, 414, 600, 719] : [720, 768, 832, 900, 1000, 1088, 1280, 1440];
   for (const lang of ['en', 'es']) {
-    await page.click(`[data-lang="${lang}"]`);
+    await setLang(lang);
     for (const w of widths) {
       await page.setViewportSize({ width: w, height: mobile ? 800 : 900 });
       await page.waitForTimeout(120);
       const m = await state(() => {
         const r = (s) => document.querySelector(s).getBoundingClientRect();
         const list = document.querySelector('.nav__list');
+        const tabs = getComputedStyle(document.querySelector('#masthead .nav')).display !== 'none';
         const help = document.querySelector('.nav__link[data-nav="help"]').getBoundingClientRect();
         const badge = document.querySelector('.demo-badge');
         const b = r('.demo-badge');
+        const shown = [...document.querySelectorAll('.masthead__actions > *:not(.mast-wide), .mast-wide > *')].filter((e) => e.getClientRects().length);
         return {
-          oneRow: r('.masthead__actions').top < r('.brand').bottom - 4,
-          navFits: list.scrollWidth <= list.clientWidth + 1 && help.right <= window.innerWidth,
-          badgeVisible: b.height > 0 && b.left >= 0 && b.right <= window.innerWidth && badge.scrollWidth <= badge.clientWidth + 1
+          oneRow: r('.masthead__actions').top < r('.brand').bottom - 4 && new Set(shown.map((e) => Math.round(e.getBoundingClientRect().top))).size === 1,
+          inside: shown.every((e) => e.getBoundingClientRect().right <= window.innerWidth && e.getBoundingClientRect().left >= 0),
+          tabs,
+          navFits: !tabs || (list.scrollWidth <= list.clientWidth + 1 && help.right <= window.innerWidth),
+          badgeVisible: b.height > 0 && b.left >= 0 && b.right <= window.innerWidth && badge.scrollWidth <= badge.clientWidth + 1,
+          noScroll: document.documentElement.scrollWidth <= window.innerWidth,
+          menu: !!document.querySelector('[data-mast-menu]').getClientRects().length
         };
       });
-      t.assert(m.oneRow, `${lang} ${w}px: brand and actions share one row`);
+      t.assert(m.oneRow && m.inside, `${lang} ${w}px: brand and every control share one row, on screen`);
       t.assert(m.navFits, `${lang} ${w}px: Overview, Transactions, Understand and Help all visible`);
       t.assert(m.badgeVisible, `${lang} ${w}px: demo badge shown in full`);
+      t.assert(m.noScroll, `${lang} ${w}px: no horizontal scroll`);
+      t.eq([m.menu, m.tabs], mobile ? [true, false] : [false, true], `${lang} ${w}px: ${mobile ? 'Menu, no tab row' : 'tab row, no Menu'}`);
     }
   }
-  await page.click('[data-lang="en"]');
+  if (!mobile) {
+    // The masthead is a size container: the docked assistant narrows it.
+    await setLang('es');
+    for (const w of [1100, 1280, 1440]) {
+      await page.setViewportSize({ width: w, height: 900 });
+      await state(() => document.documentElement.classList.add('assistant-docked'));
+      await page.waitForTimeout(150);
+      const ok = await state(() => {
+        const mast = document.getElementById('masthead').getBoundingClientRect();
+        const shown = [...document.querySelectorAll('.masthead__actions > *:not(.mast-wide), .mast-wide > *')].filter((e) => e.getClientRects().length);
+        return shown.every((e) => e.getBoundingClientRect().right <= mast.right + 0.5) && document.querySelector('.masthead__actions').getBoundingClientRect().top < document.querySelector('.brand').getBoundingClientRect().bottom - 4;
+      });
+      t.assert(ok, `es ${w}px docked: one row inside the narrowed masthead`);
+      await state(() => document.documentElement.classList.remove('assistant-docked'));
+    }
+  }
+  await setLang('en');
   if (mobile) {
-    // PRD 4.1: the badge is on the first screen, fully worded; the masthead
-    // stays small so the first-screen facts start high, and what stays pinned
-    // is under 100px and is exactly what --masthead-h (scroll-padding) reserves.
+    // PRD 4.1: the badge is on the first screen, fully worded; with the sections
+    // in the Menu the masthead is small, and what stays pinned is under 70px
+    // and is exactly what --masthead-h (scroll-padding) reserves.
     for (const [w, h] of [
       [320, 640],
       [360, 640],
@@ -265,7 +397,7 @@ export default async function (t) {
         const b = badge.getBoundingClientRect();
         return { total: document.getElementById('masthead').getBoundingClientRect().height, top: b.top, bottom: b.bottom, text: badge.innerText.trim() };
       });
-      t.assert(first.total <= 128, `${w}px: masthead takes at most ~125px of the first screen (was 139): ${first.total}`);
+      t.assert(first.total <= 90, `${w}px: masthead takes at most 90px of the first screen (was 125 with the tab row): ${first.total}`);
       t.assert(first.top >= 0 && first.bottom <= 32 && first.text === 'Illustrative demo data', `${w}px: demo badge leads the first screen, fully worded: ${JSON.stringify(first)}`);
       await state(() => window.scrollTo(0, 900));
       await page.waitForTimeout(150);
@@ -274,7 +406,7 @@ export default async function (t) {
         reserved: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--masthead-h')),
         badgeGone: document.querySelector('.demo-badge').getBoundingClientRect().bottom <= 0
       }));
-      t.assert(pinned.bottom <= 100, `${w}px: under 100px stays pinned when scrolled (was 101–193): ${pinned.bottom}`);
+      t.assert(pinned.bottom <= 70, `${w}px: under 70px stays pinned when scrolled (was under 100 with the tab row): ${pinned.bottom}`);
       t.assert(Math.abs(pinned.bottom - pinned.reserved) <= 1, `${w}px: --masthead-h equals the pinned height: ${JSON.stringify(pinned)}`);
       t.assert(pinned.badgeGone, `${w}px: the badge band scrolls away with the page`);
     }
@@ -289,7 +421,7 @@ export default async function (t) {
     await state(() => {
       const s = document.createElement('style');
       s.id = 'tall-mast';
-      s.textContent = '#masthead .nav__link { min-height: 160px; }'; // as tall as very large text makes it
+      s.textContent = '#masthead .brand { min-height: 220px; }'; // as tall as very large text makes it
       document.head.appendChild(s);
     });
     await page.waitForTimeout(250);
@@ -297,7 +429,7 @@ export default async function (t) {
     await state(() => document.getElementById('tall-mast').remove());
     await page.waitForTimeout(250);
     const again = await pinState();
-    t.assert(again[0] === 'sticky' && parseFloat(again[1]) > 80 && parseFloat(again[1]) <= 100, 'back to normal: pinned again, --masthead-h follows: ' + again);
+    t.assert(again[0] === 'sticky' && parseFloat(again[1]) > 40 && parseFloat(again[1]) <= 70, 'back to normal: pinned again, --masthead-h follows: ' + again);
     await state(() => {
       document.documentElement.style.fontSize = '200%';
     });
@@ -310,24 +442,262 @@ export default async function (t) {
     t.eq(await state(() => getComputedStyle(document.getElementById('masthead')).position), 'relative', 'short viewports: masthead does not stick');
     await page.setViewportSize({ width: 390, height: 844 });
   } else {
+    // Very large text on a desktop window: the em breakpoints move to the
+    // roomier layouts (here the phone Menu) instead of overflowing the tabs.
     await page.setViewportSize({ width: 1280, height: 900 });
+    await state(() => {
+      document.documentElement.style.fontSize = '200%';
+    });
+    await page.waitForTimeout(250);
+    const big = await state(() => ({
+      menu: !!document.querySelector('[data-mast-menu]').getClientRects().length,
+      noScroll: document.documentElement.scrollWidth <= innerWidth
+    }));
+    t.eq(big, { menu: true, noScroll: true }, '200% text at 1280px: the Menu layout, no horizontal scroll');
+    await state(() => document.documentElement.style.removeProperty('font-size'));
+    await page.setViewportSize({ width: 1280, height: 900 });
+  }
+
+  if (mobile) {
+    t.step('phone menu: keyboard, Escape, outside click, Tab out, route changes');
+    await fresh();
+    const btn = page.locator('#masthead [data-mast-menu]');
+    await btn.focus();
+    await page.keyboard.press('Enter');
+    t.eq(await menuOpen(), true, 'Enter opens it');
+    t.eq(await btn.getAttribute('aria-expanded'), 'true', 'aria-expanded true');
+    t.eq(await activeFk(), 'menu', 'focus stays on the Menu button');
+    await page.keyboard.press('Tab');
+    t.eq(await activeFk(), 'menu-nav-overview', 'Tab moves into the panel: the first section');
+    await page.keyboard.press('Escape');
+    t.eq([await menuOpen(), await activeFk()], [false, 'menu'], 'Escape closes it and returns focus to the Menu button');
+    await page.keyboard.press(' ');
+    t.eq(await menuOpen(), true, 'Space opens it');
+    await page.keyboard.press(' ');
+    t.eq(await menuOpen(), false, 'Space closes it');
+    await openMenu();
+    const vp = page.viewportSize();
+    await page.mouse.click(4, vp.height - 4); // the page gutter, below the panel
+    t.eq(await menuOpen(), false, 'a click outside closes it');
+    t.assert((await activeFk()) !== 'menu', 'an outside click does not pull focus back to the button');
+    await openMenu();
+    await page.focus('[data-fk="menu-theme"]');
+    await page.keyboard.press('Tab');
+    t.eq(await menuOpen(), false, 'tabbing out of the masthead closes it');
+    await openMenu();
+    await state(() => YES.nav.go('help'));
+    t.eq(await menuOpen(), false, 'any navigation closes it');
+    await go('overview');
+
+    t.step('phone menu: language and theme keep it open, focus stays on the pressed control');
+    await openMenu();
+    await page.click('#mast-menu [data-lang="es"]');
+    await page.waitForFunction(() => YES.i18n.lang === 'es');
+    t.eq(await menuOpen(), true, 'still open after switching language');
+    t.eq(await activeFk(), 'menu-lang-es', 'focus on "Español"');
+    t.eq(await page.locator('#mast-menu [data-lang="es"]').getAttribute('aria-pressed'), 'true', 'Español pressed');
+    t.eq((await page.locator('#mast-menu .mast-menu__link[aria-current="page"]').textContent()).trim(), 'Resumen', 'sections in Spanish, current one marked');
+    t.eq((await btn.innerText()).trim(), 'Menú', 'Menu button in Spanish');
+    await t.shot('menu-es');
+    await page.click('#mast-menu [data-lang="en"]');
+    await page.waitForFunction(() => YES.i18n.lang === 'en');
+    t.eq([await menuOpen(), await activeFk()], [true, 'menu-lang-en'], 'back to English, still open, focus kept');
+    const was = (await theme()).effective;
+    const flipped = was === 'dark' ? 'light' : 'dark';
+    await page.click('[data-fk="menu-theme"]');
+    t.eq(await menuOpen(), true, 'still open after switching theme');
+    t.eq(await activeFk(), 'menu-theme', 'focus on the theme toggle');
+    t.eq((await theme()).attr, flipped, 'the theme switched to ' + flipped);
+    t.eq(await page.locator('[data-fk="menu-theme"]').getAttribute('aria-pressed'), String(flipped === 'dark'), 'pressed exactly when dark');
+    t.eq((await page.locator('[data-fk="menu-theme"] .switch__text').innerText()).trim(), flipped === 'dark' ? 'On' : 'Off', 'the switch says On when dark');
+    await axeBad('phone menu open, ' + flipped);
+    await t.shot('menu-' + flipped);
+    await page.keyboard.press('Space');
+    t.eq((await theme()).attr, was, 'Space on the toggle switches back');
+    await page.keyboard.press('Escape');
+
+    t.step('phone menu: fits narrow screens, scrolls inside itself, respects reduced motion');
+    for (const lang of ['en', 'es']) {
+      for (const w of [320, 390]) {
+        await page.setViewportSize({ width: w, height: 700 });
+        await page.waitForTimeout(100);
+        if (lang === 'es' && w === 320) await setLang('es');
+        await openMenu();
+        const fit = await state(() => {
+          const p = document.getElementById('mast-menu').getBoundingClientRect();
+          const kids = [...document.querySelectorAll('#mast-menu a, #mast-menu button')];
+          return {
+            panel: p.left >= 0 && p.right <= innerWidth + 0.5,
+            kids: kids.every((k) => k.getBoundingClientRect().right <= p.right + 0.5 && k.getBoundingClientRect().left >= p.left - 0.5),
+            noScroll: document.documentElement.scrollWidth <= innerWidth,
+            targets: kids.every((k) => k.getBoundingClientRect().height >= 44 - 0.5 || k.closest('.seg'))
+          };
+        });
+        t.eq(fit, { panel: true, kids: true, noScroll: true, targets: true }, `${lang} ${w}px: the panel and its controls fit, no horizontal scroll, 44px rows`);
+        await page.keyboard.press('Escape');
+      }
+    }
+    await setLang('en');
+    await page.setViewportSize({ width: 360, height: 400 });
+    await page.waitForTimeout(200);
+    await openMenu();
+    const tall = await state(() => {
+      const p = document.getElementById('mast-menu');
+      const before = p.scrollTop;
+      p.scrollTop = 9999;
+      return { scrolls: p.scrollHeight > p.clientHeight + 1 && p.scrollTop > before, bottom: p.getBoundingClientRect().bottom, vh: innerHeight };
+    });
+    t.assert(tall.scrolls && tall.bottom <= tall.vh + 1, 'taller than the screen: the panel scrolls inside itself and ends on screen: ' + JSON.stringify(tall));
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openMenu();
+    const slow = await state(() => document.getAnimations().filter((a) => document.getElementById('mast-menu').contains(a.effect && a.effect.target)).map((a) => a.effect.getComputedTiming().duration));
+    t.assert(slow.every((d) => d <= 1), 'reduced motion: the panel appears without animation: ' + JSON.stringify(slow));
+    await page.keyboard.press('Escape');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    // Rotating to a wider layout leaves the menu nothing to show: it closes.
+    await openMenu();
+    await page.setViewportSize({ width: 1024, height: 700 });
+    await page.waitForTimeout(250);
+    t.eq(await state(() => document.querySelector('[data-mast-menu]').getAttribute('aria-expanded')), 'false', 'switching to the tab layout closes the menu');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(150);
+  }
+
+  t.step('theme: follows the device live until the visitor chooses');
+  await state(() => YES.theme.set(null)); // forget any choice made above
+  await fresh();
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.waitForTimeout(100);
+  let th = await theme();
+  t.eq([th.attr, th.choice, th.effective, th.bg, th.scheme], ['dark', null, 'dark', DARK_BG, 'dark'], 'a dark device turns the page dark (live)');
+  if (mobile) await openMenu();
+  t.eq(await page.locator(`[data-fk="${themeFk}"]`).getAttribute('aria-pressed'), 'true', 'the toggle shows it');
+  if (mobile) await page.keyboard.press('Escape');
+  if (!mobile) await t.shot('dark-device');
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.waitForTimeout(100);
+  t.eq((await theme()).attr, 'light', 'and light again when the device is light');
+
+  t.step('theme: the visitor’s choice wins, is remembered and applies before the first paint');
+  await toggleTheme();
+  th = await theme();
+  t.eq([th.attr, th.choice, th.stored, th.bg], ['dark', 'dark', 'dark', DARK_BG], 'toggle: dark, remembered in localStorage "yes.theme"');
+  t.eq(await activeFk(), themeFk, 'focus stays on the toggle after the re-render');
+  t.eq(await page.locator(`[data-fk="${themeFk}"]`).getAttribute('aria-pressed'), 'true', 'pressed');
+  if (mobile) await page.keyboard.press('Escape');
+  await page.emulateMedia({ colorScheme: 'light' });
+  t.eq((await theme()).attr, 'dark', 'a light device does not override the choice');
+  await axeBad('dark theme');
+  await t.shot('dark-chosen');
+  // Reload: the head script applies the choice before <body> exists (no flash).
+  await page.addInitScript(() => {
+    window.__themeAtFirstSet = undefined;
+    // Init scripts run before <html> exists: watch the whole document.
+    new MutationObserver((list, obs) => {
+      if (!list.some((m) => m.target === document.documentElement)) return;
+      window.__themeAtFirstSet = { value: document.documentElement.getAttribute('data-theme'), bodyParsed: !!document.body };
+      obs.disconnect();
+    }).observe(document, { subtree: true, attributes: true, attributeFilter: ['data-theme'] });
+  });
+  await fresh();
+  t.eq(await state(() => window.__themeAtFirstSet), { value: 'dark', bodyParsed: false }, 'reload: dark is applied in <head>, before the body is parsed');
+  th = await theme();
+  t.eq([th.attr, th.choice, th.bg], ['dark', 'dark', DARK_BG], 'reload: still dark');
+  if (mobile) await openMenu();
+  t.eq(await page.locator(`[data-fk="${themeFk}"]`).getAttribute('aria-pressed'), 'true', 'reload: the toggle is pressed');
+  if (mobile) await page.keyboard.press('Escape');
+  // A light choice on a dark device.
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await toggleTheme();
+  if (mobile) await page.keyboard.press('Escape');
+  th = await theme();
+  t.eq([th.attr, th.choice, th.bg, th.scheme], ['light', 'light', LIGHT_BG, 'light'], 'light chosen on a dark device stays light');
+
+  t.step('theme: both dark entry points are identical; print is always light');
+  const tokens = await state(() => {
+    const names = [];
+    const walk = (rules) => {
+      for (const r of rules) {
+        if (r.cssRules && !r.selectorText) walk(r.cssRules);
+        else if (r.selectorText && /:root\[data-theme=['"]?dark['"]?\]$/.test(r.selectorText.trim())) for (const n of r.style) names.push(n);
+      }
+    };
+    for (const sh of document.styleSheets) walk(sh.cssRules);
+    return names;
+  });
+  t.assert(tokens.length >= 40, 'the dark block declares the token set: ' + tokens.length);
+  const read = (names) => state((ns) => ns.map((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()), names);
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await state(() => document.documentElement.removeAttribute('data-theme')); // as before boot
+  const viaDevice = await read(tokens);
+  await page.emulateMedia({ colorScheme: 'light' });
+  await state(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  const viaChoice = await read(tokens);
+  t.eq(viaChoice, viaDevice, 'device dark and data-theme="dark" give the same tokens');
+  t.eq(await state(() => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()), '#0e1116', 'and they are the dark tokens');
+  for (const [scheme, attr] of [
+    ['light', 'dark'],
+    ['dark', 'dark'],
+    ['dark', null]
+  ]) {
+    await page.emulateMedia({ colorScheme: scheme, media: 'print' });
+    await state((a) => (a ? document.documentElement.setAttribute('data-theme', a) : document.documentElement.removeAttribute('data-theme')), attr);
+    const pr = await state(() => ({
+      bg: getComputedStyle(document.body).backgroundColor,
+      ink: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim(),
+      surface: getComputedStyle(document.documentElement).getPropertyValue('--surface').trim(),
+      scheme: getComputedStyle(document.documentElement).colorScheme,
+      record: getComputedStyle(document.getElementById('print-root')).color
+    }));
+    t.eq(pr, { bg: 'rgb(255, 255, 255)', ink: '#000', surface: '#fff', scheme: 'light', record: 'rgb(0, 0, 0)' }, `print is light (device ${scheme}, data-theme ${attr})`);
+  }
+  await page.emulateMedia({ colorScheme: 'light', media: 'screen' });
+  await state(() => YES.theme.set(null));
+  th = await theme();
+  t.eq([th.attr, th.choice, th.stored], ['light', null, null], 'YES.theme.set(null) follows the device again and forgets the choice');
+
+  t.step('theme: blocked storage never breaks the page');
+  {
+    const p2 = await page.context().newPage();
+    const errs = [];
+    p2.on('pageerror', (e) => errs.push(e.message));
+    await p2.addInitScript(() => {
+      Object.defineProperty(window, 'localStorage', {
+        get() {
+          throw new Error('storage blocked');
+        }
+      });
+    });
+    await p2.goto(page.url().split('#')[0]);
+    await p2.waitForFunction(() => window.YES && YES.ready);
+    const r = await p2.evaluate(() => {
+      const a = YES.theme.toggle();
+      return [a, document.documentElement.getAttribute('data-theme'), YES.theme.get()];
+    });
+    const other = deviceDark ? 'light' : 'dark';
+    t.eq(r, [other, other, other], 'the toggle still works for this page view');
+    t.eq(errs, [], 'no errors with storage blocked');
+    await p2.close();
   }
 
   t.step('forced colours keep a visible focus indicator');
   await fresh();
   await page.emulateMedia({ forcedColors: 'active' });
   const outlines = [];
-  for (const fk of ['lang-es', 'ask-yes', 'ov-explore']) {
+  const fks = mobile ? ['ask-yes', 'menu', 'ov-explore'] : ['lang-es', 'theme', 'mast-record', 'ask-yes', 'ov-explore'];
+  for (const fk of fks) {
     await page.focus(`[data-fk="${fk}"]`);
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
     outlines.push(await state(() => [document.activeElement.getAttribute('data-fk'), getComputedStyle(document.activeElement).outlineStyle]));
   }
-  t.eq(outlines, [['lang-es', 'solid'], ['ask-yes', 'solid'], ['ov-explore', 'solid']], 'focused controls draw an outline under forced colours');
+  t.eq(outlines, fks.map((k) => [k, 'solid']), 'focused controls draw an outline under forced colours');
   await page.emulateMedia({ forcedColors: 'none' });
 
   t.step('form fields and placeholders meet contrast');
-  await page.click('.nav__link[data-nav="transactions"]');
+  await go('transactions');
   const fieldContrast = await state(() => {
     const rgb = (s) => s.match(/[\d.]+/g).slice(0, 3).map(Number);
     const lum = (c) => {
@@ -364,9 +734,15 @@ export default async function (t) {
     t.assert(await state(() => YES.ready && !!document.querySelector('.nav__link') && document.getElementById('overview-root').innerHTML.length > 0), 'boots with ' + h);
   }
 
-  t.step('userway graceful offline');
+  t.step('userway graceful offline, launcher bottom left');
   await page.waitForFunction(() => ['unavailable', 'loaded', 'host', 'disabled'].includes(YES.userway.status), null, { timeout: 12000 });
   t.eq(await state(() => YES.userway.status), 'unavailable', 'widget unavailable offline');
+  const uw = await state(() => {
+    const s = document.querySelectorAll('script[data-yes-userway]');
+    return { n: s.length, src: s[0] && s[0].getAttribute('src'), account: s[0] && s[0].getAttribute('data-account'), position: s[0] && s[0].getAttribute('data-position'), cfg: YES.config.userway.position };
+  });
+  t.eq(uw, { n: 1, src: 'https://cdn.userway.org/widget.js', account: 'B3W9A2mgGs', position: '5', cfg: 5 }, 'one official loader, account ID, data-position="5" (bottom left, clear of the Ask YES close button)');
+  t.assert(t.external.some((u) => /cdn\.userway\.org/.test(u)), 'the (blocked) request was the UserWay loader');
   t.assert((await page.locator('.footer__demo').innerText()).includes('UserWay'), 'demo notice names the third-party widget it loads');
 
   t.step('integrity gate');
@@ -383,7 +759,14 @@ export default async function (t) {
   await page.evaluate(() => document.querySelector('.skip-link').focus());
   await page.keyboard.press('Enter');
   t.eq(await state(() => [document.activeElement.id, location.hash]), ['withheld-title', '#/overview?simulate=mismatch'], 'skip link lands on the withheld message');
-  await page.click('[data-lang="es"]');
+  t.eq(await page.locator('#masthead [data-mast-record]:visible, #masthead [data-ask]:visible').count(), 0, 'no Download or print and no Ask YES while withheld');
+  if (mobile) {
+    await openMenu();
+    t.eq(await page.locator('#mast-menu .mast-menu__link:visible').count(), 0, 'withheld: the menu offers no sections');
+    t.assert(await page.locator('#mast-menu [data-lang="es"]').isVisible(), 'withheld: the menu still offers the language switch');
+    await page.keyboard.press('Escape');
+  }
+  await setLang('es');
   t.eq(await state(() => document.getElementById('overview-root').innerHTML.length), 0, 'a language switch renders no withheld figures');
   t.assert((await page.title()).startsWith('Estado de cuenta retenido'), 'Spanish withheld title');
   await t.shot('withheld');

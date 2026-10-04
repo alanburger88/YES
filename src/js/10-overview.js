@@ -148,15 +148,56 @@
     var sign = opts.sign || 'always';
     var visible = YES.fmt.amount(minor, { sign: sign, unit: !!opts.unit });
     var spoken = YES.fmt.amountSpoken(minor, { sign: sign === 'never' ? 'auto' : sign });
+    // With a unit, the number and the unit stay whole but the unit may drop to
+    // its own line (very large text), as in wrapAmountHtml.
+    var cut = opts.unit ? visible.lastIndexOf('\u00a0') : -1;
+    var shown = cut === -1 ? esc(visible) : '<span class="ov-amt__n">' + esc(visible.slice(0, cut)) + '</span> <span class="ov-amt__u">' + esc(visible.slice(cut + 1)) + '</span>';
     return (
       '<span class="ov-num' +
+      (cut === -1 ? '' : ' ov-amt') +
       (opts.cls ? ' ' + opts.cls : '') +
       '"><span aria-hidden="true">' +
-      esc(visible) +
+      shown +
       '</span><span class="sr-only">' +
       esc(spoken) +
       '</span></span>'
     );
+  }
+
+  /**
+   * A signed amount (like ui.amountHtml) whose unit may drop to its own line:
+   * the number and the unit each stay whole, and an ordinary space joins them,
+   * so very large text (200%) on a phone wraps instead of scrolling sideways.
+   */
+  function wrapAmountHtml(minor, opts) {
+    opts = opts || {};
+    var sign = opts.sign || 'always';
+    var text = YES.fmt.amount(minor, { sign: sign });
+    var cut = text.lastIndexOf('\u00a0');
+    var visible = cut === -1 ? '<span class="ov-amt__n">' + esc(text) + '</span>' : '<span class="ov-amt__n">' + esc(text.slice(0, cut)) + '</span> <span class="ov-amt__u">' + esc(text.slice(cut + 1)) + '</span>';
+    return (
+      '<span class="amount amount--' +
+      (minor < 0 ? 'out' : minor > 0 ? 'in' : 'zero') +
+      ' ov-amt"><span aria-hidden="true">' +
+      visible +
+      '</span><span class="sr-only">' +
+      esc(YES.fmt.amountSpoken(minor, { sign: sign })) +
+      '</span></span>'
+    );
+  }
+
+  /**
+   * The hero figure's width in em, estimated from its characters (proportional
+   * figures at the hero weight; generous, so the estimate never runs short).
+   * CSS caps the hero's size with it so the figure always fits its column.
+   */
+  function heroEm(text) {
+    var em = 0;
+    for (var i = 0; i < text.length; i++) {
+      var c = text.charAt(i);
+      em += /[0-9]/.test(c) ? 0.68 : /[.,'\u00a0\u202f\u2009 ]/.test(c) ? 0.36 : 0.84;
+    }
+    return Math.max(1, em).toFixed(2);
   }
 
   /** "—" in a table cell, with a spoken equivalent. */
@@ -419,9 +460,12 @@
   function balanceHtml() {
     var s = st();
     var a = asset();
+    var heroText = plain(s.closing);
     var hero =
-      '<p class="ov-hero"><span class="ov-hero__num" aria-hidden="true">' +
-      esc(plain(s.closing)) +
+      '<p class="ov-hero"><span class="ov-hero__num" aria-hidden="true" style="--ov-hero-em:' +
+      esc(heroEm(heroText)) +
+      '">' +
+      esc(heroText) +
       '</span><span class="ov-hero__sym" aria-hidden="true">' +
       esc(a.symbol) +
       '</span><span class="sr-only">' +
@@ -441,7 +485,8 @@
       '<p class="ov-asof">' +
       ui.icon('clock', { size: 16 }) +
       '<span>' +
-      esc(t('term.asOf', { date: stamp(s.asOf) })) +
+      // A line may break after the "/" of "America/New_York" (very large text).
+      esc(t('term.asOf', { date: stamp(s.asOf) })).replace(/\//g, '/<wbr>') +
       '</span></p>' +
       '</div>' +
       // Narrow: balance → net change → actions → USD equivalent, so the two
@@ -776,7 +821,7 @@
       esc(t('overview.panel.sum')) +
       '</span>' +
       '<span class="ov-sum__value">' +
-      ui.amountHtml(sum) +
+      wrapAmountHtml(sum) +
       '</span>' +
       '<span class="ov-sum__check">' +
       ui.icon(ok ? 'check-circle' : 'alert', { size: 16 }) +
@@ -829,10 +874,13 @@
     var closing = plain(last.value) + ' ' + sym();
     plainEq += ' = ' + closing;
     spoken += ', ' + t('overview.journey.equals') + ' ' + t('cat.closing') + ' ' + YES.fmt.amountSpoken(last.value) + '.';
+    // The unit may drop below the figure when the line is very narrow (200% text).
     terms +=
-      '<span class="jr-eq__term jr-eq__term--total"><span class="jr-eq__num"><span class="jr-eq__op">=</span>' +
-      esc(closing) +
-      '</span><span class="jr-eq__lbl">' +
+      '<span class="jr-eq__term jr-eq__term--total"><span class="jr-eq__num ov-amt"><span class="jr-eq__op">=</span><span class="ov-amt__n">' +
+      esc(plain(last.value)) +
+      '</span> <span class="ov-amt__u">' +
+      esc(sym()) +
+      '</span></span><span class="jr-eq__lbl">' +
       esc(t('cat.closing')) +
       '</span></span>';
     return (
@@ -1551,7 +1599,7 @@
         '<p class="ov-fees__total"><span class="ov-fees__label">' +
         esc(t('overview.fees.total')) +
         '</span><span class="ov-fees__value">' +
-        ui.amountHtml(total) +
+        wrapAmountHtml(total) +
         '</span><span class="ov-fees__count">' +
         esc(rows.length === 1 ? t('overview.fees.count1') : t('overview.fees.countN', { n: YES.fmt.count(rows.length) })) +
         '</span></p>' +
@@ -1715,7 +1763,9 @@
     var time = timecode(VIDEO_SECONDS);
     return (
       '<section class="card ov-video" aria-labelledby="ov-video-title">' +
-      '<div class="ov-video__poster">' +
+      // A size container: with very large text the play control and the
+      // duration move below the artwork instead of colliding on it.
+      '<div class="ov-video__media"><div class="ov-video__poster">' +
       posterHtml() +
       '<button type="button" class="ov-video__play" data-ov-video data-fk="ov-video-play" aria-label="' +
       esc(t('overview.video.playLabel', { title: title, time: time })) +
@@ -1726,7 +1776,7 @@
       '</span></button>' +
       '<span class="ov-video__dur" aria-hidden="true">' +
       esc(time) +
-      '</span></div>' +
+      '</span></div></div>' +
       '<div class="ov-video__body">' +
       '<p class="card__eyebrow">' +
       esc(t('overview.video.eyebrow')) +

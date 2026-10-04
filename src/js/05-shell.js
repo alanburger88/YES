@@ -1,7 +1,10 @@
 /*
  * Shell: skip link, masthead (brand slot, period, demo badge, language switcher,
- * Ask YES), section navigation, footer, document title and the withheld-statement
- * state shown when reconciliation fails (PRD 4, 5.1, 5.2).
+ * light/dark toggle, "Download or print", Ask YES), section navigation (tabs
+ * from 720px, a Menu on phones), footer, document title and the
+ * withheld-statement state shown when reconciliation fails (PRD 4, 5.1, 5.2).
+ * The masthead is the only language switch in the statement: dialogs keep the
+ * language chosen before they opened.
  */
 (function (root) {
   'use strict';
@@ -19,22 +22,112 @@
     return YES.fmt.date(YES.data.statement.periodEnd, 'monthYear');
   }
 
-  function renderMasthead() {
-    var view = YES.state.view;
-    var navItems = YES.VIEWS.map(function (v) {
+  /* Light/dark toggle: one button named "Dark mode", pressed when dark is on.
+     The masthead shows the icon; the phone menu shows a labelled row with a switch. */
+  function themeToggleHtml(fk, row) {
+    var dark = YES.theme.effective() === 'dark';
+    var common = ' data-theme-toggle data-fk="' + fk + '" aria-pressed="' + dark + '"';
+    if (!row) {
       return (
-        '<li><a class="nav__link" href="#/' +
-        v +
-        '" data-nav="' +
-        v +
-        '" data-fk="nav-' +
-        v +
-        '"' +
-        (v === view ? ' aria-current="page"' : '') +
-        '>' +
-        esc(t('nav.' + v)) +
-        '</a></li>'
+        '<button type="button" class="btn btn--icon theme-toggle"' +
+        common +
+        ' aria-label="' +
+        esc(t('theme.dark')) +
+        '" title="' +
+        esc(t('theme.dark')) +
+        '">' +
+        ui.icon('moon', { size: 20 }) +
+        '</button>'
       );
+    }
+    return (
+      '<button type="button" class="mast-menu__theme theme-toggle"' +
+      common +
+      '>' +
+      ui.icon('moon', { size: 20 }) +
+      '<span class="mast-menu__theme-label">' +
+      esc(t('theme.dark')) +
+      '</span><span class="switch" aria-hidden="true"><span class="switch__text">' +
+      esc(t(dark ? 'theme.on' : 'theme.off')) +
+      '</span><span class="switch__track"><span class="switch__thumb"></span></span></span></button>'
+    );
+  }
+
+  /* "Download or print": the help module's record section (print, PDF, CSV). */
+  function recordButtonHtml(fk, cls) {
+    return (
+      '<button type="button" class="btn ' +
+      cls +
+      '" data-mast-record data-fk="' +
+      fk +
+      '" aria-label="' +
+      esc(t('record.button')) +
+      '">' +
+      ui.icon('file-down', { size: 18 }) +
+      '<span class="btn__label">' +
+      esc(t('record.button')) +
+      '</span><span class="btn__label btn__label--short">' +
+      esc(t('record.buttonShort')) +
+      '</span></button>'
+    );
+  }
+
+  function navLinkHtml(v, cls, fk, extra) {
+    return (
+      '<li><a class="' +
+      cls +
+      '" href="#/' +
+      v +
+      '" data-nav="' +
+      v +
+      '" data-fk="' +
+      fk +
+      v +
+      '"' +
+      (v === YES.state.view ? ' aria-current="page"' : '') +
+      '><span>' +
+      esc(t('nav.' + v)) +
+      '</span>' +
+      (extra || '') +
+      '</a></li>'
+    );
+  }
+
+  /*
+   * Phone menu (masthead under 45em, i.e. 720px at the default text size): a
+   * disclosure button opens a panel under the header with the four sections,
+   * Download or print, the language switch and the light/dark toggle.
+   */
+  function menuHtml() {
+    var links = YES.VIEWS.map(function (v) {
+      return navLinkHtml(v, 'mast-menu__link', 'menu-nav-', ui.icon('check', { size: 18, cls: 'mast-menu__current' }));
+    }).join('');
+    return (
+      '<div class="mast-menu" id="mast-menu"' +
+      (menuOpen ? '' : ' hidden') +
+      '>' +
+      '<nav class="mast-menu__nav" aria-label="' +
+      esc(t('nav.label')) +
+      '"><ul class="mast-menu__list">' +
+      links +
+      '</ul></nav>' +
+      '<div class="mast-menu__group mast-menu__group--record">' +
+      recordButtonHtml('menu-record', 'mast-menu__record') +
+      '</div>' +
+      '<div class="mast-menu__group mast-menu__prefs">' +
+      '<div class="mast-menu__pref"><span class="mast-menu__pref-label" aria-hidden="true">' +
+      esc(t('lang.label')) +
+      '</span>' +
+      ui.langSwitchHtml({ fk: 'menu-lang' }) +
+      '</div>' +
+      themeToggleHtml('menu-theme', true) +
+      '</div></div>'
+    );
+  }
+
+  function renderMasthead() {
+    var navItems = YES.VIEWS.map(function (v) {
+      return navLinkHtml(v, 'nav__link', 'nav-');
     }).join('');
 
     // Narrow layouts show "Sep 2026" and hide the word "Statement" visually; the
@@ -56,7 +149,11 @@
         ? '<span class="demo-badge" title="' + esc(t('demo.badgeLong')) + '">' + ui.icon('info', { size: 16 }) + '<span>' + esc(t('demo.badge')) + '</span></span>'
         : '') +
       '<div class="masthead__actions">' +
+      '<div class="mast-wide">' +
       ui.langSwitchHtml() +
+      themeToggleHtml('theme', false) +
+      recordButtonHtml('mast-record', 'btn--record') +
+      '</div>' +
       '<button type="button" class="btn btn--ai btn--ask" data-ask data-fk="ask-yes" aria-haspopup="dialog" aria-expanded="' +
       !!(YES.state.assistant && YES.state.assistant.open) +
       '" aria-label="' +
@@ -68,15 +165,23 @@
       '</span><span class="btn__label btn__label--short">' +
       esc(t('ask.buttonShort')) +
       '</span></button>' +
+      '<button type="button" class="btn mast-menu-btn" data-mast-menu data-fk="menu" aria-expanded="' +
+      menuOpen +
+      '" aria-controls="mast-menu">' +
+      ui.icon(menuOpen ? 'close' : 'menu', { size: 20 }) +
+      '<span>' +
+      esc(t('menu.button')) +
+      '</span></button>' +
       '</div></div>' +
       '<nav class="nav" aria-label="' +
       esc(t('nav.label')) +
       '"><ul class="nav__list container">' +
       navItems +
-      '</ul></nav>';
+      '</ul></nav>' +
+      menuHtml();
     ui.render(doc.getElementById('masthead'), html);
     fitMasthead();
-    syncNavOverflow();
+    if (menuOpen) sizeMenu();
   }
 
   function renderFooter() {
@@ -122,13 +227,14 @@
 
   /* ------------------------------------------------------ Masthead metrics */
   /*
-   * Under 1000px the demo badge is a slim band above the brand row. The
+   * Under 68em (1088px) the demo badge is a slim band above the brand row. The
    * masthead sticks with a negative `top` equal to that band (less a 4px
    * margin above the brand row), so the badge is on the first screen but
-   * scrolls away, and only the brand row and the navigation stay pinned (under
-   * 100px on a phone). On short viewports (landscape phones, 400% zoom) the
-   * masthead does not stick at all. --masthead-h always equals what stays
-   * pinned, so scroll-padding keeps focused content clear of it (WCAG 2.4.11).
+   * scrolls away, and only the brand row (and, from 720px, the section tabs)
+   * stays pinned: under 70px on a phone, where the sections are in the Menu.
+   * On short viewports (landscape phones, 400% zoom) the masthead does not
+   * stick at all. --masthead-h always equals what stays pinned, so
+   * scroll-padding keeps focused content clear of it (WCAG 2.4.11).
    */
   var MAX_PINNED_SHARE = 0.3;
   function syncMastheadMetrics() {
@@ -171,7 +277,10 @@
   function relayout() {
     fitMasthead();
     syncMastheadMetrics();
-    syncNavOverflow();
+    // The layout left the phone range (rotation, a docked assistant closing,
+    // a resized window): the menu has nothing to show there, so it closes.
+    if (menuOpen && !phoneLayout()) setMenu(false);
+    else if (menuOpen) sizeMenu();
   }
   var relayoutQueued = false;
   function queueRelayout() {
@@ -193,29 +302,91 @@
       var mq = root.matchMedia('(max-height: 500px)');
       if (mq.addEventListener) mq.addEventListener('change', queueRelayout);
     }
-    // Focus inside a navigation row that still has to scroll (very large text):
-    // bring the focused tab into view.
-    mast.addEventListener('focusin', function (e) {
-      var link = e.target.closest && e.target.closest('.nav__link');
-      var list = link && link.parentNode && link.parentNode.parentNode;
-      if (link && list && list.scrollWidth > list.clientWidth + 1) {
-        var lr = link.getBoundingClientRect();
-        var cr = list.getBoundingClientRect();
-        if (lr.left < cr.left) list.scrollLeft -= cr.left - lr.left + 24;
-        else if (lr.right > cr.right) list.scrollLeft += lr.right - cr.right + 24;
+  }
+
+  /* -------------------------------------------------------------- Phone menu */
+  var menuOpen = false;
+  /** The phone layout is active when its Menu button is displayed (03-shell.css decides). */
+  function phoneLayout() {
+    var b = doc.querySelector('#masthead [data-mast-menu]');
+    return !!(b && b.getClientRects().length);
+  }
+  /* The panel hangs under the header and scrolls inside itself when it is
+     taller than the room left on screen (the header's place changes as the
+     badge band scrolls away, so this follows scrolling while it is open). */
+  function sizeMenu() {
+    var mast = doc.getElementById('masthead');
+    var panel = doc.getElementById('mast-menu');
+    if (!mast || !panel) return;
+    var room = Math.max(160, Math.floor((root.innerHeight || 0) - Math.max(0, mast.getBoundingClientRect().bottom) - 8));
+    panel.style.setProperty('--menu-max', room + 'px');
+  }
+  var sizeQueued = false;
+  function onScrollWhileOpen() {
+    if (sizeQueued) return;
+    sizeQueued = true;
+    (root.requestAnimationFrame || setTimeout)(function () {
+      sizeQueued = false;
+      if (menuOpen) sizeMenu();
+    });
+  }
+  /**
+   * Open or close the phone menu. opts.focus — after closing, return focus to
+   * the Menu button (Escape); without it focus stays where the visitor put it.
+   */
+  function setMenu(open, opts) {
+    open = !!open;
+    var btn = doc.querySelector('#masthead [data-mast-menu]');
+    var panel = doc.getElementById('mast-menu');
+    if (!btn || !panel) return;
+    menuOpen = open;
+    panel.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+    btn.querySelector('svg').outerHTML = ui.icon(open ? 'close' : 'menu', { size: 20 });
+    doc.getElementById('masthead').classList.toggle('is-menu-open', open);
+    if (open) {
+      sizeMenu();
+      root.addEventListener('scroll', onScrollWhileOpen, { passive: true });
+    } else {
+      root.removeEventListener('scroll', onScrollWhileOpen);
+      if (opts && opts.focus) btn.focus();
+    }
+  }
+  function bindMenu(mast) {
+    ui.delegate(mast, 'click', '[data-mast-menu]', function () {
+      setMenu(!menuOpen);
+    });
+    // A section: close, then the global [data-nav] handler (04-core.js)
+    // navigates and moves focus to the view's heading.
+    ui.delegate(mast, 'click', '.mast-menu [data-nav]', function () {
+      setMenu(false);
+    });
+    // Language and theme switches keep the menu open: the masthead re-renders
+    // with it open and focus stays on the pressed control (data-fk).
+    // A click anywhere else closes it. The event path is fixed when the click
+    // starts, so it still names the panel when a handler has re-rendered it.
+    doc.addEventListener('click', function (e) {
+      if (!menuOpen) return;
+      var path = e.composedPath ? e.composedPath() : [];
+      var inside = path.some(function (n) {
+        return n.nodeType === 1 && (n.id === 'mast-menu' || n.hasAttribute('data-mast-menu'));
+      });
+      if (!inside) setMenu(false);
+    });
+    doc.addEventListener('keydown', function (e) {
+      if (menuOpen && (e.key === 'Escape' || e.key === 'Esc')) {
+        e.preventDefault();
+        setMenu(false, { focus: true });
       }
     });
-    mast.addEventListener('scroll', syncNavOverflow, true);
-  }
-  /* The four sections fit from 320px up; if large text still overflows, the
-     row scrolls and an edge fade shows there is more. */
-  function syncNavOverflow() {
-    var nav = doc.querySelector('#masthead .nav');
-    var list = nav && nav.querySelector('.nav__list');
-    if (!list) return;
-    var max = list.scrollWidth - list.clientWidth;
-    nav.classList.toggle('has-more-right', max > 1 && list.scrollLeft < max - 1);
-    nav.classList.toggle('has-more-left', max > 1 && list.scrollLeft > 1);
+    // Tabbing out of the masthead closes it (a re-render has no relatedTarget).
+    mast.addEventListener('focusout', function (e) {
+      if (menuOpen && e.relatedTarget && !mast.contains(e.relatedTarget)) setMenu(false);
+    });
+    // Any other navigation (Back, a link elsewhere) closes it too.
+    YES.on('route', function () {
+      if (menuOpen) setMenu(false);
+    });
   }
 
   function syncAskExpanded() {
@@ -229,7 +400,7 @@
   }
 
   function syncNav() {
-    ui.$$('.nav__link').forEach(function (a) {
+    ui.$$('#masthead [data-nav]:not(.brand)').forEach(function (a) {
       if (a.getAttribute('data-nav') === YES.state.view) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
     });
@@ -295,6 +466,17 @@
       ui.delegate(mast, 'click', '[data-ask]', function (e, b) {
         YES.assistant.open({ topic: 'general', trigger: b });
       });
+      // Light/dark: the masthead re-renders on 'theme', keeping focus on the toggle.
+      ui.delegate(mast, 'click', '[data-theme-toggle]', function () {
+        YES.theme.toggle();
+      });
+      // Download or print: the help module's record section (print, PDF, CSV).
+      ui.delegate(mast, 'click', '[data-mast-record]', function () {
+        if (menuOpen) setMenu(false);
+        YES.help.open('record');
+      });
+      bindMenu(mast);
+      YES.on('theme', renderMasthead);
       var skip = doc.querySelector('.skip-link');
       if (skip) skip.addEventListener('click', skipToContent);
       doc.addEventListener('click', function (e) {

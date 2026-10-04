@@ -1,19 +1,24 @@
-// Help view: contextual help, contact placeholders, feedback, statement record,
-// integrity checks and exception preview, accessibility + UserWay status,
-// about/slots, YES.help.open + #/help/<section> routes, language switch,
-// statement-of-record print view, accessibility (axe) and mobile reflow.
-import { mkdirSync } from 'node:fs';
+// Help view: contextual help, contact placeholders, feedback, "Download or
+// print" (print, PDF, CSV and the statement-record facts), integrity checks
+// and exception preview, accessibility + UserWay status, about/slots,
+// YES.help.open + #/help/<section> routes (and the masthead's Download or
+// print button), language switch, statement-of-record print view, the
+// statement-of-record PDF (YES.help.downloadPdf, checked with poppler's
+// pdfinfo / pdftotext / pdftoppm), light and dark themes, accessibility (axe)
+// and mobile reflow.
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 
 export const meta = { name: 'help', viewports: ['desktop', 'mobile'], hash: '#/help' };
 
-const SHOTS = join(dirname(fileURLToPath(import.meta.url)), '..', 'test-results', 'screens');
+const RESULTS = join(dirname(fileURLToPath(import.meta.url)), '..', 'test-results');
+const SHOTS = join(RESULTS, 'screens');
 const SECTIONS = {
   contact: 'Contact support',
   feedback: 'Feedback',
-  record: 'Statement record',
+  record: 'Download or print',
   integrity: 'Statement integrity',
   accessibility: 'Accessibility',
   about: 'About this demo'
@@ -73,8 +78,15 @@ export default async function (t) {
       window.print = () => __calls.push({ fn: 'print' });
     });
   const calls = () => page.evaluate(() => window.__calls.splice(0));
+  // The language switch lives in the masthead: on phones inside the Menu.
   const setLang = async (l) => {
-    await page.click(`[data-lang="${l}"]`);
+    if (await page.locator('#masthead [data-mast-menu]').isVisible()) {
+      if ((await page.getAttribute('#masthead [data-mast-menu]', 'aria-expanded')) !== 'true') await page.click('#masthead [data-mast-menu]');
+      await page.click(`#mast-menu [data-lang="${l}"]`);
+      await page.keyboard.press('Escape');
+    } else {
+      await page.click(`#masthead .mast-wide [data-lang="${l}"]`);
+    }
     await page.waitForFunction((x) => document.documentElement.lang === x, l);
   };
   const focusedIs = async (id, msg) => {
@@ -194,6 +206,27 @@ export default async function (t) {
   await page.goto('about:blank');
   await t.goto('#/help/record');
   await focusedIs('help-record-title', 'deep link #/help/record focuses the record section');
+  // #/help/download is another name for "Download or print"; the address becomes the canonical route.
+  await page.evaluate(() => YES.nav.go('overview'));
+  await page.evaluate(() => (location.hash = '#/help/download'));
+  await focusedIs('help-record-title', '#/help/download focuses "Download or print"');
+  t.eq(await page.evaluate(() => location.hash), '#/help/record', 'the alias is rewritten to #/help/record');
+  await page.evaluate(() => YES.help.open('contact'));
+  await focusedIs('help-contact-title', 'contact focused');
+  await page.evaluate(() => YES.help.open('download'));
+  await focusedIs('help-record-title', 'YES.help.open("download") opens "Download or print"');
+  // The masthead's "Download or print" (in the Menu on phones) lands on the section from any view.
+  await page.evaluate(() => YES.nav.go('transactions'));
+  if (mobile) {
+    await page.click('#masthead [data-mast-menu]');
+    await page.click('#mast-menu [data-mast-record]');
+  } else {
+    await page.click('#masthead .mast-wide [data-mast-record]');
+  }
+  await focusedIs('help-record-title', 'the masthead\'s "Download or print" focuses the section heading');
+  t.eq(await page.evaluate(() => [YES.state.view, location.hash]), ['help', '#/help/record'], 'masthead button routes to #/help/record');
+  await settle(700);
+  t.assert(await notObscured('#help-record-title'), '"Download or print" heading in view, not under the masthead');
   await installSpies();
 
   /* ------------------------------------------------------------------ */
@@ -222,6 +255,9 @@ export default async function (t) {
   t.assert(await page.isChecked('[data-fk="help-fb-mostly_clear"]'), 'answer still checked in Spanish');
   t.eq(await page.inputValue('#help-fb-comment'), 'The fee lines were easy to follow.', 'comment preserved');
   t.eq((await text('#h-help')).trim(), 'Ayuda y registro del estado de cuenta', 'Spanish h1');
+  t.eq((await text('#help-record-title')).trim(), 'Descargar o imprimir', 'Spanish "Download or print" heading');
+  t.eq((await text('[data-fk="help-pdf"]')).trim(), 'Descargar PDF', 'Spanish PDF button');
+  t.assert((await text('#help-dl-pdf-desc')).includes('tamaño A4'), 'Spanish PDF is A4');
   t.eq(await page.evaluate(() => YES.i18n.audit()), {}, 'i18n parity in Spanish');
   await setLang('en');
 
@@ -251,8 +287,39 @@ export default async function (t) {
   t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-fk')), 'help-fb-edit', 'focus returns to "Change my answer"');
 
   /* ------------------------------------------------------------------ */
-  t.step('statement record');
+  t.step('Download or print');
   const recTxt = await text('#help-record');
+  // Print, PDF and CSV together, each with a heading, a description and one button.
+  t.eq(await page.$$eval('#help-record [data-help-dl] > li', (els) => els.map((e) => e.className)), ['help-dl__opt help-dl__opt--print', 'help-dl__opt help-dl__opt--pdf', 'help-dl__opt help-dl__opt--csv'], 'print, PDF and CSV options in order');
+  t.eq(await page.$$eval('#help-record .help-dl__title', (els) => els.map((e) => [e.tagName, e.textContent])), [['H3', 'Print'], ['H3', 'PDF file'], ['H3', 'Spreadsheet (CSV)']], 'option headings');
+  const dlButtons = await page.$$eval('#help-record .help-dl__btn', (els) =>
+    els.map((b) => {
+      const d = document.getElementById(b.getAttribute('aria-describedby'));
+      return { fk: b.getAttribute('data-fk'), text: b.textContent.trim(), desc: d ? d.closest('.help-dl__opt') === b.closest('.help-dl__opt') : false };
+    })
+  );
+  t.eq(dlButtons, [
+    { fk: 'help-print', text: 'Print statement', desc: true },
+    { fk: 'help-pdf', text: 'Download PDF', desc: true },
+    { fk: 'help-csv', text: 'Download CSV — complete record', desc: true }
+  ], 'buttons, each described by its option text');
+  const recSec = page.locator('#help-record');
+  t.eq(await recSec.getByRole('button', { name: /^Print\b/ }).count(), 1, 'one Print button (accessible name starts with "Print")');
+  t.eq(await recSec.getByRole('button', { name: /PDF/ }).count(), 1, 'one button named with "PDF"');
+  t.assert((await text('#help-dl-pdf-desc')).includes('US Letter size'), 'PDF description names the page size (English: US Letter)');
+  t.assert(recTxt.includes('Files are created here, offline — nothing is sent.'), 'says files are made on this device and nothing is sent');
+  t.assert(recTxt.includes('“Illustrative demo data” watermark'), 'mentions the demo watermark on every page');
+  t.eq((await text('#help-rec-facts')).trim(), 'Statement record', 'the statement-record facts follow under their own heading');
+  const dlLayout = await page.$$eval('#help-record .help-dl__opt', (els) =>
+    els.map((li) => {
+      const b = li.querySelector('.help-dl__btn').getBoundingClientRect();
+      const r = li.getBoundingClientRect();
+      return { left: Math.round(b.left), width: Math.round(b.width), height: Math.round(b.height), card: Math.round(r.width) };
+    })
+  );
+  if (mobile) t.assert(dlLayout.every((d) => d.width >= d.card - 40), 'phones: each button spans its card: ' + JSON.stringify(dlLayout));
+  else t.assert(dlLayout.every((d) => d.left === dlLayout[0].left && d.width === dlLayout[0].width), 'desktop: the three buttons line up in one column: ' + JSON.stringify(dlLayout));
+  t.assert(dlLayout.every((d) => d.height >= 44), 'buttons are at least 44px tall');
   const s = await page.evaluate(() => YES.data.statement);
   t.assert(recTxt.includes(s.id), 'statement ID');
   t.assert(/Version\s*1\.0/.test(recTxt), 'version');
@@ -268,6 +335,7 @@ export default async function (t) {
   await page.click('[data-fk="help-csv"]');
   t.eq(await calls(), [{ fn: 'print' }, { fn: 'csv', which: 'all' }], 'print calls window.print(); CSV exports the complete record');
   t.eq((await text('[data-fk="help-csv"]')).trim(), 'Download CSV — complete record', 'CSV button label');
+  t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-fk')), 'help-csv', 'focus stays on the pressed button');
   await shotEl('#help-record', 'record');
 
   /* ------------------------------------------------------------------ */
@@ -604,6 +672,174 @@ export default async function (t) {
   await page.emulateMedia({ media: 'screen' });
 
   /* ------------------------------------------------------------------ */
+  t.step('statement-of-record PDF');
+  // One click on "Download PDF" saves a real PDF made in the page (YES.pdf):
+  // checked with poppler's pdfinfo / pdftotext and rendered with pdftoppm.
+  const poppler = !spawnSync('pdfinfo', ['-v']).error;
+  const getPdf = async (lang) => {
+    const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 8000 }), page.click('[data-fk="help-pdf"]')]);
+    const path = join(RESULTS, `help-${t.viewport}-${lang}.pdf`);
+    await dl.saveAs(path);
+    const bytes = readFileSync(path);
+    const raw = bytes.toString('latin1');
+    // Content streams, one per page (the writer's objects are uncompressed).
+    const streams = [...raw.matchAll(/\/Length (\d+) >>\nstream\n/g)].map((m) => raw.substr(m.index + m[0].length, +m[1]));
+    const out = { name: dl.suggestedFilename(), path, bytes, raw, streams, info: '', text: '', order: '', pages: 0, words: [] };
+    if (poppler) {
+      const info = spawnSync('pdfinfo', ['-enc', 'UTF-8', path], { encoding: 'utf8' });
+      t.eq([info.status, (info.stderr || '').trim()], [0, ''], `pdfinfo (${lang}): valid, no errors`);
+      out.info = info.stdout || '';
+      out.pages = +(out.info.match(/^Pages:\s+(\d+)/m) || [0, 0])[1];
+      out.text = nbsp(spawnSync('pdftotext', ['-layout', '-enc', 'UTF-8', path, '-'], { encoding: 'utf8' }).stdout || '');
+      // Content order (the diagonal watermark letters can reorder -layout lines), whitespace collapsed.
+      out.order = nbsp(spawnSync('pdftotext', ['-raw', '-enc', 'UTF-8', path, '-'], { encoding: 'utf8' }).stdout || '').replace(/[ \t\r\n]+/g, ' ');
+      const bbox = spawnSync('pdftotext', ['-bbox', '-enc', 'UTF-8', path, '-'], { encoding: 'utf8' }).stdout || '';
+      out.words = [...bbox.matchAll(/<word xMin="([\d.]+)" yMin="[\d.]+" xMax="([\d.]+)" yMax="[\d.]+">([^<]*)<\/word>/g)].map((m) => ({ x1: +m[2], w: m[3].replace(/&amp;/g, '&') }));
+    }
+    return out;
+  };
+  const toastSays = async (str) => {
+    await page.waitForFunction((x) => document.getElementById('toast').textContent.includes(x), str, { timeout: 3000 }).catch(() => {});
+    return text('#toast');
+  };
+  const refs = await page.evaluate(() => ({ posted: YES.calc.posted().map((x) => x.reference), pending: YES.calc.notInBalance().map((x) => x.reference) }));
+  t.eq(refs.pending, ['REF-X6P3-9AT5'], 'demo data: one item not in the balance');
+  await page.evaluate(() => YES.help.open('record'));
+  await focusedIs('help-record-title', 'Download or print focused');
+  const en = await getPdf('en');
+  t.eq(en.name, `YES-statement-${s.id}-DEMO.pdf`, 'file name: YES-statement-<statement id>-DEMO.pdf');
+  t.eq(en.bytes.subarray(0, 8).toString('latin1'), '%PDF-1.4', 'a real PDF 1.4 file');
+  const toastEn = await toastSays('PDF saved');
+  t.assert(/^PDF saved to this device \(\d+ pages\)\. Nothing was sent\.$/.test(toastEn), 'toast: saved on this device, nothing sent: ' + toastEn);
+  await page.waitForFunction(() => document.getElementById('live-polite').textContent.includes('PDF saved'), null, { timeout: 2000 }).catch(() => {});
+  t.assert((await page.textContent('#live-polite')).includes('Nothing was sent'), 'the confirmation is announced');
+  t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-fk')), 'help-pdf', 'focus stays on Download PDF');
+  t.eq(t.external.filter((u) => !/userway/.test(u)), [], 'making the PDF requested nothing from the network');
+  t.assert(en.raw.includes('/Lang <FEFF0065006E002D00550053>'), 'catalog /Lang en-US');
+  // Watermark: drawn first on every page (beneath the content), light grey; tables use rules, never fills that would hide it.
+  t.assert(en.streams.length >= 2 && en.streams.every((x) => /^q BT \/F2 [\d.]+ Tf [\d.]+ [\d.]+ [\d.]+ rg [-\d. ]+ Tm \(ILLUSTRATIVE DEMO DATA\) Tj ET Q\n/.test(x)), 'every page starts with the demo watermark');
+  t.assert(en.streams.every((x) => +x.match(/Tf ([\d.]+) /)[1] >= 0.85), 'the watermark is a light grey');
+  t.assert(!en.streams.some((x) => / re [fB]\b/.test(x)), 'no filled boxes or row fills: the watermark shows everywhere');
+  if (poppler) {
+    t.assert(en.pages >= 2, `the record runs over several pages (${en.pages})`);
+    t.eq(en.streams.length, en.pages, 'one content stream per page');
+    t.assert(/^Page size:\s+612 x 792 pts \(letter\)/m.test(en.info), 'English: US Letter');
+    const titleEn = await page.evaluate(() => YES.t('help.pdf.docTitle', { period: YES.fmt.range(YES.data.statement.periodStart, YES.data.statement.periodEnd), id: YES.data.statement.id }));
+    t.eq((en.info.match(/^Title:\s+(.*)$/m) || [])[1], titleEn, 'document title');
+    t.eq(nbsp(titleEn), 'YES statement of record, September 1 – 30, 2026 (YES-STM-202609-000184)', 'title names the period and statement');
+    const tx = en.text;
+    for (const fact of ['Statement of record', 'EXAMPLE USD STABLECOIN', 'Sam Ortega', '100 Sample Avenue, Apt 4', 'Anytown, ST 00000', 'YES stablecoin account •••• 7316', 'Wallet 0x5A…E19C', s.id, 'Issue status', 'Original', 'Oct 1, 2026, 6:15 AM EDT', 'Sep 30, 2026, 11:59 PM EDT', 'EDT (America/New_York)', 'Posted date', 'Example USD Stablecoin (EXUSD)', 'Balance summary', 'Opening balance 1,000.00 + Deposits 500.00', 'Net change +147.50 EXUSD across 15 transactions.', 'Posted transactions', 'Initiated date', 'Previous period', 'Fee for REF-N8C4-2VB9', 'Fees summary', 'Total fees (3 transactions)', 'Disclosures', 'Interactive statement delivered via InfoSlips', 'ILLUSTRATIVE DEMO DATA — FICTIONAL']) {
+      t.assert(tx.includes(fact), `PDF text includes "${fact}"`);
+    }
+    t.assert(/Closing balance\s+1,147\.50 EXUSD/.test(tx), 'closing balance 1,147.50 EXUSD in the summary');
+    t.assert(!/ending in/.test(tx) && !tx.includes('?'), 'masked identifiers print as bullets; nothing fell outside the PDF encoding');
+    // The ledger: every posted reference, in chronological order, then the closing row.
+    const ord = en.order;
+    const at = refs.posted.map((r) => ord.indexOf(r));
+    t.assert(at.every((x) => x >= 0) && refs.posted.every((r) => tx.includes(r)), 'all 15 posted references are in the PDF');
+    t.assert(at.every((x, i) => i === 0 || x > at[i - 1]), 'posted transactions in chronological order');
+    t.assert(/Sep 1, 2026 Opening balance 1,000\.00 Sep 1, 2026 9:02 AM Aug 31, 2026 9:14 PM Previous period Deposit from linked bank account/.test(ord), 'the ledger opens with the opening balance, then the first posted transaction (initiated in the previous period)');
+    const pendHead = ord.indexOf('Not included in the statement balance');
+    const pendAt = ord.indexOf('REF-X6P3-9AT5');
+    t.assert(pendHead > at[at.length - 1] && pendAt > pendHead && pendAt < ord.indexOf('Fees summary'), 'the pending REF-X6P3-9AT5 is listed under "Not included in the statement balance", after the ledger');
+    t.eq(ord.split('REF-X6P3-9AT5').length - 1, 1, 'the pending item appears once (never in the ledger)');
+    t.assert(/REF-T6J4-1NB8 -24\.50 1,147\.50 Sep 30, 2026 Closing balance 1,147\.50 /.test(ord), 'the ledger closes, dated at the period end, with the closing balance right after the last transaction');
+    // Running footer on every page; the record's identification ends the last page.
+    const pageTexts = tx.split('\f').filter((p) => p.trim());
+    t.eq(pageTexts.length, en.pages, 'pdftotext sees every page');
+    pageTexts.forEach((p, i) => {
+      t.assert(p.includes(`Statement ${s.id} · version 1.0`) && p.includes(`Page ${i + 1} of ${en.pages}`) && p.includes('Illustrative demo data — fictional customer, amounts and references'), `page ${i + 1}: statement ID, "Page ${i + 1} of ${en.pages}" and the demo notice`);
+      if (i > 0) t.assert(p.includes('Statement of record · September 1 – 30, 2026') && p.includes('Sam Ortega'), `page ${i + 1}: running header`);
+      if (p.includes('Posted transactions (continued)')) t.assert(p.includes('Posted date') && p.includes('Balance after'), `page ${i + 1}: ledger column headers repeat`);
+    });
+    const lastPage = pageTexts[pageTexts.length - 1].replace(/\s+/g, ' ');
+    t.assert(lastPage.includes('Disclosures') && lastPage.includes('This PDF was created on the device that downloaded it; nothing was sent.') && lastPage.includes(`Statement ${s.id} · version 1.0 · Generated Oct 1, 2026, 6:15 AM EDT`), 'the last page holds the disclosures with the identification block');
+    // Right-aligned figures: every "Balance after" (and every unique ledger amount) ends on one edge.
+    const balances = await page.evaluate(() => YES.calc.running().slice(0, -1).map((r) => YES.fmt.amount(r.balance, { unit: false })));
+    const balRight = en.words.filter((w) => balances.includes(nbsp(w.w))).map((w) => w.x1);
+    t.assert(balRight.length >= balances.length && Math.max(...balRight) - Math.min(...balRight) < 0.6, `"Balance after" figures are right-aligned (${balRight.length}, spread ${(Math.max(...balRight) - Math.min(...balRight)).toFixed(2)}pt)`);
+    const amounts = await page.evaluate(() => YES.calc.posted().map((x) => YES.fmt.amount(x.amount, { sign: 'always', unit: false }).replace('−', '-')));
+    const amtRight = en.words.filter((w) => amounts.includes(w.w) && en.words.filter((v) => v.w === w.w).length === 1).map((w) => w.x1);
+    t.assert(amtRight.length >= 6 && Math.max(...amtRight) - Math.min(...amtRight) < 0.6, `ledger amounts are right-aligned (${amtRight.length})`);
+    if (!mobile) {
+      const r = spawnSync('pdftoppm', ['-r', '80', '-png', en.path, join(SHOTS, 'help-pdf-en')]);
+      t.eq(r.status, 0, 'pdftoppm renders the English PDF');
+    }
+  } else {
+    console.log('    (poppler-utils not available: PDF text checks skipped)');
+  }
+
+  t.step('statement-of-record PDF in Spanish');
+  await setLang('es');
+  const es = await getPdf('es');
+  t.eq(es.name, `YES-statement-${s.id}-DEMO.pdf`, 'same file name in Spanish');
+  const toastEs = await toastSays('PDF guardado');
+  t.assert(/^PDF guardado en este dispositivo \(\d+ páginas\)\. No se envió nada\.$/.test(toastEs), 'Spanish toast: ' + toastEs);
+  t.assert(es.raw.includes('/Lang <FEFF00650073002D00450053>'), 'catalog /Lang es-ES');
+  t.assert(es.streams.every((x) => x.includes('(DATOS ILUSTRATIVOS DE DEMOSTRACI\\323N) Tj')), 'Spanish watermark on every page (Ó in WinAnsi)');
+  if (poppler) {
+    t.assert(/^Page size:\s+595\.28 x 841\.89 pts \(A4\)/m.test(es.info), 'Spanish: A4');
+    t.eq(nbsp((es.info.match(/^Title:\s+(.*)$/m) || [])[1] || ''), 'Estado de cuenta oficial de YES del 1 al 30 de septiembre de 2026 (YES-STM-202609-000184)', 'Spanish title');
+    const tx = es.text;
+    for (const fact of ['Estado de cuenta oficial', 'Cuenta de stablecoin de YES •••• 7316', 'Monedero 0x5A…E19C', 'Período del estado de cuenta', 'Resumen del saldo', 'Saldo inicial 1.000,00 + Depósitos 500,00', 'Movimientos registrados', 'Fecha de inicio', 'Período anterior', 'Comisión de REF-N8C4-2VB9', 'Resumen de comisiones', 'Divulgaciones', 'Página 1 de ' + es.pages, 'Datos ilustrativos de demostración — cliente, importes y referencias ficticios', 'DATOS ILUSTRATIVOS DE DEMOSTRACIÓN']) {
+      t.assert(tx.includes(fact), `Spanish PDF text includes "${fact}"`);
+    }
+    t.assert(/Saldo final\s+1\.147,50 EXUSD/.test(tx), 'Spanish closing balance 1.147,50 EXUSD');
+    t.assert(!tx.includes('?') && !/ending in|que termina en/.test(tx), 'Spanish text fully encoded');
+    const ord = es.order;
+    const at = refs.posted.map((r) => ord.indexOf(r));
+    t.assert(at.every((x, i) => x >= 0 && (i === 0 || x > at[i - 1])), 'all 15 posted references, in order');
+    const pendHead = ord.indexOf('No incluido en el saldo del estado de cuenta');
+    t.assert(pendHead > at[at.length - 1] && ord.indexOf('REF-X6P3-9AT5') > pendHead, 'pending item under "No incluido en el saldo del estado de cuenta"');
+    t.assert(/REF-T6J4-1NB8 -24,50 1\.147,50 30 sept 2026 Saldo final 1\.147,50 /.test(ord), 'Spanish ledger closes with "Saldo final 1.147,50"');
+    tx.split('\f').filter((p) => p.trim()).forEach((p, i) => t.assert(p.includes(`Página ${i + 1} de ${es.pages}`), `Spanish page ${i + 1} numbered`));
+    if (!mobile) t.eq(spawnSync('pdftoppm', ['-r', '80', '-png', es.path, join(SHOTS, 'help-pdf-es')]).status, 0, 'pdftoppm renders the Spanish PDF');
+  }
+  await setLang('en');
+
+  t.step('statement-of-record PDF: API and options');
+  const api = await page.evaluate(() => {
+    const latin1 = (bytes) => {
+      let out = '';
+      for (let i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i]);
+      return out;
+    };
+    const stable = (o) => latin1(o.bytes).replace(/\/(CreationDate|ModDate) \([^)]*\)/g, '').replace(/\/ID \[[^\]]*\]/g, '');
+    const res = {};
+    const base = YES.help.buildPdf();
+    res.base = { name: base.name, size: base.size, pages: base.pages };
+    // The file never depends on the screen theme.
+    YES.theme.set('dark');
+    const dark = stable(YES.help.buildPdf());
+    YES.theme.set('light');
+    res.sameInBothThemes = dark === stable(YES.help.buildPdf());
+    YES.theme.set(null);
+    // Outside the showcase: no watermark, no demo notices, no -DEMO suffix.
+    YES.config.demo = false;
+    const live = YES.help.buildPdf();
+    YES.config.demo = true;
+    const liveRaw = latin1(live.bytes);
+    res.live = { name: live.name, mark: /ILLUSTRATIVE DEMO DATA|Illustrative demo data/i.test(liveRaw) };
+    // Page size is configurable.
+    YES.config.pdf = { pageSize: 'a4' };
+    const a4 = YES.help.buildPdf();
+    delete YES.config.pdf;
+    res.a4 = { size: a4.size, box: latin1(a4.bytes).includes('/MediaBox [0 0 595.28 841.89]') };
+    // A withheld statement makes no PDF.
+    YES.integrity.ok = false;
+    res.withheld = YES.help.downloadPdf();
+    YES.integrity.ok = true;
+    res.typeof = typeof YES.help.downloadPdf;
+    return res;
+  });
+  t.eq(api.base, { name: `YES-statement-${s.id}-DEMO.pdf`, size: 'letter', pages: en.pages || api.base.pages }, 'YES.help.buildPdf(): name, size, pages');
+  t.assert(api.sameInBothThemes, 'the PDF is identical in the light and dark themes');
+  t.eq(api.live, { name: `YES-statement-${s.id}.pdf`, mark: false }, 'outside demo mode: no watermark, no demo notice, no -DEMO suffix');
+  t.eq(api.a4, { size: 'a4', box: true }, 'YES.config.pdf.pageSize overrides the page size');
+  t.eq([api.withheld, api.typeof], [null, 'function'], 'a withheld statement makes no PDF');
+  t.assert((await toastSays('withheld')).includes('withheld'), 'and says why');
+
+  /* ------------------------------------------------------------------ */
   t.step('dark colour scheme');
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.evaluate(() => YES.help.open('integrity'));
@@ -612,8 +848,26 @@ export default async function (t) {
   await page.evaluate(() => YES.help.open('contact'));
   await settle(700);
   await t.shot('dark-contact');
+  await page.evaluate(() => YES.help.open('record'));
+  await settle(700);
+  await shotEl('#help-record', 'record-dark-device');
   await seriousAxe('#view-help', 'help view (dark)');
   await page.emulateMedia({ colorScheme: 'light' });
+
+  t.step('dark mode chosen in the masthead');
+  await page.evaluate(() => YES.theme.set('dark'));
+  t.eq(await page.getAttribute('html', 'data-theme'), 'dark', 'dark theme applied');
+  const lum = (c) => {
+    const m = c.match(/[\d.]+/g).map(Number);
+    return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255;
+  };
+  const darkColors = await page.$eval('#help-record .help-dl__opt', (e) => ({ bg: getComputedStyle(e).backgroundColor, ink: getComputedStyle(e.querySelector('.help-dl__title')).color }));
+  t.assert(lum(darkColors.bg) < 0.2 && lum(darkColors.ink) > 0.7, 'options follow the dark tokens: ' + JSON.stringify(darkColors));
+  await shotEl('#help-record', 'record-dark');
+  await seriousAxe('#help-record', 'Download or print (dark mode chosen)');
+  await page.evaluate(() => YES.theme.set('light'));
+  t.assert(lum(await page.$eval('#help-record .help-dl__opt', (e) => getComputedStyle(e).backgroundColor)) > 0.9, 'light choice: light surfaces');
+  await page.evaluate(() => YES.theme.set(null));
 
   /* ------------------------------------------------------------------ */
   t.step('exception preview');

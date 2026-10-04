@@ -1,7 +1,10 @@
 /*
  * Understand view: stablecoin education accordion, statement versus live
  * balance, sample on-chain reference and the illustrative reserve /
- * transparency panel. Tokens only; works in both colour schemes.
+ * transparency panel. Design tokens only, so every colour follows the theme
+ * (the device setting or the visitor's light/dark choice, 00-tokens.css) with
+ * no dark-only rule here; print never shows this view. The module test checks
+ * that every colour in the view changes with the theme.
  */
 
 /*
@@ -64,7 +67,7 @@
   border-color: var(--ink-2);
 }
 .und-jump__link:focus-visible {
-  outline: none;
+  outline: 2px solid transparent;
   box-shadow: var(--focus-ring);
 }
 @media (max-width: 559px) {
@@ -207,7 +210,7 @@
   background: var(--surface-2);
 }
 .und-acc__btn:focus-visible {
-  outline: none;
+  outline: 2px solid transparent;
   box-shadow: inset 0 0 0 2px var(--focus);
 }
 .und-acc__icon {
@@ -473,7 +476,7 @@
   background: var(--surface-2);
 }
 .und-meta__sum:focus-visible {
-  outline: none;
+  outline: 2px solid transparent;
   box-shadow: inset 0 0 0 2px var(--focus);
 }
 .und-meta__sum > .icon:first-child {

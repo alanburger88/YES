@@ -14,9 +14,10 @@ A YES-branded, mobile-first statement that tells the account story instead of pr
    2. In the balance journey, select **Outgoing transfers**. The matching transactions slide into view.
    3. Open one transaction and choose **Explain with AI**.
    4. Choose **Ask about this transaction** and complete the demo inquiry. Its confirmation says *Demo only — no inquiry was sent*.
-   5. Switch to **Español**. You stay in the same section, with the same filters and the same open transaction.
+   5. Switch to **Español** in the header (on a phone, open **Menu**). The header is the only language switch: a dialog keeps the language chosen before it opened, so close it first. You stay in the same section, with the same filters, selected transaction, inquiry draft and assistant conversation.
    6. Under **Understand**, look at the illustrative transparency panel.
-   7. Print the statement, or export a CSV, from **Transactions** or **Help**.
+   7. Choose **Download or print** in the header. It opens the **Download or print** section, where you can print the statement of record, download it as a PDF, or export a CSV.
+   8. Try the **Dark mode** toggle in the header (on a phone, in **Menu**).
 
 To see the reconciliation guard at work, open `dist/yes-statement.html#/overview?simulate=mismatch`, or use the link under **Help → Statement integrity**. It loads a copy of the data with one amount changed by 0.01. The statement is withheld instead of shown with numbers that don't reconcile.
 
@@ -24,15 +25,15 @@ To see the reconciliation guard at work, open `dist/yes-statement.html#/overview
 
 | PRD area | Where |
 | --- | --- |
-| 5.1 Header and brand system | Masthead (logo slot, period, demo badge, language switcher, Ask YES), statement details panel, replacement slots in `src/js/00-config.js` |
+| 5.1 Header and brand system | Masthead (logo slot, period, demo badge, language switch, light/dark toggle, **Download or print**, Ask YES). On phones it keeps the logo, period, Ask YES and a **Menu** whose dropdown holds the four sections, Download or print, the language switch and the light/dark toggle. Statement details panel, replacement slots in `src/js/00-config.js` |
 | 5.2 Interactive balance journey (signature) | Overview: bridge from opening to closing balance, selectable steps that list their contributing transactions, an equation and table equivalent, and a running-balance chart with a text alternative |
 | 5.3 Transaction explorer and query | Transactions: search with highlighting, combined filters, sorting with an explicit date basis, table and mobile cards, detail dialog, CSV export (complete and current view), print |
 | 5.4 Transaction inquiry | Multi-step demo inquiry started from a transaction: validation, review, a confirmation that nothing was sent, and the draft is kept |
 | 5.5 AI assistant drawer | Ask YES drawer (docked on desktop, sheet on mobile) with deterministic, statement-grounded demo explanations, supporting rows, feedback and a route to a person |
 | 5.6 Stablecoin understanding and transparency | Understand: seven explanations, statement vs live balance, an illustrative on-chain reference, an illustrative reserve panel |
 | 5.7 Personalized video | “Your statement in 60 seconds” placeholder card and storyboard. It never autoplays. |
-| 5.8 Language, accessibility, comfort | Full EN/ES, locale formatting, WCAG 2.2 AA patterns, reduced motion, dark scheme, UserWay integration point |
-| 5.9 Help, feedback, statement record | Help: contact placeholders, session-only feedback, statement record, integrity checks, accessibility status, about this demo, a print view of the statement of record |
+| 5.8 Language, accessibility, comfort | Full EN/ES with one language switch, in the header. Locale formatting, WCAG 2.2 AA patterns and reduced motion. A light/dark mode starts from the device setting and remembers the visitor's choice in this browser. Print and PDF always stay light. UserWay integration point, launcher bottom left |
+| 5.9 Help, feedback, statement record | Help: contact placeholders, session-only feedback, **Download or print** (print the statement of record, download it as a PDF, export CSV, record facts), integrity checks, accessibility status, about this demo |
 | 6 Data and reconciliation rules | `src/js/01-data.js` (integer minor units) and `src/js/02-calc.js`. The release gate runs in the browser and also in `build.mjs`, which refuses to build a statement that doesn't reconcile. |
 
 ### Illustrative figures
@@ -44,11 +45,17 @@ To see the reconciliation guard at work, open `dist/yes-statement.html#/overview
 - Fees are separate, linked ledger lines.
 - Exactly one transaction carries the sample on-chain reference. It is labelled *Illustrative reference — no live blockchain verification* and doesn't link to any explorer.
 
+## Download or print, PDF and light/dark
+
+- **Download or print.** The header button, or the Menu item on phones, opens the record section of Help. It holds the statement-record facts with Print, Download PDF and the CSV exports.
+- **PDF.** The PDF is built in the browser by a small PDF 1.4 writer (`src/js/07-pdf.js`), with no library and no network. It downloads in one click (e.g. `YES-statement-<id>-DEMO.pdf`). Every page of the statement of record carries a demo watermark. The text is real and selectable, set in the standard Helvetica fonts with exact widths, so amounts align.
+- **Light/dark.** The page starts from the device setting and follows it until the visitor uses the toggle. The choice is then remembered in this browser (`localStorage`, key `yes.theme`; if storage is blocked, the page still works). Print and PDF always use the light scheme.
+
 ## Connected enhancements (network required, never blocking)
 
 | Enhancement | In this file |
 | --- | --- |
-| UserWay accessibility widget | Loads once, online only, with account **B3W9A2mgGs** (`YES.config.userway`). If it can't load, the page says so and keeps working. If the host viewer already provides UserWay, the file doesn't add a second launcher. |
+| UserWay accessibility widget | Loads once, online only, with account **B3W9A2mgGs** (`YES.config.userway`). The launcher sits in the bottom-left corner (`position: 5`, UserWay's `data-position`), clear of the Ask YES drawer's close button. If it can't load, the page says so and keeps working. If the host viewer already provides UserWay, the file doesn't add a second launcher. |
 | Governed AI | Not connected. Explanations are computed locally and labelled *Demo explanation*. |
 | Inquiry or case management | Not connected. It is a complete local mock. |
 | Personalized video | Placeholder and storyboard only |
@@ -64,7 +71,7 @@ All brand, legal, support and integration values live in `src/js/00-config.js`:
 - **Support destinations:** fictional placeholders for now.
 - **Feature flags**
 - **Locale tags:** Spanish defaults to `es-ES` formatting. Change it to `es-US` or `es-MX` for audiences in the Americas.
-- **UserWay integration point:** confirm with InfoSlips whether the viewer injects the widget centrally. If it does, set `enabled: false`.
+- **UserWay integration point:** confirm with InfoSlips whether the viewer injects the widget centrally. If it does, set `enabled: false`. `position` picks the launcher's corner. The values are UserWay's `data-position` codes: 1 top right, 2 middle right, 3 bottom right, 4 bottom middle, 5 bottom left (the default here), 6 middle left, 7 top left, 8 top middle.
 
 The statement data lives in `src/js/01-data.js`.
 
@@ -77,7 +84,7 @@ node build.mjs --no-minify   # same, with the sources inlined verbatim (debuggin
 npm test             # build, then every browser test offline (desktop + mobile)
 ```
 
-The test runner blocks all network access. The only request the file is expected to attempt is UserWay. Any console error fails a test, and tests include axe-core WCAG checks and screenshots (`test-results/screens/`).
+The test runner blocks all network access. The only request the file is expected to attempt is UserWay. Any console error fails a test, and tests include axe-core WCAG checks and screenshots (`test-results/screens/`). The PDF tests check the generated files with the poppler tools `pdfinfo`, `pdftotext` and `pdftoppm` (package `poppler-utils`).
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the module contract and [`docs/PRD.md`](docs/PRD.md) for the requirements.
 

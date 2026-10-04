@@ -1,7 +1,12 @@
 // Transaction inquiry: multi-step local mock, accessible validation, review,
 // "Demo only — no inquiry was sent" confirmation, draft kept across close and
 // language switch, duplicate-prevention demo, hand-offs with the transaction
-// detail, full-screen sheet on mobile, axe, no network.
+// detail, full-screen sheet on mobile, light and dark themes, axe, no network.
+//
+// Language (ARCHITECTURE rule 7): the dialog has no language switch of its own.
+// It renders in the language chosen in the masthead (the phone Menu) before it
+// opened; to change language the customer closes it (the draft is kept),
+// switches in the masthead and reopens it.
 export const meta = { name: 'inquiry', viewports: ['desktop', 'mobile'] };
 
 const TX = 'TX-260909-2051'; // posted, on-chain, with a linked fee
@@ -103,6 +108,40 @@ export default async function (t) {
       return { id: a.id, visible: r.top >= body.top - 1 && r.bottom <= foot.top + 1, onTop: !!hit && box.contains(hit) };
     }, sel);
   const nextFrames = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  // The masthead is the only language switch: the desktop row, or the phone Menu
+  // (the first [data-lang] in the DOM is the hidden desktop switch on phones).
+  const headerLang = async (l) => {
+    t.assert(!(await isOpen()), 'the masthead language switch is used with the inquiry closed');
+    if (mobile) {
+      await page.click('#masthead [data-mast-menu]');
+      await page.click(`#mast-menu [data-lang="${l}"]`);
+      await page.keyboard.press('Escape'); // closes the Menu
+    } else {
+      await page.click(`#masthead .mast-wide [data-lang="${l}"]`);
+    }
+    await page.waitForFunction((x) => YES.i18n.lang === x && document.documentElement.lang === x, l, { timeout: 3000 });
+  };
+  const noLangSwitch = async (label) =>
+    t.eq(
+      await page.evaluate(() => {
+        const d = document.getElementById('inquiry-dialog');
+        return { lang: d.querySelectorAll('[data-lang], [data-fk^="inq-lang"]').length, seg: d.querySelectorAll('.seg--lang').length };
+      }),
+      { lang: 0, seg: 0 },
+      `no language switch in the dialog (${label})`
+    );
+  /** Close sits inside the dialog with room for its 5px focus ring (the dialog clips), and nothing covers it. */
+  const closeClear = async () => {
+    await settle(); // measured once the dialog's entrance has finished
+    return page.evaluate(() => {
+      const d = document.getElementById('inquiry-dialog').getBoundingClientRect();
+      const b = document.querySelector('#inquiry-dialog .inq-head__close');
+      const r = b.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      // Layout size (offset*), which a transform's sub-pixel rounding never changes.
+      return { ringRoom: r.top - d.top >= 4.5 && d.right - r.right >= 4.5, onTop: !!hit && b.contains(hit), size: b.offsetWidth >= 44 && b.offsetHeight >= 44 };
+    });
+  };
 
   /* ------------------------------------------------------------------ */
   t.step('open on the transaction step');
@@ -127,16 +166,16 @@ export default async function (t) {
   t.assert(s1.includes('not a formal dispute') || s1.includes('isn’t a formal dispute'), 'inquiry distinguished from a dispute or fraud report');
   t.assert(await page.locator('#inquiry-dialog .inq-head .tag--illustrative').isVisible(), 'visible demo tag in the header');
   t.assert(await page.locator('[data-inq-backtx]').isVisible(), 'Back to transaction is available');
-  // The masthead behind the modal is inert: the dialog carries its own language switch.
+  // One language switch, in the masthead: the dialog uses the language chosen there.
+  await noLangSwitch('transaction step');
   t.eq(
-    await page.evaluate(() => {
-      const g = document.querySelector('#inquiry-dialog .inq-head__tools [role="group"]');
-      return g && [g.getAttribute('aria-label'), ...Array.from(g.querySelectorAll('button[data-lang]'), (b) => [b.getAttribute('data-lang'), b.textContent.replace(/(EN|ES)$/, ''), b.getAttribute('aria-pressed')].join(':'))];
-    }),
-    ['Language', 'en:English:true', 'es:Español:false'],
-    'language switch in the dialog header, buttons named “English” / “Español”'
+    await page.$$eval('#inquiry-dialog .inq-head__bar button', (bs) => bs.map((b) => b.getAttribute('data-fk'))),
+    ['inq-backtx', 'inq-close'],
+    'header row: Back to transaction and Close, nothing else'
   );
-  t.assert(await page.locator('[data-fk="inq-lang-es"]').isVisible(), 'language switch visible');
+  t.eq(await page.getAttribute('[data-fk="inq-close"]', 'aria-label'), 'Close the inquiry. Your draft is kept.', 'Close is named and says the draft is kept');
+  t.eq(await page.evaluate(() => document.documentElement.lang), 'en', 'in the language chosen in the masthead');
+  t.eq(await closeClear(), { ringRoom: true, onTop: true, size: true }, 'Close: uncovered, 44px, focus ring inside the dialog');
   t.eq(await page.locator('#inquiry-dialog a[href^="http"], #inquiry-dialog [src^="http"]').count(), 0, 'no external links');
   if (mobile) {
     await page.waitForFunction(() => document.getElementById('inquiry-dialog').getAnimations().every((a) => a.playState === 'finished'), null, { timeout: 2000 }).catch(() => {});
@@ -174,6 +213,7 @@ export default async function (t) {
   t.eq(await page.getAttribute('[data-inq-group="reason"]', 'aria-required'), 'true', 'reason required');
   t.eq(await page.getAttribute('[data-inq-group="channel"]', 'aria-required'), 'true', 'channel required');
   t.eq(await noHScroll(), { page: true, dialog: true, body: true }, 'no horizontal scroll');
+  await noLangSwitch('details step');
   await shot('step2');
 
   t.step('tabbing to a field shows all of it above the footer');
@@ -327,10 +367,10 @@ export default async function (t) {
   t.assert(await page.isChecked('#inq-channel-email'), 'channel kept');
   t.eq(await page.inputValue('#inq-desc'), desc, 'description kept (including its line break)');
 
-  t.step('Spanish: switch with the dialog closed, then reopen');
+  t.step('Spanish: switch in the masthead with the dialog closed, then reopen');
   await close();
-  await page.click('[data-lang="es"]');
-  await page.waitForFunction(() => YES.i18n.lang === 'es');
+  await headerLang('es');
+  t.eq(await page.evaluate(() => YES.state.inquiry && [YES.state.inquiry.step, YES.state.inquiry.reason]), ['details', 'amount'], 'the draft is kept while the language changes');
   await openWith(TX);
   t.eq(await title(), 'Preguntar por este movimiento', 'Spanish title');
   t.eq(await step(), 'details', 'same step');
@@ -351,31 +391,42 @@ export default async function (t) {
   await seriousAxe('Spanish review');
   await shot('es-review');
 
-  t.step('language switch while the dialog is open keeps step, answers and focus');
+  await noLangSwitch('Spanish review');
+
+  t.step('a language change from script while the dialog is open keeps step, answers and focus');
+  // No control in the dialog changes language, but YES.setLang still re-renders it in place.
   await page.focus('[data-fk="inq-edit-reason"]');
   await page.evaluate(() => YES.setLang('en'));
   t.assert(await isOpen(), 'still open');
   t.eq(await title(), 'Ask about this transaction', 'English again');
   t.eq(await step(), 'review', 'same step');
   await expectFocus('inq-edit-reason', 'focus kept on the same control');
+  await page.waitForFunction(() => /Language changed to English/.test(Array.from(document.querySelectorAll('#inquiry-dialog > [aria-live]'), (r) => r.textContent).join('|')), null, { timeout: 2000 }).catch(() => {});
+  t.eq(await liveText(), 'Language changed to English', 'announced inside the dialog (the page behind it is inert)');
+  await noLangSwitch('after a language change');
   t.eq(await page.evaluate(() => YES.i18n.audit()), {}, 'i18n parity');
 
-  t.step('the dialog’s own language switch: same step, same answers, focus on the pressed language');
-  await page.click('[data-fk="inq-lang-es"]');
-  await page.waitForFunction(() => YES.i18n.lang === 'es');
-  t.assert(await isOpen(), 'still open after switching from inside the dialog');
-  t.eq([await title(), await step(), await page.evaluate(() => document.documentElement.lang)], ['Preguntar por este movimiento', 'review', 'es'], 'Spanish, same step');
+  t.step('change language mid-flow: close, switch in the masthead, resume');
+  await page.click('[data-inq-close]');
+  await waitClosed();
+  await expectFocus('inq-test-trigger', 'focus returns to the trigger');
+  t.eq(await liveText(), '', 'closing empties the dialog’s live regions');
+  await headerLang('es');
+  const kept = await draft(TX);
+  t.eq([kept && kept.status, kept && kept.step, kept && kept.reason, kept && kept.channel, kept && kept.description], ['draft', 'review', 'amount', 'email', desc], 'the draft survives the language change');
+  await page.evaluate(() => YES.inquiry.resume({ trigger: document.getElementById('inq-test-trigger') }));
+  await waitOpen();
+  t.eq([await title(), await step(), await page.evaluate(() => document.documentElement.lang)], ['Preguntar por este movimiento', 'review', 'es'], 'resume() reopens it in Spanish, same step');
   const esRv = await dialogText();
-  t.assert(esRv.includes('El importe no parece correcto') && esRv.includes('Correo electrónico registrado') && esRv.includes('Please check it.'), 'answers kept');
-  await expectFocus('inq-lang-es', 'focus stays on the pressed language');
-  t.eq(await page.getAttribute('[data-fk="inq-lang-es"]', 'aria-pressed'), 'true', 'Español pressed');
-  await page.waitForFunction(() => /Idioma cambiado a español/.test(Array.from(document.querySelectorAll('#inquiry-dialog > [aria-live]'), (r) => r.textContent).join('|')), null, { timeout: 2000 }).catch(() => {});
-  t.assert(/Idioma cambiado a español/.test(await liveText()), 'language change announced inside the dialog');
-  await page.keyboard.press('Shift+Tab');
-  await page.keyboard.press('Enter'); // keyboard: the English button, just before
-  await page.waitForFunction(() => YES.i18n.lang === 'en');
-  t.eq([await title(), await step()], ['Ask about this transaction', 'review'], 'English again from the keyboard, same step');
-  await expectFocus('inq-lang-en', 'focus on English');
+  t.assert(esRv.includes('El importe no parece correcto') && esRv.includes('Correo electrónico registrado') && esRv.includes('Please check it.'), 'answers kept (the customer’s own words unchanged)');
+  t.assert(!/Ask about this transaction|The amount looks wrong|Email on file/.test(esRv), 'no English left in the reopened dialog');
+  await expectFocus('inq-title', 'focus on the dialog title');
+  t.eq(await liveText(), '', 'no language-change message carried into the reopened dialog');
+  await noLangSwitch('resumed in Spanish');
+  await close();
+  await headerLang('en');
+  await openWith(TX);
+  t.eq([await title(), await step()], ['Ask about this transaction', 'review'], 'English again after switching back in the masthead, same step');
   await page.focus('[data-fk="inq-edit-reason"]');
 
   /* ------------------------------------------------------------------ */
@@ -400,6 +451,7 @@ export default async function (t) {
   await page.click('[data-inq-next]');
   t.eq(await step(), 'review', 'forward to review again');
   await expectFocus('inq-h-review', 'focus on the review heading');
+  await noLangSwitch('review step');
   await seriousAxe('review');
   await shot('review');
 
@@ -438,27 +490,46 @@ export default async function (t) {
     'nothing stored outside YES.state'
   );
   t.eq(await noHScroll(), { page: true, dialog: true, body: true }, 'no horizontal scroll');
+  await noLangSwitch('confirmation');
+  t.eq(await closeClear(), { ringRoom: true, onTop: true, size: true }, 'Close on the confirmation: uncovered, 44px, focus ring inside');
   await seriousAxe('confirmation');
   await shot('done');
-  await page.emulateMedia({ colorScheme: 'dark' });
+
+  t.step('dark theme: the confirmation');
+  // The visitor's choice (YES.theme, <html data-theme="dark">) and the device setting reach the same tokens.
+  const dlgColors = () =>
+    page.evaluate(() => {
+      const cs = (s) => getComputedStyle(document.querySelector(s));
+      return { bg: cs('#inquiry-dialog').backgroundColor, ink: cs('#inquiry-dialog-title').color, receipt: cs('#inquiry-dialog .inq-receipt').backgroundColor };
+    });
+  await page.evaluate(() => YES.theme.set('light'));
+  const lightColors = await dlgColors();
+  await page.evaluate(() => YES.theme.set('dark'));
+  await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark');
+  t.assert(await isOpen(), 'a theme change leaves the dialog open');
+  t.eq([await step(), await activeFk()], ['done', 'inq-title'], 'same step, focus kept');
+  const darkColors = await dlgColors();
+  t.assert(darkColors.bg !== lightColors.bg && darkColors.ink !== lightColors.ink && darkColors.receipt !== lightColors.receipt, 'dialog, title and receipt take the dark tokens: ' + JSON.stringify([lightColors, darkColors]));
+  await seriousAxe('confirmation, dark');
   await shot('dark-done');
   await page.evaluate(() => document.querySelector('#inquiry-dialog .inq-body').scrollTo(0, 99999));
   await shot('dark-done-bottom');
-  await page.emulateMedia({ colorScheme: 'light' });
+  await page.evaluate(() => document.querySelector('#inquiry-dialog .inq-body').scrollTo(0, 0));
+  await page.evaluate(() => YES.theme.set(null)); // follow the device again
+  t.eq(await page.evaluate(() => YES.theme.effective() === YES.theme.device()), true, 'back to the device setting');
 
-  t.step('switch language on the confirmation without losing it');
-  await page.click('[data-fk="inq-lang-es"]');
-  await page.waitForFunction(() => YES.i18n.lang === 'es');
+  t.step('a language change while the confirmation is open keeps it');
+  await page.focus('[data-fk="inq-done"]');
+  await page.evaluate(() => YES.setLang('es'));
   t.eq([await title(), await step(), (await text('[data-inq-ref]')).trim()], ['Solo demostración: no se envió ninguna consulta', 'done', ref], 'Spanish confirmation, same fictional reference');
   t.assert((await dialogText()).includes('se reconocería como duplicada'), 'Spanish production notes');
-  await expectFocus('inq-lang-es', 'focus stays on the language switch');
-  await page.evaluate(() => document.querySelector('#inquiry-dialog .inq-body').scrollTo(0, 0));
+  await expectFocus('inq-done', 'focus kept on Done');
+  await noLangSwitch('Spanish confirmation');
   await shot('es-done');
-  await page.click('[data-fk="inq-lang-en"]');
-  await page.waitForFunction(() => YES.i18n.lang === 'en');
+  await page.evaluate(() => YES.setLang('en'));
   t.eq(await title(), 'Demo only — no inquiry was sent', 'English confirmation again');
   await page.waitForFunction(() => /Language changed to English/.test(Array.from(document.querySelectorAll('#inquiry-dialog > [aria-live]'), (r) => r.textContent).join('|')), null, { timeout: 2000 }).catch(() => {});
-  t.eq(await liveText(), 'Language changed to English', 'only the language change is announced (the Spanish one is gone)');
+  t.eq(await liveText(), 'Language changed to English', 'only the latest language change is announced (the Spanish one is gone)');
 
   /* ------------------------------------------------------------------ */
   t.step('after submission: duplicate-prevention demo');
@@ -466,7 +537,7 @@ export default async function (t) {
   await waitClosed();
   await expectFocus('inq-test-trigger', 'focus returns to the trigger');
   t.eq(await liveText(), '', 'closing empties the dialog’s live regions');
-  t.eq(await page.locator('#inquiry-dialog [data-lang], #inquiry-dialog button').count(), 0, 'no stale controls (a second language switch) left in the closed dialog');
+  t.eq(await page.locator('#inquiry-dialog [data-lang], #inquiry-dialog button').count(), 0, 'no stale controls or old-language text left in the closed dialog');
   // In Spanish, a new inquiry about another transaction carries nothing of the English confirmation.
   await page.evaluate(() => YES.setLang('es'));
   await openWith(PENDING);
@@ -611,28 +682,33 @@ export default async function (t) {
       t.eq(await noHScroll(), { page: true, dialog: true, body: true }, `no horizontal scroll at 320px (${s})`);
       await shot('narrow-' + s);
     }
-    // Back to transaction, the language switch and Close share one row in both languages.
+    // Back to transaction and Close share one row in both languages, Close clear of the sheet's edges.
     const headRow = () =>
       page.evaluate(() => {
         const box = (s) => document.querySelector('#inquiry-dialog ' + s).getBoundingClientRect();
         const back = box('.inq-head__back');
-        const seg = box('.inq-head__tools .seg');
         const cls = box('.inq-head__close');
         const mid = (r) => r.top + r.height / 2;
         return {
-          oneRow: Math.abs(mid(back) - mid(seg)) <= 4 && Math.abs(mid(seg) - mid(cls)) <= 4,
-          apart: back.right <= seg.left && seg.right <= cls.left,
-          inside: cls.right <= window.innerWidth
+          oneRow: Math.abs(mid(back) - mid(cls)) <= 4,
+          apart: back.right <= cls.left,
+          inside: cls.right <= window.innerWidth - 5 && cls.top >= 5
         };
       });
     t.eq(await headRow(), { oneRow: true, apart: true, inside: true }, 'header row fits at 320px (English)');
-    await page.click('[data-fk="inq-lang-es"]');
-    await page.waitForFunction(() => YES.i18n.lang === 'es');
+    t.eq(await closeClear(), { ringRoom: true, onTop: true, size: true }, 'Close at 320px: uncovered, 44px, focus ring inside');
+    // Spanish at 320px, through the phone Menu: close (draft kept), switch, resume.
+    await close();
+    await headerLang('es');
+    await page.evaluate(() => YES.inquiry.resume({ trigger: document.getElementById('inq-test-trigger') }));
+    await waitOpen();
+    t.eq([await title(), await step()], ['Preguntar por este movimiento', 'review'], 'resumed in Spanish at 320px, same step');
     t.eq(await headRow(), { oneRow: true, apart: true, inside: true }, 'header row fits at 320px (Spanish)');
     t.eq(await noHScroll(), { page: true, dialog: true, body: true }, 'no horizontal scroll at 320px in Spanish');
+    await noLangSwitch('320px, Spanish');
     await page.evaluate(() => document.querySelector('#inquiry-dialog .inq-body').scrollTo(0, 0));
     await shot('narrow-es-review');
-    // Very large text: the switch and Close take a row of their own rather than running off the screen.
+    // Very large text: Back wraps next to its arrow, or Close takes a row of its own, rather than running off the screen.
     await page.evaluate(() => {
       const s = document.createElement('style');
       s.id = 'inq-test-bigtext';
@@ -643,15 +719,23 @@ export default async function (t) {
       await page.evaluate(() => {
         const bar = document.querySelector('#inquiry-dialog .inq-head__bar');
         const back = document.querySelector('#inquiry-dialog .inq-head__back').getBoundingClientRect();
-        const tools = document.querySelector('#inquiry-dialog .inq-head__tools').getBoundingClientRect();
-        return { fits: bar.scrollWidth <= bar.clientWidth + 1 && tools.right <= window.innerWidth, wrapped: tools.top >= back.bottom - 1 };
+        const cls = document.querySelector('#inquiry-dialog .inq-head__close').getBoundingClientRect();
+        const tag = document.querySelector('#inquiry-dialog .inq-head .tag--illustrative').getBoundingClientRect();
+        return {
+          fits: bar.scrollWidth <= bar.clientWidth + 1 && back.right <= window.innerWidth && cls.right <= window.innerWidth,
+          apart: back.right <= cls.left || cls.top >= back.bottom - 1,
+          tagInside: tag.right <= window.innerWidth
+        };
       }),
-      { fits: true, wrapped: true },
-      '200% text at 320px: header controls wrap instead of overflowing'
+      { fits: true, apart: true, tagInside: true },
+      '200% text at 320px: header controls and the demo tag stay on screen without overlapping'
     );
+    await shot('narrow-es-bigtext');
     await page.evaluate(() => document.getElementById('inq-test-bigtext').remove());
-    await page.click('[data-fk="inq-lang-en"]');
-    await page.waitForFunction(() => YES.i18n.lang === 'en');
+    await close();
+    await headerLang('en');
+    await openWith(TX2);
+    t.eq([await title(), await step()], ['Ask about this transaction', 'review'], 'English again at 320px, same step');
     await page.click('[data-inq-submit]');
     t.eq(await noHScroll(), { page: true, dialog: true, body: true }, 'no horizontal scroll at 320px (confirmation)');
     await shot('narrow-done');
@@ -752,5 +836,34 @@ export default async function (t) {
   await expectFocus('inq-errors', 'the missing reason is asked for');
   t.eq(await page.$$eval('#inquiry-dialog .inq-errors a', (as) => as.map((a) => a.getAttribute('data-inq-errlink'))), ['reason'], 'only the reason');
   await close();
+
+  /* ------------------------------------------------------------------ */
+  t.step('dark theme: welcome-back notice, pending transaction, errors and review');
+  await page.evaluate(() => YES.theme.set('dark'));
+  await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark');
+  await openWith(PENDING); // its draft was left at Details above
+  t.eq(await step(), 'details', 'resumed at Details');
+  t.assert(await page.locator('[data-inq-notice="resumed"]').isVisible(), 'welcome-back notice');
+  await seriousAxe('resumed notice, dark');
+  await shot('dark-resumed');
+  await page.click('[data-inq-discard]');
+  t.eq(await step(), 'transaction', 'started over');
+  await seriousAxe('pending transaction, dark');
+  await shot('dark-step1-pending');
+  await page.click('[data-inq-next]');
+  await page.click('[data-inq-next]');
+  await expectFocus('inq-errors', 'error summary');
+  await seriousAxe('errors, dark');
+  await shot('dark-errors');
+  await page.click('label[for="inq-reason-pending"]');
+  await page.click('label[for="inq-channel-in_app"]');
+  await page.fill('#inq-desc', 'Still waiting for this one.');
+  await page.click('[data-inq-next]');
+  t.eq(await step(), 'review', 'at Review');
+  await seriousAxe('review, dark');
+  await shot('dark-review');
+  await noLangSwitch('dark review');
+  await close();
+  await page.evaluate(() => YES.theme.set(null));
   t.eq(await page.evaluate(() => YES.i18n.audit()), {}, 'i18n parity');
 }

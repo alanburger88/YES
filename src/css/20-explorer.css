@@ -830,15 +830,41 @@ mark.tx-mark-amount {
   flex-wrap: wrap;
   gap: var(--s2);
 }
+/* With the PDF there are two pairs (Print + PDF: the statement of record; then
+   the two CSV files): a 2 × 2 grid when the card has room, else one column of
+   equal widths, so they never wrap three-and-one. The card's own width decides
+   (the docked assistant narrows it). A squeezed label wraps, never overflows. */
+.tx-export {
+  container: txexport / inline-size;
+}
+.tx-export__actions--pairs {
+  display: grid;
+  grid-template-columns: minmax(0, max-content);
+}
+.tx-export__actions--pairs .btn {
+  white-space: normal;
+  text-align: center;
+}
+@container txexport (min-width: 44rem) {
+  .tx-export__actions--pairs {
+    grid-template-columns: repeat(2, minmax(0, max-content));
+  }
+}
 @media (max-width: 719px) {
   .tx-export__actions {
     flex-direction: column;
     width: 100%;
   }
+  .tx-export__actions--pairs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* A full-width list: icon and label start at the same edge, so a label that
+     wraps ("Download CSV — complete record") lines up with the one-line ones. */
   .tx-export__actions .btn {
     width: 100%;
     white-space: normal;
-    text-align: center;
+    justify-content: flex-start;
+    text-align: left;
   }
 }
 
@@ -856,14 +882,6 @@ mark.tx-mark-amount {
   height: 40px;
   margin-top: 2px;
 }
-/* Language switch + close: the page behind the modal is inert, so the detail
-   carries its own switch and re-renders in place, still selected. */
-.tx-dlg__tools {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  flex-shrink: 0;
-}
 .tx-dlg__headtext {
   flex: 1;
   min-width: 0;
@@ -878,6 +896,8 @@ mark.tx-mark-amount {
 .tx-dlg__headtext .dlg__title {
   margin: 2px 0 0;
 }
+/* Close only: the detail has no language switch of its own (ARCHITECTURE
+   rule 7); it uses the language chosen in the masthead. */
 .tx-dlg__close {
   flex-shrink: 0;
 }
@@ -1126,11 +1146,11 @@ mark.tx-mark-amount {
   margin-left: auto;
 }
 @media (max-width: 719px) {
-  /* Sheet header: eyebrow beside the tools, the title on the full width below. */
+  /* Sheet header: eyebrow beside the close button, the title on the full width below. */
   .tx-dlg__head {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: 'eyebrow tools' 'title title';
+    grid-template-areas: 'eyebrow close' 'title title';
     align-items: center;
     gap: 2px var(--s2);
   }
@@ -1149,12 +1169,8 @@ mark.tx-mark-amount {
     font-size: var(--fs-md);
     line-height: 1.3;
   }
-  .tx-dlg__tools {
-    grid-area: tools;
-    gap: var(--s1);
-  }
-  .tx-dlg__tools .seg__btn {
-    min-height: 40px;
+  .tx-dlg__close {
+    grid-area: close;
   }
   .tx-dlg__hero {
     padding: var(--s4);

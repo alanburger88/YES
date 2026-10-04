@@ -328,6 +328,14 @@
       'ask.button': 'Ask YES',
       'ask.buttonShort': 'Ask',
       'ask.buttonLong': 'Ask YES about this statement',
+
+      /* Masthead: light/dark toggle, Download or print (help 'record'), phone menu. */
+      'theme.dark': 'Dark mode',
+      'theme.on': 'On',
+      'theme.off': 'Off',
+      'record.button': 'Download or print',
+      'record.buttonShort': 'Download',
+      'menu.button': 'Menu',
       'explain.button': 'Explain with AI',
       'explain.buttonFor': 'Explain with AI: {topic}',
 
@@ -493,6 +501,13 @@
       'ask.button': 'Pregunta a YES',
       'ask.buttonShort': 'Pregunta',
       'ask.buttonLong': 'Pregunta a YES sobre este estado de cuenta',
+
+      'theme.dark': 'Modo oscuro',
+      'theme.on': 'Activado',
+      'theme.off': 'Desactivado',
+      'record.button': 'Descargar o imprimir',
+      'record.buttonShort': 'Descargar',
+      'menu.button': 'Menú',
       'explain.button': 'Explicar con IA',
       'explain.buttonFor': 'Explicar con IA: {topic}',
 

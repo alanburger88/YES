@@ -140,6 +140,108 @@ async function axeOk(t, sel, label) {
   return v;
 }
 
+/** Phones have no tab row: the sections and the language switch are in the masthead's Menu. */
+const phoneMenu = (page) =>
+  page.evaluate(() => {
+    const b = document.querySelector('#masthead [data-mast-menu]');
+    return !!b && b.getClientRects().length > 0;
+  });
+
+/** Go to a view the way a visitor does: the section tabs, or on phones the Menu. */
+async function navTo(page, view) {
+  if (await phoneMenu(page)) {
+    await page.click('#masthead [data-mast-menu]');
+    await page.click(`#mast-menu [data-nav="${view}"]`);
+  } else {
+    await page.click(`.nav__link[data-nav="${view}"]`);
+  }
+  await page.waitForFunction((v) => YES.state.view === v, view);
+}
+
+/** Switch language with the masthead's switch (the only one), or on phones in the Menu. */
+async function switchLang(page, lang) {
+  if (await phoneMenu(page)) {
+    await page.click('#masthead [data-mast-menu]');
+    await page.click(`#mast-menu [data-lang="${lang}"]`);
+    await page.keyboard.press('Escape');
+  } else {
+    await page.click(`#masthead .mast-wide [data-lang="${lang}"]`);
+  }
+  await page.waitForFunction((l) => YES.i18n.lang === l && document.documentElement.lang === l, lang);
+}
+
+/**
+ * Colours the overview paints, next to the theme tokens they should follow
+ * (resolved through a probe element, so the test never hard-codes a token).
+ */
+async function paints(page) {
+  return page.evaluate(() => {
+    const probe = document.createElement('span');
+    document.body.appendChild(probe);
+    const tok = (name) => {
+      probe.style.color = 'var(' + name + ')';
+      return getComputedStyle(probe).color;
+    };
+    const cs = (sel) => getComputedStyle(document.querySelector(sel));
+    const out = {
+      theme: document.documentElement.getAttribute('data-theme'),
+      card: [cs('.ov-balance').backgroundColor, tok('--surface')],
+      hero: [cs('.ov-hero__num').color, tok('--ink')],
+      bar: [cs('.jr-step--out .jr-bar').backgroundColor, tok('--out')],
+      line: [cs('.ov-chart__svg .c-line').stroke, tok('--total')],
+      marker: [cs('.ov-chart__svg .ov-mk--in').fill, tok('--in')],
+      grid: [cs('.ov-chart__svg .c-grid').stroke, tok('--grid')]
+    };
+    probe.remove();
+    return out;
+  });
+}
+/** Every painted colour equals its token. */
+const followsTokens = (p) => ['card', 'hero', 'bar', 'line', 'marker', 'grid'].every((k) => p[k][0] === p[k][1]);
+
+/**
+ * Sideways overflow with very large text: the page width, elements and text
+ * runs past the viewport. Data tables may scroll inside their own .table-wrap
+ * (WCAG 1.4.10 exception), so the wrapper must fit but its table may not.
+ */
+async function reflowFacts(page) {
+  return page.evaluate(() => {
+    const vw = document.documentElement.clientWidth;
+    const out = [];
+    const skip = (el) => el.closest('.sr-only') || el.ownerSVGElement || (el.closest('.table-wrap') && !el.classList.contains('table-wrap'));
+    document.querySelectorAll('#view-overview *').forEach((el) => {
+      if (skip(el) || !el.getClientRects().length) return;
+      const r = el.getBoundingClientRect();
+      if (r.width && (r.right > vw + 1 || r.left < -1)) out.push((typeof el.className === 'string' && el.className ? el.className : el.tagName) + ' ' + Math.round(r.left) + '→' + Math.round(r.right));
+    });
+    const walker = document.createTreeWalker(document.getElementById('view-overview'), NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.textContent.trim() || skip(n.parentElement)) continue;
+      range.selectNodeContents(n);
+      const right = [...range.getClientRects()].reduce((m, x) => Math.max(m, x.right), 0);
+      if (right > vw + 1) out.push('text "' + n.textContent.trim().slice(0, 30) + '" →' + Math.round(right));
+    }
+    // Pairs that must not overlap: a group's label and total; the poster's play control and duration.
+    const hit = (a, b) => a && b && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
+    const box = (el) => el && el.getBoundingClientRect();
+    const collide = [];
+    document.querySelectorAll('.jr-group').forEach((g) => {
+      if (hit(box(g.querySelector('.jr-group__label')), box(g.querySelector('.jr-group__value')))) collide.push('group ' + g.dataset.group);
+    });
+    if (hit(box(document.querySelector('.ov-video__play')), box(document.querySelector('.ov-video__dur')))) collide.push('poster play/duration');
+    // Inline lists clip their items' leading separators; an item must never be clipped itself.
+    const clipped = [...document.querySelectorAll('#view-overview .ov-seps')]
+      .filter((w) => getComputedStyle(w).display !== 'contents')
+      .filter((w) => {
+        const r = w.getBoundingClientRect();
+        return [...w.querySelectorAll('.ov-seps__in > :not(.sr-only)')].some((it) => it.getBoundingClientRect().right > r.right + 0.5);
+      })
+      .map((w) => w.textContent.trim().slice(0, 30));
+    return { scroll: document.documentElement.scrollWidth <= vw, out: out.slice(0, 8), collide, clipped };
+  });
+}
+
 export default async function (t) {
   const { page } = t;
   const vp = t.viewport;
@@ -215,9 +317,13 @@ export default async function (t) {
   }));
   if (vp === 'mobile') t.assert(fold.actions <= fold.vh, 'both primary actions are on the first screen of a 390×844 phone (bottom ' + fold.actions + ')');
   if (wide) t.assert(fold.journey + 32 <= fold.vh, 'the balance journey starts on the first screen at 1280×900 (heading at ' + fold.journey + ')');
-  const p0 = await posterFacts(page);
-  t.eq(p0.bars, p0.steps, 'poster bars are this statement’s journey steps, not a decorative chart');
-  t.assert(p0.contrast >= 4.5, 'poster text contrast (light): ' + p0.contrast);
+  const pf = await posterFacts(page);
+  t.eq(pf.bars, pf.steps, 'poster bars are this statement’s journey steps, not a decorative chart');
+  t.assert(pf.contrast >= 4.5, 'poster text contrast: ' + pf.contrast);
+  // No choice yet: the device setting (light, or dark with tests/run.mjs --color-scheme dark).
+  t.eq(await page.evaluate(() => [YES.theme.get(), YES.theme.effective() === YES.theme.device()]), [null, true], 'no theme choice yet: follows the device');
+  const devicePaint = await paints(page);
+  t.assert(followsTokens(devicePaint), 'card, hero, journey bars, chart line, markers and grid are painted from the tokens: ' + JSON.stringify(devicePaint));
 
   t.step('not-in-balance notice');
   const notin = norm(await page.locator('.ov-notin').innerText());
@@ -249,7 +355,7 @@ export default async function (t) {
     YES.data = window.__orig;
     YES.renderAll();
   });
-  await page.click('.nav__link[data-nav="overview"]');
+  await navTo(page, 'overview');
 
   t.step('statement details');
   const details = page.locator('.ov-details');
@@ -273,7 +379,7 @@ export default async function (t) {
   await page.click('[data-ov-explore]');
   t.eq((await calls(page))[0], { fn: 'applyFilter', f: {}, o: { reset: true } }, 'Explore transactions resets filters');
   t.eq(await page.evaluate(() => YES.state.view), 'transactions', 'Explore transactions navigates to Transactions');
-  await page.click('.nav__link[data-nav="overview"]');
+  await navTo(page, 'overview');
   await page.click('[data-fk="ov-explain-balance"]');
   t.eq(await calls(page), [{ fn: 'assistant', topic: 'balance', id: null }], 'Explain this balance opens the assistant on topic balance');
   t.assert((await page.locator('[data-fk="ov-explain-balance"]').getAttribute('aria-label')).startsWith('Explain this balance'), 'accessible name contains the visible label');
@@ -377,7 +483,7 @@ export default async function (t) {
   await page.click('[data-ov-show="transfers_out"]');
   t.eq((await calls(page))[0], { fn: 'applyFilter', f: { step: 'transfers_out' }, o: { reset: true } }, 'Show in Transactions filters to the step');
   t.eq(await page.evaluate(() => YES.state.view), 'transactions', 'navigated to Transactions');
-  await page.click('.nav__link[data-nav="overview"]');
+  await navTo(page, 'overview');
   t.eq(await page.evaluate(() => YES.state.journeyStep), 'transfers_out', 'selection survives navigation');
 
   t.step('clear selection');
@@ -434,7 +540,7 @@ export default async function (t) {
 
   t.step('language switch preserves the selection');
   await page.click('[data-ov-step="transfers_out"]');
-  await page.click('[data-lang="es"]');
+  await switchLang(page, 'es');
   t.eq(await page.evaluate(() => YES.state.journeyStep), 'transfers_out', 'state kept');
   t.eq(await page.getAttribute('[data-ov-step="transfers_out"]', 'aria-pressed'), 'true', 'still pressed after re-render');
   t.eq(norm(await page.locator('#ov-panel-title').innerText()).trim(), 'Transferencias enviadas', 'panel heading in Spanish');
@@ -472,7 +578,7 @@ export default async function (t) {
   await page.click('[data-fk="ov-jtable"]');
   await page.click('[data-fk="ov-ctable"]');
   await shot(t, 'spanish');
-  await page.click('[data-lang="en"]');
+  await switchLang(page, 'en');
   t.eq(await page.getAttribute('[data-ov-step="transfers_out"]', 'aria-pressed'), 'true', 'still selected after switching back');
 
   t.step('equation and table view');
@@ -765,17 +871,80 @@ export default async function (t) {
   t.step('runtime warnings');
   t.eq(warnings, [], 'no missing i18n keys or overview warnings at runtime');
 
-  t.step('dark colour scheme');
+  /* ------------------------------------------------------------ light / dark */
+  // The theme is the device setting until the visitor chooses (masthead toggle,
+  // or the phone Menu); a choice wins on any device, and print is always light.
+  t.step('light colour scheme: a light device, no choice (the reference)');
+  await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
+  await fresh(t, '#/overview/transfers_out');
+  t.eq(await page.evaluate(() => [YES.theme.get(), YES.theme.effective()]), [null, 'light'], 'no choice: follows the light device');
+  const p0 = await posterFacts(page);
+  t.assert(p0.contrast >= 4.5 && p0.bg > 0.05, 'light poster: the brand colour (luminance ' + p0.bg + ') with readable text (' + p0.contrast + ')');
+  const lightPaint = await paints(page);
+  t.assert(followsTokens(lightPaint), 'light: card, hero, journey bars, chart line, markers and grid follow the tokens: ' + JSON.stringify(lightPaint));
+
+  t.step('dark colour scheme: a dark device, no choice');
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' });
   await fresh(t, '#/overview/transfers_out');
+  t.eq(await page.evaluate(() => [YES.theme.get(), YES.theme.effective()]), [null, 'dark'], 'no choice: follows the dark device');
   await axeOk(t, '#view-overview', 'dark scheme');
   const pd = await posterFacts(page);
   t.assert(pd.contrast >= 4.5 && pd.bg < 0.2, 'dark poster stays deep (luminance ' + pd.bg + ') with readable text (' + pd.contrast + ')');
+  t.assert(pd.bg !== p0.bg && pd.contrast !== p0.contrast, `the dark poster differs from the light one (luminance ${pd.bg} vs ${p0.bg}, contrast ${pd.contrast} vs ${p0.contrast})`);
+  const darkPaint = await paints(page);
+  t.assert(followsTokens(darkPaint), 'dark: card, hero, journey bars, chart line, markers and grid follow the tokens: ' + JSON.stringify(darkPaint));
+  t.assert(['card', 'hero', 'bar', 'line', 'marker'].every((k) => darkPaint[k][0] !== lightPaint[k][0]), 'and they are the dark colours, not the light ones');
   await shot(t, 'dark');
   if (wide) {
     await page.evaluate(() => document.getElementById('ov-why-title').scrollIntoView());
     await shot(t, 'dark-why');
   }
+
+  t.step('light choice on a dark device: the light poster, journey and chart, live');
+  const chartEl = await page.evaluate(() => (window.__chart = document.querySelector('.ov-chart__svg')) && true);
+  await page.evaluate(() => YES.theme.set('light'));
+  t.eq(await page.evaluate(() => [YES.theme.effective(), document.documentElement.getAttribute('data-theme')]), ['light', 'light'], 'light chosen on a dark device');
+  const lp = await posterFacts(page);
+  t.eq([lp.bg, lp.contrast], [p0.bg, p0.contrast], 'the poster is the light one (as on a light device), not the dark one');
+  t.eq(await paints(page), lightPaint, 'every overview colour is the light one');
+  t.assert(chartEl && (await page.evaluate(() => document.querySelector('.ov-chart__svg') === window.__chart)), 'the chart recolours through its tokens, without being redrawn');
+  await axeOk(t, '#view-overview', 'light choice on a dark device');
+  await shot(t, 'light-choice-dark-device', { fullPage: false });
+
+  t.step('dark choice on a light device (the masthead toggle): dark live, after a reload and in the video dialog');
+  await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
+  if (await phoneMenu(page)) {
+    await page.click('#masthead [data-mast-menu]');
+    await page.click('#mast-menu [data-theme-toggle]');
+    await page.keyboard.press('Escape');
+  } else {
+    await page.click('#masthead .mast-wide [data-theme-toggle]');
+  }
+  t.eq(await page.evaluate(() => [YES.theme.get(), YES.theme.effective()]), ['dark', 'dark'], 'the toggle records a dark choice');
+  const dl = await posterFacts(page);
+  t.eq([dl.bg, dl.contrast], [pd.bg, pd.contrast], 'the poster is the dark one, as on a dark device');
+  t.eq(await paints(page), darkPaint, 'every overview colour is the dark one, as on a dark device');
+  await fresh(t, '#/overview/transfers_out');
+  t.eq(await page.evaluate(() => YES.theme.effective()), 'dark', 'the choice survives a reload');
+  t.eq(await paints(page), darkPaint, 'and the overview is dark from the first paint after it');
+  await page.click('[data-ov-video]');
+  t.eq(await page.locator('#video-dialog').evaluate((d) => d.open), true, 'video dialog open in dark');
+  await axeOk(t, '#video-dialog', 'video dialog, dark choice');
+  await shot(t, 'dark-video-dialog', { fullPage: false });
+  await page.keyboard.press('Escape');
+
+  t.step('print is always light, even with a dark choice on a dark device');
+  await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark', media: 'print' });
+  const printPoster = await posterFacts(page);
+  t.eq([printPoster.bg, printPoster.contrast], [p0.bg, p0.contrast], 'print: the light poster');
+  // 90-print.css sets its own paper ink and surfaces; the data marks keep the light tokens.
+  const printPaint = await paints(page);
+  const marks = (p) => ['bar', 'line', 'marker', 'grid'].map((k) => p[k][0]);
+  t.assert(followsTokens(printPaint), 'print: the overview follows the print tokens: ' + JSON.stringify(printPaint));
+  t.eq(marks(printPaint), marks(lightPaint), 'print: journey and chart marks in the light colours, not the dark ones');
+  await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light', media: 'screen' });
+  await page.evaluate(() => YES.theme.set(null));
+  t.eq(await page.evaluate(() => [YES.theme.get(), YES.theme.effective()]), [null, 'light'], 'choice cleared: follows the device again');
   /* ------------------------------------------------------------ history */
   t.step('browser Back clears the selection instead of leaving the statement');
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
@@ -802,7 +971,7 @@ export default async function (t) {
   t.eq(await page.evaluate(() => history.length), len0 + 1, 'Clear steps back through the same entry, so history does not grow');
   t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-fk')), 'ov-step-deposits', 'focus returns to the step');
   await page.click('[data-ov-step="fees"]');
-  await page.click('.nav__link[data-nav="transactions"]');
+  await navTo(page, 'transactions');
   await page.goBack();
   await page.waitForFunction(() => YES.state.view === 'overview');
   t.eq(await page.evaluate(() => YES.state.journeyStep), 'fees', 'Back from Transactions returns to the selected step');
@@ -852,6 +1021,35 @@ export default async function (t) {
   await shot(t, 'forced-colors');
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light', forcedColors: 'none' });
 
+  /* ------------------------------------------------------------ 200% text */
+  t.step('WCAG 1.4.4 / 1.4.10: 200% text reflows (no sideways scroll, nothing clipped or colliding)');
+  for (const lang of ['en', 'es']) {
+    await fresh(t, '#/overview/transfers_out');
+    if (lang === 'es') await switchLang(page, 'es');
+    await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+    await page.waitForTimeout(250); // container queries, resize observer, rAF
+    const f = await reflowFacts(page);
+    t.eq([f.scroll, f.out, f.collide, f.clipped], [true, [], [], []], `200% text, ${lang}: no sideways scroll, nothing past the edge, no collisions, no clipped list items`);
+    const hero = await page.evaluate(() => {
+      const num = document.querySelector('.ov-hero__num');
+      const r = num.getBoundingClientRect();
+      const col = document.querySelector('.ov-balance__main').getBoundingClientRect();
+      return { fits: r.right <= col.right + 0.5, size: parseFloat(getComputedStyle(num).fontSize), body: parseFloat(getComputedStyle(document.body).fontSize) };
+    });
+    t.assert(hero.fits && hero.size >= hero.body * 1.5, `200% text, ${lang}: the closing balance fits its column and stays the largest figure (${hero.size}px, body ${hero.body}px)`);
+    const L = await journeyLayout(page);
+    t.eq([L.overlaps, L.spill], [[], []], `200% text, ${lang}: journey values neither collide nor spill (${L.width}px column, ${L.layout})`);
+    await page.evaluate(() => document.querySelector('.jr-group[data-group="outgoing"]').scrollIntoView());
+    await shot(t, 'text-200-' + lang, { fullPage: false });
+    await page.evaluate(() => document.querySelector('.ov-video').scrollIntoView());
+    await shot(t, 'text-200-video-' + lang, { fullPage: false });
+    await page.evaluate(() => document.documentElement.style.removeProperty('font-size'));
+  }
+  await switchLang(page, 'en');
+  t.step('at 100% the hero keeps its design size');
+  const hero100 = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.ov-hero__num')).fontSize));
+  t.assert(hero100 >= 48, 'hero figure ≥48px at 100% text (got ' + hero100 + ')');
+
   /* ------------------------------------------------------------ container layout */
   if (wide) {
     t.step('journey and balance card lay out for the width they have (docked assistant, narrow windows)');
@@ -871,7 +1069,7 @@ export default async function (t) {
     for (const [w, docked, lang] of cases) {
       await page.setViewportSize({ width: w, height: 900 });
       await fresh(t, '#/overview/transfers_out');
-      if (lang === 'es') await page.click('[data-lang="es"]');
+      if (lang === 'es') await switchLang(page, 'es');
       await page.evaluate((d) => document.documentElement.classList.toggle('assistant-docked', d), docked);
       await page.waitForTimeout(200); // resize observer + rAF
       const L = await journeyLayout(page);
@@ -894,7 +1092,7 @@ export default async function (t) {
     await page.setViewportSize({ width: 1280, height: 900 });
     for (const lang of ['en', 'es']) {
       await fresh(t, '#/overview/transfers_out');
-      if (lang === 'es') await page.click('[data-lang="es"]');
+      if (lang === 'es') await switchLang(page, 'es');
       await page.evaluate(() => (document.getElementById('ov-journey-body').style.width = '55rem'));
       await page.waitForTimeout(200);
       const L = await journeyLayout(page);

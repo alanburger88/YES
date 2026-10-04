@@ -173,6 +173,112 @@ export default async function (t) {
   const ensureOpen = async () => {
     if (!(await isOpen())) await openCtx('general');
   };
+  /*
+   * The masthead is the statement's only language switch (ARCHITECTURE rule 7):
+   * the drawer has none. Docked (desktop) the masthead is beside the open drawer.
+   * On phones the sheet is modal and the page behind it is inert, so the visitor
+   * closes Ask YES, switches in the Menu and reopens Ask YES; the conversation is
+   * kept in YES.state.
+   */
+  const headerLang = async (l) => {
+    if (wide) {
+      await page.click(`#masthead .mast-wide [data-lang="${l}"]`);
+    } else {
+      const wasOpen = await isOpen();
+      if (wasOpen) {
+        await page.click('#assistant-drawer [data-asst-close]');
+        await waitClosed();
+      }
+      await page.click('#masthead [data-mast-menu]');
+      await page.click(`#mast-menu [data-lang="${l}"]`);
+      await page.keyboard.press('Escape');
+      if (wasOpen) {
+        await page.click('[data-ask]');
+        await waitOpen();
+      }
+    }
+    await page.waitForFunction((x) => document.documentElement.lang === x, l);
+  };
+  /*
+   * Nothing may cover the drawer's close button (PRD 5.5: a clear close control).
+   * UserWay's launcher cannot load offline, so a stand-in of its size and
+   * stacking (fixed, the highest z-index, outside the top layer, like the real
+   * widget) is put in the corner set by YES.config.userway.position (UserWay's
+   * data-position: 1 top right, 2 middle right, 3 bottom right, 4 bottom middle,
+   * 5 bottom left, 6 middle left, 7 top left, 8 top middle). Then the close
+   * button must be the topmost element at its centre and across its face, and so
+   * must the question field and Ask. Docked (not in the top layer), nothing from
+   * the page, the masthead or the launcher may sit over any part of the drawer.
+   */
+  const coverage = () =>
+    page.evaluate(() => {
+      const pos = Number((YES.config.userway && YES.config.userway.position) || 3);
+      const e = '16px';
+      const mid = 'calc(50% - 28px)';
+      const at = {
+        1: { top: e, right: e },
+        2: { top: mid, right: e },
+        3: { bottom: e, right: e },
+        4: { bottom: e, left: mid },
+        5: { bottom: e, left: e },
+        6: { top: mid, left: e },
+        7: { top: e, left: e },
+        8: { top: e, left: mid }
+      }[pos] || { bottom: e, right: e };
+      const s = document.createElement('div');
+      s.id = 'uw-standin';
+      Object.assign(s.style, { position: 'fixed', width: '56px', height: '56px', borderRadius: '50%', background: '#5b3fbf', zIndex: '2147483647' }, at);
+      document.body.appendChild(s);
+      try {
+        const d = document.getElementById('assistant-drawer');
+        const name = (n) => (!n ? 'nothing' : n.id || (n.getAttribute && n.getAttribute('data-fk')) || (typeof n.className === 'string' && n.className.split(' ')[0]) || n.tagName);
+        const blocked = [];
+        const probe = (el) => {
+          const r = el.getBoundingClientRect();
+          if (!r.width || !r.height) return blocked.push(name(el) + ' is not rendered');
+          // The centre, then four points inside the face (within its rounded corners).
+          for (const [fx, fy] of [[0, 0], [-0.3, -0.3], [0.3, -0.3], [-0.3, 0.3], [0.3, 0.3]]) {
+            const x = r.left + r.width * (0.5 + fx);
+            const y = r.top + r.height * (0.5 + fy);
+            const hit = document.elementFromPoint(x, y);
+            if (!hit || (hit !== el && !el.contains(hit))) return blocked.push(`${name(el)} at ${Math.round(x)},${Math.round(y)} is under ${name(hit)}`);
+          }
+        };
+        const close = d.querySelector('[data-asst-close]');
+        const cr = close.getBoundingClientRect();
+        const top = document.elementFromPoint(cr.left + cr.width / 2, cr.top + cr.height / 2);
+        [close, d.querySelector('#asst-input'), d.querySelector('.asst__send')].forEach(probe);
+        const over = [];
+        if (YES.assistant.mode() === 'docked') {
+          const r = d.getBoundingClientRect();
+          for (let y = r.top + 2; y < r.bottom - 1; y += 24) {
+            for (let x = r.left + 2; x < r.right - 1; x += 24) {
+              const hit = document.elementFromPoint(x, y);
+              if (!hit || !d.contains(hit)) over.push(`${Math.round(x)},${Math.round(y)} ${name(hit)}`);
+            }
+          }
+        }
+        return { pos, mode: YES.assistant.mode(), top: !!top && (top === close || close.contains(top)), topName: name(top), closeName: close.getAttribute('aria-label'), blocked, over: over.slice(0, 6) };
+      } finally {
+        s.remove();
+      }
+    });
+  const closeOnTop = async (label) => {
+    await settle(page); // the drawer slides in when it opens or changes mode
+    const c = await coverage();
+    t.assert(c.top, `${label} (${c.mode}): the close button is the topmost element at its centre (found ${c.topName})`);
+    t.eq(c.closeName, await page.evaluate(() => YES.t('assistant.close')), `${label}: the close button is named`);
+    t.eq(c.blocked, [], `${label}: close, the question field and Ask are not covered (UserWay stand-in at data-position ${c.pos})`);
+    t.eq(c.over, [], `${label}: nothing from the page, the masthead or the launcher overlaps the docked drawer`);
+  };
+  // Relative luminance of a computed rgb() colour (0 black … 1 white).
+  const lum = (rgb) => {
+    const [r, g, b] = (String(rgb).match(/[\d.]+/g) || [0, 0, 0]).slice(0, 3).map((v) => {
+      const c = Number(v) / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
 
   /* ------------------------------------------------------------------ */
   t.step('boot');
@@ -203,15 +309,11 @@ export default async function (t) {
     });
     t.eq([r.x, r.y, r.w, r.h], [0, 0, r.vw, r.vh], 'sheet covers the full viewport');
   }
-  const headSwitch = page.locator('#assistant-drawer .asst__head [data-lang]');
-  if (wide) t.eq(await headSwitch.count(), 0, "docked: no second language switch (the masthead's is beside the drawer)");
-  else {
-    t.eq(await headSwitch.count(), 2, 'modal sheet: the header has its own language switch (the masthead behind it is inert)');
-    t.assert(await page.locator('#assistant-drawer [data-lang="es"]').isVisible(), 'the switch is visible');
-    t.eq(await page.getAttribute('#assistant-drawer [data-lang="en"]', 'aria-pressed'), 'true', 'the current language is pressed');
-    t.eq(await page.getAttribute('#assistant-drawer .asst__head .seg', 'aria-label'), await page.evaluate(() => YES.t('lang.label')), 'the switch is a named group');
-    t.eq(await page.locator('#assistant-drawer').getByRole('button', { name: 'Español', exact: true }).count(), 1, 'its buttons are named by the language');
-  }
+  // One language switch in the statement: the masthead's (the phone Menu's).
+  t.eq(await page.locator('#assistant-drawer [data-lang], #assistant-drawer .seg--lang').count(), 0, `${wide ? 'docked drawer' : 'modal sheet'}: no language switch of its own`);
+  t.eq(await page.locator('#assistant-drawer').getByRole('button', { name: /^(English|Español|EN|ES)$/ }).count(), 0, 'no button in the drawer is named after a language');
+  t.eq(await page.$$eval('#assistant-drawer .asst__tools button', (els) => els.map((e) => e.getAttribute('data-fk'))), ['asst-close'], 'the header holds only the close button');
+  await closeOnTop(wide ? 'docked at 1280' : 'full-screen sheet');
   const head = norm(await page.locator('#assistant-drawer .asst__head').innerText());
   t.assert(head.includes('Demo explanation'), 'header shows the "Demo explanation" label');
   t.assert(await page.locator('#assistant-drawer .asst__head .tag--ai').isVisible(), 'demo tag visible');
@@ -773,35 +875,33 @@ export default async function (t) {
   t.eq(await page.getAttribute(LATEST, 'lang'), 'es', 'the answer is marked lang="es"');
   t.eq(await page.evaluate(() => document.documentElement.lang), 'en', 'the page stays in English');
   t.eq(norm(await page.locator('#asst-title').innerText()).trim(), 'Ask YES', 'drawer chrome stays in English');
-  const offer = page.locator(LATEST + ' [data-asst-lang="es"]');
-  t.assert(await offer.isVisible(), 'offers to show the whole statement in Spanish');
-  t.eq(norm(await offer.innerText()).trim(), 'Ver todo el estado de cuenta en español', 'the offer is in Spanish');
+  // The page language changes only in the masthead: the answer offers no switch.
+  t.eq(await page.locator('#assistant-drawer [data-lang], #assistant-drawer [data-asst-lang]').count(), 0, 'no control in the drawer changes the page language');
+  t.assert(!/Ver todo el estado de cuenta|Show the whole statement in/.test(await latestText()), 'no offer to switch the whole statement');
   await axeOk('answer in the other language');
   await shot('lang-matched');
   await typeAsk('What are my fees?');
   t.eq(await page.getAttribute(LATEST, 'lang'), null, 'an English question follows the page');
   t.eq(await latestTitle(), 'What you paid in fees', 'answered in English');
-  t.eq(await page.locator('#assistant-drawer [data-asst-lang]').count(), 1, 'only the latest Spanish answer carries the offer');
-  await page.click(`#asst-turn-${esId} [data-asst-lang="es"]`);
-  await page.waitForFunction(() => document.documentElement.lang === 'es');
-  await waitFocusFk(`asst-${esId}-h`);
-  t.eq(await activeFk(), `asst-${esId}-h`, 'focus lands on that answer after switching');
-  t.eq(await page.locator('#assistant-drawer [data-asst-lang]').count(), 0, 'no offer once the page matches');
-  t.eq(await page.evaluate(() => YES.state.assistant.thread.filter((e) => e.lang).length), 0, 'switching clears the per-answer language');
+  await headerLang('es');
+  t.assert(await isOpen(), wide ? 'the docked drawer stays open beside the masthead' : 'Ask YES reopens after switching in the Menu');
+  t.eq(await page.evaluate(() => YES.state.assistant.thread.filter((e) => e.lang).length), 0, 'choosing a language in the masthead clears the per-answer language');
+  t.eq(norm(await page.locator(`#asst-turn-${esId} .asst-ans__title`).innerText()).trim(), 'Lo que pagaste en comisiones', 'the Spanish answer now matches the page');
+  t.eq(await page.getAttribute(`#asst-turn-${esId}`, 'lang'), null, 'and needs no lang attribute of its own');
   await typeAsk('How much did I send to Daniel?');
   t.eq(await page.getAttribute(LATEST, 'lang'), 'en', 'in Spanish, an English question is answered in English');
-  t.eq(norm(await page.locator(LATEST + ' [data-asst-lang="en"]').innerText()).trim(), 'Show the whole statement in English', 'with the offer in English');
+  t.eq(await page.locator('#assistant-drawer [data-lang], #assistant-drawer [data-asst-lang]').count(), 0, 'still no language control in the drawer');
   await page.evaluate(() => YES.setLang('en'));
   await page.waitForFunction(() => document.documentElement.lang === 'en');
   t.eq(norm(await page.locator(`#asst-turn-${esId} .asst-ans__title`).innerText()).trim(), 'What you paid in fees', 'an explicit language choice wins: every answer follows the page');
   t.eq(await page.getAttribute(`#asst-turn-${esId} .asst-you`, 'lang'), 'es', "the visitor's own Spanish words keep lang=\"es\"");
-  t.eq(await page.locator('#assistant-drawer [data-asst-lang]').count(), 0, 'no offer after an explicit switch');
+  t.eq(await page.evaluate(() => YES.state.assistant.thread.filter((e) => e.lang).length), 0, 'no answer is pinned to another language after an explicit choice');
   await typeAsk('¿Qué es TX-260903-1127?');
   t.eq(await page.getAttribute(LATEST, 'lang'), 'es', 'a Spanish question about a transaction is answered in Spanish');
   t.eq(norm(await page.locator(LATEST + ' .asst-ans__text [lang="en"]').innerText()), 'Rent share', 'inside it, the English note keeps lang="en"');
 
   /* ------------------------------------------------------------------ */
-  t.step('language switch re-renders the thread');
+  t.step('the masthead language re-renders the thread');
   await openCtx('step', 'transfers_out');
   await typeAsk('send 50 to Daniel');
   const fid2 = await lastId();
@@ -809,18 +909,21 @@ export default async function (t) {
   await page.fill('#asst-input', 'draft question');
   await page.evaluate(() => document.querySelector('#assistant-drawer .asst__body').scrollTo(0, 0));
   const idsBefore = await page.evaluate(() => YES.state.assistant.thread.map((e) => e.id));
-  if (wide) await page.click('[data-lang="es"]');
-  else await page.click('#assistant-drawer [data-lang="es"]'); // the masthead is inert behind the sheet
-  await page.waitForFunction(() => document.documentElement.lang === 'es');
-  t.assert(await isOpen(), 'drawer stays open');
-  if (!wide) {
-    await waitFocusFk('asst-lang-es');
-    t.eq(await activeFk(), 'asst-lang-es', 'focus stays on the switch in the drawer');
-    t.eq(await page.getAttribute('#assistant-drawer [data-lang="es"]', 'aria-pressed'), 'true', 'Español is pressed');
+  await headerLang('es');
+  if (wide) {
+    t.assert(await isOpen(), 'the docked drawer stays open while the masthead switches');
+    await waitFocusFk('lang-es');
+    t.eq(await activeFk(), 'lang-es', 'focus stays on the masthead switch');
+    t.eq(await page.getAttribute('#masthead .mast-wide [data-lang="es"]', 'aria-pressed'), 'true', 'Español is pressed in the masthead');
     const changed = await page.evaluate(() => YES.t('lang.changed'));
     await page.waitForFunction((m) => window.__politeText() === m, changed, { timeout: 2000 }).catch(() => {});
-    t.eq(await page.evaluate(() => window.__politeText()), changed, 'the change is announced inside the drawer');
+    t.eq(await page.evaluate(() => window.__politeText()), changed, 'the change is announced (the docked drawer does not make the page inert)');
+  } else {
+    t.assert(await isOpen(), 'Ask YES reopens with the conversation');
+    t.eq(await mode(), 'modal', 'as the full-screen sheet');
+    t.eq(await activeFk(), 'asst-title', 'reopening focuses the drawer heading');
   }
+  t.eq(await page.locator('#assistant-drawer [data-lang]').count(), 0, 'still no language switch in the drawer');
   t.eq(await page.evaluate(() => YES.state.assistant.thread.map((e) => e.id)), idsBefore, 'thread preserved');
   t.eq(norm(await page.locator('#asst-title').innerText()).trim(), 'Pregunta a YES', 'heading translated');
   t.assert(norm(await page.locator('#assistant-drawer .asst__head').innerText()).includes('Explicación de demostración'), 'demo label translated');
@@ -842,9 +945,7 @@ export default async function (t) {
   t.eq(await page.evaluate(() => YES.i18n.audit()), {}, 'i18n audit still clean');
   await axeOk('Spanish');
   await shot('es');
-  if (wide) await page.click('[data-lang="en"]');
-  else await page.click('#assistant-drawer [data-lang="en"]');
-  await page.waitForFunction(() => document.documentElement.lang === 'en');
+  await headerLang('en');
   t.assert(norm(await page.locator('#assistant-drawer .asst-thread').innerText()).includes('Outgoing transfers: −450.00 EXUSD'), 'back to English');
 
   /* ------------------------------------------------------------------ */
@@ -901,7 +1002,8 @@ export default async function (t) {
   t.assert(await isModal(), 'stacked drawer is modal (interactive above the other dialog)');
   t.assert(await activeInDrawer(), 'focus inside the stacked drawer');
   t.assert((await latestText()).includes('Illustrative reference — no live blockchain verification'), 'stacked drawer shows the transaction answer');
-  t.eq(await page.locator('#assistant-drawer .asst__head [data-lang]').count(), 2, 'stacked: the drawer carries its own language switch');
+  t.eq(await page.locator('#assistant-drawer [data-lang]').count(), 0, 'stacked: no language switch either');
+  await closeOnTop('stacked above another dialog');
   await page.keyboard.press('Escape');
   await waitClosed();
   t.assert(await page.evaluate(() => document.getElementById('probe-dlg').open), 'the underlying dialog stays open');
@@ -943,20 +1045,27 @@ export default async function (t) {
     t.assert(await activeInDrawer(), 'focus moves into the modal drawer');
     await axeOk('900px modal');
     await shot('tablet');
-    t.eq(await page.locator('#assistant-drawer .asst__head [data-lang]').count(), 2, 'the modal drawer has its own language switch');
-    await page.click('#assistant-drawer [data-lang="es"]');
-    await page.waitForFunction(() => document.documentElement.lang === 'es');
-    t.eq(norm(await page.locator('#asst-title').innerText()).trim(), 'Pregunta a YES', 'switching inside the drawer translates it in place');
-    t.eq(await mode(), 'modal', 'the drawer stays open, still modal');
-    await waitFocusFk('asst-lang-es');
-    t.eq(await activeFk(), 'asst-lang-es', 'focus stays on the switch');
-    await shot('tablet-es');
-    await page.click('#assistant-drawer [data-lang="en"]');
-    await page.waitForFunction(() => document.documentElement.lang === 'en');
+    t.eq(await page.locator('#assistant-drawer [data-lang]').count(), 0, 'the modal drawer has no language switch either');
+    await closeOnTop('modal side drawer at 900');
+    // The masthead behind the modal drawer is inert: close, switch, reopen.
+    const tid = await lastId();
     await page.keyboard.press('Escape');
     await waitClosed();
     await waitFocusFk('ask-yes');
     t.eq(await activeFk(), 'ask-yes', 'Escape closes and returns focus');
+    await page.click('#masthead .mast-wide [data-lang="es"]');
+    await page.waitForFunction(() => document.documentElement.lang === 'es');
+    await page.click('[data-ask]');
+    await waitOpen();
+    t.eq(await mode(), 'modal', 'reopened as the modal drawer');
+    t.eq(norm(await page.locator('#asst-title').innerText()).trim(), 'Pregunta a YES', 'in the language chosen in the masthead');
+    t.eq(await lastId(), tid, 'with the same conversation');
+    t.eq(await activeFk(), 'asst-title', 'focus on the drawer heading');
+    await shot('tablet-es');
+    await page.keyboard.press('Escape');
+    await waitClosed();
+    await page.click('#masthead .mast-wide [data-lang="en"]');
+    await page.waitForFunction(() => document.documentElement.lang === 'en');
 
     t.step('backdrop click closes');
     await page.click('[data-ask]');
@@ -968,21 +1077,56 @@ export default async function (t) {
     t.step('resizing switches between docked and modal');
     await page.click('[data-ask]');
     await waitOpen();
-    await page.focus('#assistant-drawer [data-lang="en"]');
+    await page.focus('#asst-input');
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.waitForFunction(() => YES.assistant.mode() === 'docked', null, { timeout: 2000 }).catch(() => {});
     t.eq(await mode(), 'docked', 'docks when widened');
     t.assert(await page.evaluate(() => document.documentElement.classList.contains('assistant-docked')), 'docked class applied');
-    t.assert(await activeInDrawer(), 'focus kept in the drawer');
-    t.eq(await page.locator('#assistant-drawer [data-lang]').count(), 0, 'docked: the header switch is gone');
-    t.eq(await activeFk(), 'asst-title', 'focus on it moves to the drawer heading');
+    t.eq(await activeFk(), 'asst-input', 'focus stays on the same control in the drawer');
+    await closeOnTop('docked after widening');
     await page.setViewportSize({ width: 900, height: 900 });
     await page.waitForFunction(() => YES.assistant.mode() === 'modal', null, { timeout: 2000 }).catch(() => {});
     t.eq(await mode(), 'modal', 'becomes modal when narrowed');
     t.assert(await isModal(), 'is :modal again');
-    t.assert(await activeInDrawer(), 'focus kept in the drawer after narrowing');
-    t.eq(await page.locator('#assistant-drawer .asst__head [data-lang]').count(), 2, 'modal again: the header switch is back');
+    t.eq(await activeFk(), 'asst-input', 'focus stays on the same control after narrowing');
+    t.eq(await page.locator('#assistant-drawer [data-lang]').count(), 0, 'no language switch in either mode');
+    await closeOnTop('modal after narrowing');
     await page.keyboard.press('Escape');
+    await waitClosed();
+
+    /*
+     * At 1100–1119px the drawer is docked and leaves the masthead under 45em, so
+     * the masthead takes its phone layout (Ask, Menu) beside the drawer. Its
+     * Menu opens under the header, beside the drawer, and its language switch
+     * translates the open drawer in place.
+     */
+    t.step('docked at its narrowest (1100px) beside the phone masthead');
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await page.click('[data-ask]');
+    await waitOpen();
+    t.eq(await mode(), 'docked', 'docked from 1100px');
+    await closeOnTop('docked at 1100');
+    const menuBtn = page.locator('#masthead [data-mast-menu]');
+    if (await menuBtn.isVisible()) {
+      await menuBtn.click();
+      await page.waitForFunction(() => !document.getElementById('mast-menu').hidden, null, { timeout: 2000 });
+      const g = await page.evaluate(() => ({
+        menu: Math.round(document.getElementById('mast-menu').getBoundingClientRect().right),
+        drawer: Math.round(document.getElementById('assistant-drawer').getBoundingClientRect().left)
+      }));
+      t.assert(g.menu <= g.drawer, `the Menu opens beside the drawer, not under it (${g.menu} ≤ ${g.drawer})`);
+      await closeOnTop('docked at 1100 with the Menu open');
+      await page.click('#mast-menu [data-lang="es"]');
+      await page.waitForFunction(() => document.documentElement.lang === 'es');
+      t.assert(await isOpen(), 'the drawer stays open');
+      t.eq(norm(await page.locator('#asst-title').innerText()).trim(), 'Pregunta a YES', "the Menu's language switch translates the open drawer");
+      await shot('docked-1100-menu-es');
+      await page.click('#mast-menu [data-lang="en"]');
+      await page.waitForFunction(() => document.documentElement.lang === 'en');
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => document.getElementById('mast-menu').hidden, null, { timeout: 2000 });
+    } else t.assert(false, 'expected the phone masthead (Menu) beside the drawer docked at 1100px');
+    await page.evaluate(() => YES.assistant.close({ returnFocus: false }));
     await waitClosed();
     await page.setViewportSize({ width: 1280, height: 900 });
   }
@@ -998,12 +1142,79 @@ export default async function (t) {
   t.eq(await page.evaluate(() => window.__politeText()), 'Conversation cleared', 'clearing is announced');
 
   /* ------------------------------------------------------------------ */
-  t.step('dark colour scheme');
-  await page.emulateMedia({ colorScheme: 'dark' });
+  /*
+   * Light and dark: the drawer uses design tokens only, so it follows the theme
+   * chosen in the masthead (html[data-theme], YES.theme) and the device setting,
+   * live and without a re-render, and stays open while the theme changes.
+   */
+  t.step('light and dark themes');
+  const device0 = await page.evaluate(() => YES.theme.device());
+  const colours = () =>
+    page.evaluate(() => {
+      const d = document.getElementById('assistant-drawer');
+      const cs = (el) => getComputedStyle(el);
+      // What the tokens resolve to right now, for comparison.
+      const probe = document.createElement('div');
+      probe.style.cssText = 'position:absolute;width:0;height:0;background:var(--surface);color:var(--ink)';
+      document.body.appendChild(probe);
+      const tok = { surface: cs(probe).backgroundColor, ink: cs(probe).color };
+      probe.remove();
+      return {
+        theme: document.documentElement.getAttribute('data-theme'),
+        bg: cs(d).backgroundColor,
+        ink: cs(d).color,
+        head: cs(d.querySelector('.asst__head')).backgroundColor,
+        close: cs(d.querySelector('.asst__close')).color,
+        tok
+      };
+    });
   await openCtx('transaction', 'TX-260909-2051');
-  await axeOk('dark');
+  const renders = await page.evaluate(() => {
+    window.__asstRenders = 0;
+    // A re-render replaces the header; a live region added by an announcement does not count.
+    new MutationObserver((ms) =>
+      ms.forEach((m) => m.addedNodes.forEach((n) => n.classList && n.classList.contains('asst__head') && window.__asstRenders++))
+    ).observe(document.getElementById('assistant-drawer'), { childList: true });
+    return 0;
+  });
+  await page.evaluate(() => YES.theme.set('light'));
+  let cl = await colours();
+  t.eq(cl.theme, 'light', 'light chosen: html[data-theme="light"]');
+  t.assert(lum(cl.bg) > 0.9 && lum(cl.ink) < 0.05, `light drawer: light surface, dark ink (${cl.bg} / ${cl.ink})`);
+  t.eq([cl.bg, cl.head, cl.ink], [cl.tok.surface, cl.tok.surface, cl.tok.ink], 'the drawer and its header use the surface and ink tokens');
+  if (wide) {
+    // Docked, the masthead's light/dark toggle is beside the drawer.
+    await page.click('#masthead .mast-wide [data-theme-toggle]');
+  } else {
+    await page.evaluate(() => YES.theme.toggle());
+  }
+  await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark', null, { timeout: 2000 });
+  cl = await colours();
+  t.assert(lum(cl.bg) < 0.05 && lum(cl.ink) > 0.8, `dark drawer: dark surface, light ink (${cl.bg} / ${cl.ink})`);
+  t.eq([cl.bg, cl.head, cl.ink], [cl.tok.surface, cl.tok.surface, cl.tok.ink], 'dark: still the surface and ink tokens');
+  t.assert(lum(cl.close) > 0.4, `dark: the close icon is light (${cl.close})`);
+  t.assert(await isOpen(), 'the drawer stays open while the theme changes');
+  t.eq(await page.evaluate(() => window.__asstRenders), renders, 'no re-render is needed: the tokens change underneath');
+  if (wide) t.eq(await page.getAttribute('#masthead .mast-wide [data-theme-toggle]', 'aria-pressed'), 'true', 'the masthead toggle reads pressed');
+  await closeOnTop('dark theme');
+  await axeOk('dark (chosen)');
   await shot('dark');
+  // A light choice wins on a dark device; without a choice the device decides, live.
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.evaluate(() => YES.theme.set('light'));
+  cl = await colours();
+  t.assert(lum(cl.bg) > 0.9, `a light choice keeps the drawer light on a dark device (${cl.bg})`);
+  await page.evaluate(() => YES.theme.set(null));
+  await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark', null, { timeout: 2000 }).catch(() => {});
+  cl = await colours();
+  t.assert(lum(cl.bg) < 0.05, `no choice: the drawer follows the dark device (${cl.bg})`);
+  await axeOk('dark (device)');
   await page.emulateMedia({ colorScheme: 'light' });
+  await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'light', null, { timeout: 2000 }).catch(() => {});
+  cl = await colours();
+  t.assert(lum(cl.bg) > 0.9, `and back to light with the device, while open (${cl.bg})`);
+  t.assert(await isOpen(), 'still open');
+  await page.emulateMedia({ colorScheme: device0 });
 
   t.step('reduced motion');
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -1066,6 +1277,7 @@ export default async function (t) {
     await scrollIdle(page);
     await page.evaluate(() => (document.getElementById('assistant-drawer').scrollTop = 0));
     f = await frame();
+    await closeOnTop('landscape phone 844×390');
     t.assert(f.head.h <= 130, `compact header (${f.head.h}px)`);
     t.assert(f.form.h <= 72, `compact composer (${f.form.h}px)`);
     t.assert(f.vh - f.form.h >= 300, `the conversation gets most of the height (${f.vh - f.form.h}px)`);
@@ -1080,9 +1292,10 @@ export default async function (t) {
     await settle(page);
     f = await frame();
     t.assert(!f.scrolls, 'the frame stays fixed and only the conversation scrolls');
-    // The header carries its own language switch while modal, so the demo label takes a row of its own here.
+    // Only the close button shares the title's row: the demo label sits beside it too.
     t.assert(f.body.h >= 350 && f.body.h >= f.vh * 0.6, `conversation area (${f.body.h}px)`);
-    t.assert(f.head.h <= 150, `header (${f.head.h}px)`);
+    t.assert(f.head.h <= 130, `header (${f.head.h}px)`);
+    await closeOnTop('small phone 320×568');
     t.assert(f.hint.w <= 1, 'the composer hint is visually hidden');
     t.eq(await page.getAttribute('#asst-input', 'aria-describedby'), 'asst-hint', 'and still describes the input');
     t.assert(/no live AI model/i.test(await page.locator('#asst-hint').textContent()), 'hint text kept');

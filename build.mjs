@@ -8,6 +8,8 @@
  *   src/index.html. No external CSS, fonts, scripts or media are referenced.
  * - Release gate: evaluates the data + reconciliation code and refuses to build
  *   if the statement does not reconcile (PRD 5.2, 6).
+ * - Runs the offline PDF writer (src/js/07-pdf.js) on a fixed sample and
+ *   requires byte-identical output from the minified code.
  * - Generates a static, bilingual <noscript> summary from the same data object
  *   and the shipped EN/ES strings.
  * - Strips comments and indentation from the inlined CSS and JS (never inside
@@ -53,10 +55,25 @@ function foundation(files) {
   const sandbox = { console, Intl, Date, Math, JSON };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
-  for (const f of files.filter((f) => /^js\/0[0-3]-/.test(f.name))) vm.runInContext(f.body, sandbox, { filename: f.name });
+  for (const f of files.filter((f) => /^js\/(0[0-3]|07)-/.test(f.name))) vm.runInContext(f.body, sandbox, { filename: f.name });
   return sandbox.YES;
 }
 const YES = foundation(jsFiles);
+
+/* The PDF writer (07-pdf.js) has no DOM dependency either: the build draws a
+   small fixed document with it, so a minified writer must produce the very
+   same bytes. */
+function pdfSample(Y) {
+  if (!Y.pdf) return null;
+  const doc = Y.pdf.create({ title: 'Build check — año', lang: 'es-ES', date: '2026-01-01T00:00:00Z' });
+  doc.watermark('DATOS ILUSTRATIVOS DE DEMOSTRACIÓN');
+  doc.text('Señal ' + String.fromCharCode(0x2212) + '2,50 ≈ → ✓ (paréntesis) \\ € “x”', 54, 54, { font: 'bold' });
+  doc.text('1.147,50' + String.fromCharCode(0xa0) + 'EXUSD', 558, 80, { align: 'right' });
+  doc.paragraph('Una línea larga que se parte en varias líneas dentro de la columna.', 54, 100, { width: 120 });
+  return Array.from(doc.save()).join(',');
+}
+const PDF_SAMPLE = pdfSample(YES);
+if (PDF_SAMPLE !== null && !PDF_SAMPLE.startsWith([...'%PDF-1.4'].map((c) => c.charCodeAt(0)).join(','))) fail('✖ PDF writer: the sample document is not a PDF 1.4 file.');
 
 // ---------------------------------------------------------------- Release gate
 const result = YES.calc.reconcile(YES.data);
@@ -323,6 +340,7 @@ if (MINIFY) {
   if (!same(min.data, YES.data) || !same(min.config, YES.config) || !same(min.i18n.dict, YES.i18n.dict) || !same(min.calc.reconcile(min.data), result)) {
     fail('✖ Minified foundation differs from the source (data, config, strings or release gate).');
   }
+  if (pdfSample(min) !== PDF_SAMPLE) fail('✖ Minified PDF writer produces different bytes from the source.');
 }
 
 // ------------------------------------------------------------ Noscript summary
@@ -383,4 +401,5 @@ writeFileSync(OUT, html);
 const kb = (b) => (b / 1024).toFixed(1);
 const saved = MINIFY ? ` (comments and indentation stripped: −${kb(Buffer.byteLength(jsSource + cssSource) - Buffer.byteLength(js + css))} KB)` : ' (not minified)';
 console.log(`✔ Release gate passed (${result.summary.postedCount} posted, ${result.summary.pendingCount} not in balance; ${result.checks.length} checks).`);
+if (PDF_SAMPLE !== null) console.log(`✔ PDF writer: sample document is PDF 1.4${MINIFY ? ', byte-identical after minification' : ''}.`);
 console.log(`✔ Built ${OUT.replace(ROOT + '/', '')} — ${kb(Buffer.byteLength(html))} KB, ${cssFiles.length} CSS + ${jsFiles.length} JS sources inlined${saved}.`);

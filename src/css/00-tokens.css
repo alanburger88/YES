@@ -1,7 +1,8 @@
 /*
  * Design tokens. Brand slots ([YES_PRIMARY], [YES_ACCENT], [YES_FONT]) are set
  * at boot from YES.config.slots; every component reads roles, never raw hex.
- * Light and dark schemes are selected separately (not an automatic flip).
+ * Light and dark schemes are designed separately (not an automatic flip);
+ * the light scheme is the default and the only one used for print.
  */
 :root {
   color-scheme: light;
@@ -109,8 +110,75 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+/*
+ * Dark scheme. Two entry points with IDENTICAL declarations (the shell test
+ * compares them):
+ *   1. the device setting (prefers-color-scheme: dark) unless the visitor chose
+ *      light: before boot there is no data-theme yet, and afterwards YES.theme
+ *      (04-core.js) mirrors the effective theme into data-theme;
+ *   2. data-theme="dark": the visitor chose dark, even on a light device.
+ * data-theme="light" forces light on a dark device. Both are screen-only, so
+ * print always uses the light scheme above (as does the PDF, drawn from data).
+ * A module stylesheet that needs a dark-only rule uses the same two selectors:
+ *   @media screen and (prefers-color-scheme: dark) { :root:not([data-theme='light']) .x { … } }
+ *   @media screen { :root[data-theme='dark'] .x { … } }
+ */
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --yes-primary: var(--yes-primary-dark-slot, #6cb4ee);
+
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1d222b;
+    --surface-3: #262c36;
+    --overlay: rgba(0, 0, 0, 0.62);
+
+    --ink: #f1f4f8;
+    --ink-2: #c5ccd6;
+    --muted: #a3acb8;
+    --on-primary: #0b1220;
+
+    --line: #2b323d;
+    --line-strong: #46505e;
+    --field-line: #6b7685;
+
+    --primary-hover: color-mix(in srgb, var(--yes-primary) 85%, #fff);
+    --primary-wash: color-mix(in srgb, var(--yes-primary) 14%, var(--surface));
+    --primary-ink: var(--yes-primary);
+    --focus: #8ab4ff;
+
+    --in: #4b94ea;
+    --in-wash: #182a40;
+    --out: #e0703f;
+    --out-wash: #3a2219;
+    --total: #aeb7c3;
+    --grid: #262c36;
+    --axis: #46505e;
+
+    --ok: #4cc27a;
+    --ok-wash: #15291e;
+    --warn: #f0b84a;
+    --warn-wash: #2f2512;
+    --warn-line: #b58300;
+    --danger: #ff8a7f;
+    --danger-wash: #3a1d1b;
+    --info: #8ab4ff;
+    --info-wash: #17233a;
+
+    --demo-ink: #ffd772;
+    --demo-bg: #2e2510;
+    --demo-line: #8f6c10;
+    --ai: #b3a2f5;
+    --ai-wash: #231d3b;
+
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.45);
+    --shadow-3: 0 20px 48px rgba(0, 0, 0, 0.6);
+  }
+}
+@media screen {
+  :root[data-theme='dark'] {
     color-scheme: dark;
     --yes-primary: var(--yes-primary-dark-slot, #6cb4ee);
 

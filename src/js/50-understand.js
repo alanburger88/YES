@@ -1129,14 +1129,18 @@
     var v = doc.getElementById('view-understand');
     return !!v && !v.hidden;
   }
+  /*
+   * Bring a topic or panel to the top of the page, clear of the masthead. The
+   * page's scroll-padding-top follows --masthead-h, which the shell keeps equal
+   * to the part of the masthead that stays pinned (the phone's badge band
+   * scrolls away; nothing is pinned on short screens or with very large text).
+   */
   function scrollToEl(el) {
-    var mast = doc.getElementById('masthead');
-    var off = (mast ? mast.getBoundingClientRect().height : 0) + 12;
-    var top = Math.max(0, el.getBoundingClientRect().top + (root.pageYOffset || 0) - off);
+    var behavior = ui.reducedMotion() ? 'auto' : 'smooth';
     try {
-      root.scrollTo({ top: top, behavior: ui.reducedMotion() ? 'auto' : 'smooth' });
+      el.scrollIntoView({ block: 'start', behavior: behavior });
     } catch (e) {
-      root.scrollTo(0, top);
+      el.scrollIntoView(true);
     }
   }
   function focusTopic(id) {

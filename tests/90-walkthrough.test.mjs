@@ -5,8 +5,11 @@
 //
 // Only clicks, taps and keys change the page. page.evaluate is used to READ
 // state (YES.state, YES.data, YES.integrity) and to instrument the browser
-// (window.print is replaced by a counter so no system dialog opens).
-import { readFileSync } from 'node:fs';
+// (window.print is replaced by a counter so no system dialog opens). On phones
+// the sections, the language switch and the theme are reached through the
+// masthead's Menu, exactly as a visitor would.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 
 export const meta = { name: 'walkthrough', viewports: ['desktop', 'mobile'] };
 
@@ -44,15 +47,32 @@ export default async function (t) {
     const bad = v.filter((x) => BAD.includes(x.impact)).map((x) => `${x.id}/${x.impact}: ${x.nodes.join(' ; ')}`);
     t.eq(bad, [], `axe serious/critical on the whole document (${label})`);
   };
+  // Phones: the sections, Download or print, language and theme live in the Menu.
+  const openMenu = async () => {
+    if (!mobile) return;
+    if ((await page.getAttribute('#masthead [data-mast-menu]', 'aria-expanded')) !== 'true') await page.click('#masthead [data-mast-menu]');
+    await page.locator('#mast-menu').waitFor({ state: 'visible' });
+  };
+  const closeMenu = async () => {
+    if (mobile && (await page.getAttribute('#masthead [data-mast-menu]', 'aria-expanded')) === 'true') await page.keyboard.press('Escape');
+  };
+  const go = async (view) => {
+    await openMenu();
+    await page.click(mobile ? `#mast-menu [data-nav="${view}"]` : `.nav__link[data-nav="${view}"]`);
+    await waitFor((v) => YES.state.view === v, view);
+  };
   // The language switch must be operable by its accessible name (screen readers,
   // voice control). Assert that, then press the control a sighted user sees so
-  // the rest of the walkthrough still runs if the name is missing.
+  // the rest of the walkthrough still runs if the name is missing. The masthead
+  // (the phone Menu) is the only language switch in the statement.
   const switchLang = async (lang, name) => {
+    await openMenu();
     const byRole = page.getByRole('button', { name, exact: true });
     t.eq(await byRole.count(), 1, `language button exposes the accessible name "${name}"`);
     if ((await byRole.count()) === 1) await byRole.click();
-    else await page.click(`[data-lang="${lang}"]`);
+    else await page.click(`${mobile ? '#mast-menu' : '#masthead'} [data-lang="${lang}"]`);
     await waitFor((l) => document.documentElement.lang === l && YES.i18n.lang === l, lang);
+    await closeMenu();
     await settle();
   };
   const closeAssistantIfModal = async () => {
@@ -170,33 +190,26 @@ export default async function (t) {
   for (const s of ['−45.50 EXUSD', 'Northside Market', 'REF-M8Q2-4DK9', 'TX-260924-1327', 'Posted', '1,097.00 EXUSD', 'EDT']) t.assert(detail.includes(s), 'detail shows ' + s);
   t.assert(await page.locator('#tx-dialog [data-txd-close]').isVisible(), 'visible close control');
 
-  t.step('5b. language can be switched while the transaction is open (PRD 5.8 selected transaction)');
-  // A customer reading a transaction should be able to change language and keep it
-  // open. The detail is modal, so the masthead switch behind it is inert: some
-  // language control that actually receives the click must exist. (Role queries
-  // also return the inert masthead buttons, so try each match.)
-  const operable = async (name) => {
-    const all = page.getByRole('button', { name });
-    const n = await all.count();
-    for (let i = 0; i < n; i++) {
-      const b = all.nth(i);
-      if (await b.click({ trial: true, timeout: 600 }).then(() => true, () => false)) return b;
-    }
-    return null;
-  };
-  const esControl = await operable(/^(Español|ES)$/);
-  t.assert(!!esControl, 'a language control is operable while a transaction is selected');
-  if (esControl) {
-    await esControl.click();
-    await waitFor(() => YES.i18n.lang === 'es');
-    t.eq(await state(() => YES.state.selectedTx), NORTHSIDE, 'same transaction still selected after switching');
-    t.assert(await dialogOpen('tx-dialog'), 'detail still open after switching');
-    t.assert(nb(await text('#tx-dialog')).includes('−45,50 EXUSD'), 'detail re-rendered in Spanish');
-    const enControl = await operable(/^(English|EN)$/);
-    t.assert(!!enControl, 'and back to English from the same place');
-    if (enControl) await enControl.click();
-    await waitFor(() => YES.i18n.lang === 'en');
-  }
+  t.step('5b. dialogs keep the language chosen in the header (the only switch); the selection survives a switch');
+  // The masthead is the one language switch. A dialog keeps the language that
+  // was chosen before it opened: to change it the visitor closes the dialog,
+  // switches in the header, and the same transaction is still selected.
+  t.eq(await page.locator('#tx-dialog [data-lang]').count(), 0, 'the transaction detail has no language switch of its own');
+  await page.click('#tx-dialog [data-txd-close]');
+  await waitFor(() => !document.getElementById('tx-dialog').open);
+  await switchLang('es', 'Español');
+  t.eq(await state(() => YES.state.journeyStep), 'transfers_out', 'the selected step is kept after switching');
+  await page.click(`#ov-panel [data-ov-tx="${NORTHSIDE}"]`);
+  await waitFor(() => document.getElementById('tx-dialog').open);
+  t.eq(await state(() => YES.state.selectedTx), NORTHSIDE, 'same transaction reopened');
+  t.assert(nb(await text('#tx-dialog')).includes('−45,50 EXUSD'), 'detail in Spanish, the language chosen in the header');
+  t.eq(await page.locator('#tx-dialog [data-lang]').count(), 0, 'still no language switch in the dialog');
+  await page.click('#tx-dialog [data-txd-close]');
+  await waitFor(() => !document.getElementById('tx-dialog').open);
+  await switchLang('en', 'English');
+  await page.click(`#ov-panel [data-ov-tx="${NORTHSIDE}"]`);
+  await waitFor((id) => document.getElementById('tx-dialog').open && YES.state.selectedTx === id, NORTHSIDE);
+  t.eq((await text('#tx-dialog-title')).trim(), 'Payment to a YES merchant', 'back in English');
 
   /* ================================================================== */
   t.step('6. Explain with AI');
@@ -215,6 +228,7 @@ export default async function (t) {
   t.eq(supporting, [NORTHSIDE], 'answer points to the exact supporting row');
   t.assert(await page.locator('#assistant-root .asst-ans [data-asst-rows]').isVisible(), '"Show these rows in Transactions" offered');
   t.assert(await page.locator('#assistant-root [data-asst-talk]').first().isVisible(), 'human-help route offered');
+  t.eq(await page.locator('#assistant-root [data-lang]').count(), 0, 'the Ask YES drawer has no language switch of its own');
   if (!mobile) {
     const balanceCovered = await state(() => {
       const d = document.getElementById('assistant-drawer') || document.querySelector('#assistant-root [role="dialog"], #assistant-root dialog');
@@ -249,6 +263,7 @@ export default async function (t) {
   const inq1 = await text('#inquiry-dialog');
   t.assert(inq1.includes('REF-M8Q2-4DK9') && inq1.includes('Northside Market'), 'transaction reference carried into the inquiry');
   t.assert(inq1.includes('Demo only'), 'inquiry marked demo only');
+  t.eq(await page.locator('#inquiry-dialog [data-lang]').count(), 0, 'the inquiry uses the language already chosen: no switch of its own');
   await page.click('#inquiry-dialog [data-inq-next]');
   await waitFor(() => YES.state.inquiry && YES.state.inquiry.step === 'details');
 
@@ -324,8 +339,7 @@ export default async function (t) {
   /* ================================================================== */
   t.step('10. inspect the illustrative transparency panel');
   await closeAssistantIfModal();
-  await page.click('.nav__link[data-nav="understand"]');
-  await waitFor(() => YES.state.view === 'understand');
+  await go('understand');
   await page.click('#understand-root a[href="#/understand/transparency"]');
   const tp = page.locator('#und-transparency');
   await tp.waitFor({ state: 'visible' });
@@ -341,17 +355,26 @@ export default async function (t) {
   await t.shot('10-transparency');
 
   /* ================================================================== */
-  t.step('11. print the statement of record');
+  t.step('11. Download or print: print the statement of record');
   await page.evaluate(() => {
     window.__printCalls = 0;
     window.print = () => {
       window.__printCalls++;
     };
   });
-  await page.click('.nav__link[data-nav="transactions"]');
-  await waitFor(() => YES.state.view === 'transactions');
-  await page.click('[data-fk="tx-print"]');
-  t.eq(await state(() => window.__printCalls), 1, 'Print statement opens the print dialog');
+  // The header's "Download or print" leads to the record section in Help.
+  await openMenu();
+  const recBtn = page.getByRole('button', { name: 'Download or print', exact: true });
+  t.eq(await recBtn.count(), 1, 'one "Download or print" button in the header' + (mobile ? ' menu' : ''));
+  await recBtn.click();
+  await waitFor(() => YES.state.view === 'help' && /#\/help\/record/.test(location.hash));
+  const record = page.locator('#help-record');
+  await record.waitFor({ state: 'visible' });
+  await waitFor(() => document.activeElement && document.activeElement.id === 'help-record-title').catch(() => {});
+  t.eq(await state(() => document.activeElement.id), 'help-record-title', 'focus on the "Download or print" section heading');
+  t.eq((await text('#help-record-title')).trim(), 'Download or print', 'the section is called "Download or print"');
+  await record.getByRole('button', { name: /^Print\b/ }).first().click();
+  t.eq(await state(() => window.__printCalls), 1, 'Print opens the print dialog');
   await page.emulateMedia({ media: 'print' });
   t.assert(await page.locator('#print-root').isVisible(), 'statement-of-record view shows in print');
   t.assert(!(await page.locator('#app').isVisible()), 'interactive UI hidden in print');
@@ -364,7 +387,31 @@ export default async function (t) {
   await t.shot('11-print', { fullPage: true });
   await page.emulateMedia({ media: 'screen' });
 
+  t.step('11b. Download or print: download the statement of record as a PDF');
+  const pdfBtn = record.getByRole('button', { name: /PDF/ });
+  t.eq(await pdfBtn.count(), 1, 'a "Download PDF" button next to Print');
+  const [pdfDl] = await Promise.all([page.waitForEvent('download', { timeout: 8000 }), pdfBtn.first().click()]);
+  const pdfName = pdfDl.suggestedFilename();
+  t.assert(/^YES-statement-.*202609-000184.*-DEMO\.pdf$/.test(pdfName), 'one-click download, named for the statement and marked DEMO: ' + pdfName);
+  const pdfBytes = readFileSync(await pdfDl.path());
+  t.eq(pdfBytes.subarray(0, 8).toString('latin1'), '%PDF-1.4', 'a real PDF file (generated in the page, offline)');
+  const pdfFile = new URL(`../test-results/walkthrough-${t.viewport}.pdf`, import.meta.url);
+  writeFileSync(pdfFile, pdfBytes);
+  const info = spawnSync('pdfinfo', [pdfFile.pathname], { encoding: 'utf8' });
+  t.eq([info.status, (info.stderr || '').trim()], [0, ''], 'pdfinfo: valid, no errors');
+  const pages = +((info.stdout || '').match(/^Pages:\s+(\d+)/m) || [0, 0])[1];
+  t.assert(pages >= 1, 'pdfinfo counts the pages: ' + pages);
+  const marks = (pdfBytes.toString('latin1').match(/\(ILLUSTRATIVE DEMO DATA[^)]*\) Tj/g) || []).length;
+  t.assert(marks >= pages, `every page carries the demo watermark (${marks} on ${pages} pages)`);
+  t.assert(/^Title:\s+\S/m.test(info.stdout || ''), 'the PDF has a title');
+  const pdfText = nb(spawnSync('pdftotext', ['-layout', '-enc', 'UTF-8', pdfFile.pathname, '-'], { encoding: 'utf8' }).stdout || '');
+  t.assert(pdfText.includes('YES-STM-202609-000184') && pdfText.includes('1,147.50 EXUSD'), 'selectable text: statement ID and closing balance');
+  const refs = await state(() => YES.data.transactions.map((x) => x.reference));
+  t.eq(refs.filter((r) => !pdfText.includes(r)), [], 'every transaction reference is in the PDF (posted and not in balance)');
+  t.eq(t.external.filter((u) => !/cdn\.userway\.org/.test(u)), [], 'making the PDF requested nothing from the network');
+
   t.step('12. export CSV (complete record and current view)');
+  await go('transactions');
   const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 5000 }), page.click('[data-fk="tx-csv-all"]')]);
   t.eq(dl.suggestedFilename(), 'YES-STM-202609-000184_complete-record_DEMO.csv', 'complete-record file name');
   const csv = readFileSync(await dl.path(), 'utf8').replace(/^﻿/, '');
@@ -380,8 +427,7 @@ export default async function (t) {
   t.assert(rows.every((r) => r[iCls] === 'ILLUSTRATIVE_DEMO_DATA'), 'every CSV row marked illustrative');
   t.assert(csv.includes(NORTHSIDE) && csv.includes('Northside Market'), 'Northside Market row exported');
   // Current view: apply the journey step through the UI, then export the view.
-  await page.click('.nav__link[data-nav="overview"]');
-  await waitFor(() => YES.state.view === 'overview');
+  await go('overview');
   await page.click('#ov-panel [data-ov-show]');
   await waitFor(() => YES.state.view === 'transactions' && YES.state.filters.step === 'transfers_out');
   t.eq(nb(await text('#tx-results-title')), 'Showing 5 of 16 transactions', 'filter reports its result count');
@@ -393,6 +439,31 @@ export default async function (t) {
   await waitFor(() => ['unavailable', 'loaded', 'host', 'disabled'].includes(YES.userway.status), null, 12000);
   t.eq(await state(() => YES.userway.status), 'unavailable', 'widget reported unavailable offline');
   t.assert(t.external.length <= 1, 'at most one external request attempted (UserWay)');
+
+  t.step('13b. light/dark: the whole statement reads in dark, chosen in the header');
+  await openMenu();
+  const darkBtn = page.getByRole('button', { name: 'Dark mode', exact: true });
+  t.eq(await darkBtn.count(), 1, 'one "Dark mode" toggle in the header' + (mobile ? ' menu' : ''));
+  // A dark device (run.mjs --color-scheme dark) starts dark: choose light first,
+  // so it is the header's toggle that turns the statement dark below.
+  if ((await state(() => document.documentElement.getAttribute('data-theme'))) === 'dark') {
+    await darkBtn.click();
+    await waitFor(() => document.documentElement.getAttribute('data-theme') === 'light');
+  }
+  await darkBtn.click();
+  await waitFor(() => document.documentElement.getAttribute('data-theme') === 'dark');
+  t.eq(await darkBtn.getAttribute('aria-pressed'), 'true', 'the toggle is pressed');
+  await closeMenu();
+  for (const v of ['overview', 'transactions', 'understand', 'help']) {
+    await go(v);
+    await settle();
+    await axeDoc('dark theme, ' + v);
+    await t.shot('13-dark-' + v);
+  }
+  await openMenu();
+  await darkBtn.click();
+  await waitFor(() => document.documentElement.getAttribute('data-theme') === 'light');
+  await closeMenu();
 
   /* ================================================================== */
   // §9 Discoverability: from the first screen, reach EVERY transaction in at most

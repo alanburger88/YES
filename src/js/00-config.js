@@ -72,7 +72,13 @@
       enabled: true,
       accountId: 'B3W9A2mgGs',
       src: 'https://cdn.userway.org/widget.js',
-      timeoutMs: 8000
+      timeoutMs: 8000,
+      /* Launcher corner, UserWay's data-position attribute:
+         1 top right · 2 middle right · 3 bottom right · 4 bottom middle ·
+         5 bottom left · 6 middle left · 7 top left · 8 top middle.
+         Bottom left keeps it clear of the Ask YES drawer's close button
+         (top right) and of Ask YES / Menu in the masthead. */
+      position: 5
     },
 
     /* Reconciliation tolerance is zero: amounts are integer minor units. */

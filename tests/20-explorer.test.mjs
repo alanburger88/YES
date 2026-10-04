@@ -1,5 +1,6 @@
 // Transactions explorer: search, filters, sort, table/cards, detail dialog,
-// deep links, language switch, CSV export, print, accessibility.
+// deep links, language (the masthead is the only switch), CSV export, print,
+// Download PDF, light/dark themes, accessibility.
 import { readFileSync } from 'node:fs';
 
 export const meta = { name: 'explorer', viewports: ['desktop', 'mobile'], hash: '#/transactions' };
@@ -38,6 +39,19 @@ export default async function (t) {
   const clearAll = async () => {
     await page.evaluate(() => YES.explorer.clearFilters({ focus: false }));
     await waitCount('Showing all 16 transactions');
+  };
+  // The masthead is the only language switch (ARCHITECTURE rule 7). On phones it
+  // lives in the Menu; the first [data-lang] in the DOM is then the hidden
+  // desktop switch, so always go through the visible one.
+  const headerLang = async (l) => {
+    if (mobile) {
+      await page.click('#masthead [data-mast-menu]');
+      await page.click(`#mast-menu [data-lang="${l}"]`);
+      await page.keyboard.press('Escape');
+    } else {
+      await page.click(`#masthead .mast-wide [data-lang="${l}"]`);
+    }
+    await page.waitForFunction((x) => YES.i18n.lang === x, l, { timeout: 3000 });
   };
   // A real page load (t.goto with only a new hash is a same-document navigation).
   const fresh = async (hash) => {
@@ -358,7 +372,8 @@ export default async function (t) {
   const demoTag = page.locator('#tx-dialog .tx-dlg__demo .tag--illustrative');
   t.assert(await demoTag.isVisible(), 'detail is visibly marked as demo data');
   t.eq((await demoTag.innerText().then(nbsp)).trim(), 'Illustrative demo data', 'demo tag wording');
-  t.eq(await page.locator('#tx-dialog [data-lang]').count(), 2, 'the detail has its own language switch');
+  t.eq(await page.locator('#tx-dialog [data-lang]').count(), 0, 'no language switch in the detail: the masthead is the only one');
+  t.eq(await page.locator('#tx-dialog').getByRole('button', { name: /^(English|Español|EN|ES)$/ }).count(), 0, 'no language buttons by name either');
   t.eq(await page.locator('#tx-dialog [data-txd-copy]').count(), 2, 'copy buttons for reference and id');
   await page.click('[data-txd-copy="ref"]');
   await page.waitForFunction(() => /Copied|Copy is not available/.test(document.getElementById('toast').textContent), null, { timeout: 3000 });
@@ -371,7 +386,7 @@ export default async function (t) {
   await page.waitForFunction(() => location.hash === '#/transactions', null, { timeout: 2000 }).catch(() => {});
   t.eq(await page.evaluate(() => location.hash), '#/transactions', 'route param cleared on close');
   t.eq(await page.evaluate(() => YES.state.selectedTx), null, 'selectedTx cleared');
-  t.eq(await page.locator('#tx-dialog [data-lang]').count(), 0, 'no stale controls left in the closed dialog');
+  t.eq(await page.locator('#tx-dialog button').count(), 0, 'no stale controls left in the closed dialog');
 
   t.step('browser Back closes the detail and stays in the list');
   await page.click('[data-tx-row="TX-260909-2051"] [data-tx-open]', { force: true });
@@ -583,27 +598,41 @@ export default async function (t) {
   t.assert(!(await dialogOpen()), 'closed');
 
   /* ------------------------------------------------------------------ */
-  t.step('language switch keeps filters, sort and the open dialog');
+  t.step('the detail follows the masthead language; filters and the row survive a switch');
   await fresh('#/transactions');
   await page.evaluate(() => YES.explorer.applyFilter({ step: 'transfers_out' }, { reset: true }));
   await page.click('[data-tx-row="TX-260903-1127"] [data-tx-open]', { force: true });
   await page.waitForFunction(() => document.getElementById('tx-dialog').open);
-  // The masthead is inert behind the modal: the detail's own switch is the way.
-  const esBtn = page.locator('#tx-dialog').getByRole('button', { name: 'Español', exact: true });
-  t.eq(await esBtn.count(), 1, 'dialog language button named "Español"');
-  await esBtn.click();
-  await page.waitForFunction(() => YES.i18n.lang === 'es');
-  t.assert(await dialogOpen(), 'dialog still open after switching language');
-  t.eq(await page.evaluate(() => YES.state.selectedTx), 'TX-260903-1127', 'same transaction selected');
-  t.eq(await activeFk(), 'txd-lang-es', 'focus stays on the language control');
-  t.eq(await page.getAttribute('#tx-dialog [data-lang="es"]', 'aria-pressed'), 'true', 'Spanish pressed');
-  t.eq((await page.locator('#tx-dialog-title').innerText().then(nbsp)).trim(), 'Transferencia a otro cliente de YES', 'dialog re-rendered in Spanish');
-  const esDlg = await page.locator('#tx-dialog').innerText().then(nbsp);
-  t.assert(esDlg.includes('−120,00 EXUSD') && esDlg.includes('Preguntar por este movimiento'), 'Spanish amounts and actions');
+  t.eq(await page.locator('#tx-dialog [data-lang]').count(), 0, 'the detail has no language switch of its own');
+  // A programmatic switch while it is open re-renders it in place, on the same
+  // transaction, with focus kept on the same control.
+  await page.focus('#tx-dialog [data-fk="txd-close"]');
+  await page.evaluate(() => YES.setLang('es'));
+  t.assert(await dialogOpen(), 'still open after YES.setLang');
+  t.eq(await page.evaluate(() => YES.state.selectedTx), 'TX-260903-1127', 'same transaction after YES.setLang');
+  t.eq((await page.locator('#tx-dialog-title').innerText().then(nbsp)).trim(), 'Transferencia a otro cliente de YES', 're-rendered in Spanish in place');
+  t.eq(await activeFk(), 'txd-close', 'focus kept on the close button');
+  t.eq(await page.locator('#tx-dialog [data-lang]').count(), 0, 'still no switch after a re-render');
+  await page.evaluate(() => YES.setLang('en'));
+  t.eq((await page.locator('#tx-dialog-title').innerText().then(nbsp)).trim(), 'Transfer to another YES customer', 'and back to English in place');
+  // The customer's way: close the detail, switch in the masthead (the phone
+  // Menu), reopen the same row. The page behind the modal is inert meanwhile.
+  await page.click('#tx-dialog [data-txd-close]');
+  await waitClosed();
+  await expectFocus('tx-open-TX-260903-1127', 'closing returns focus to the row');
+  await headerLang('es');
   t.eq(await page.evaluate(() => YES.state.filters.step), 'transfers_out', 'filters kept in state');
   t.eq(await count(), 'Mostrando 5 de 16 movimientos', 'Spanish count, same filter');
   t.assert((await page.locator('[data-tx-total]').innerText().then(nbsp)).includes('−450,00 EXUSD'), 'Spanish filtered total 450,00');
   t.eq((await page.locator('[data-tx-chip="step"]').innerText().then(nbsp)).trim(), 'Paso: Transferencias enviadas', 'Spanish chip');
+  t.assert(await page.locator('[data-tx-row="TX-260903-1127"]').isVisible(), 'the same row is still in the list');
+  await page.click('[data-tx-row="TX-260903-1127"] [data-tx-open]', { force: true });
+  await page.waitForFunction(() => document.getElementById('tx-dialog').open);
+  t.eq(await page.evaluate(() => YES.state.selectedTx), 'TX-260903-1127', 'same transaction reopened');
+  t.eq((await page.locator('#tx-dialog-title').innerText().then(nbsp)).trim(), 'Transferencia a otro cliente de YES', 'reopened in the language chosen in the masthead');
+  const esDlg = await page.locator('#tx-dialog').innerText().then(nbsp);
+  t.assert(esDlg.includes('−120,00 EXUSD') && esDlg.includes('Preguntar por este movimiento'), 'Spanish amounts and actions');
+  t.eq(await page.locator('#tx-dialog [data-lang]').count(), 0, 'still no language switch in the Spanish detail');
   t.eq(await page.evaluate(() => YES.i18n.audit()), {}, 'i18n parity after switch');
   // WCAG 3.1.2: the customer's own memo is not translated, so it keeps the statement's language.
   t.eq(await page.evaluate(() => [...document.querySelectorAll('#tx-dialog .tx-kv span[lang], [data-tx-row="TX-260903-1127"] .tx-memo span[lang]')].map((e) => e.getAttribute('lang') + ':' + e.textContent)), ['en:Rent share', 'en:Rent share'], 'memo marked lang="en" in the Spanish detail and row');
@@ -614,7 +643,7 @@ export default async function (t) {
   await seriousAxe('#tx-dialog', 'Spanish detail dialog');
   await page.keyboard.press('Escape');
   await waitClosed();
-  await expectFocus('tx-open-TX-260903-1127', 'focus returns to the re-rendered row');
+  await expectFocus('tx-open-TX-260903-1127', 'focus returns to the row');
   t.eq((await page.locator('#h-transactions').innerText().then(nbsp)).trim(), 'Movimientos', 'Spanish h1');
   await t.shot('es-list');
 
@@ -686,6 +715,79 @@ export default async function (t) {
   await page.click('[data-fk="tx-print"]');
   t.eq(await page.evaluate(() => window.__printed), 1, 'Print statement calls window.print()');
 
+  t.step('Download PDF statement: next to Print, built by the help module');
+  // The statement-of-record PDF is composed by YES.help.downloadPdf (60-help.js).
+  // The isolated explorer build has no help module: then there is no dead
+  // button and the copy promises CSV only; a stand-in API brings the button.
+  const realPdf = await page.evaluate(() => typeof (YES.help && YES.help.downloadPdf) === 'function');
+  if (realPdf) {
+    const [pdl] = await Promise.all([page.waitForEvent('download', { timeout: 8000 }), page.click('[data-fk="tx-pdf"]')]);
+    t.assert(/^YES-statement-.*202609-000184.*-DEMO\.pdf$/.test(pdl.suggestedFilename()), 'PDF filename ' + pdl.suggestedFilename());
+    t.eq(readFileSync(await pdl.path()).subarray(0, 8).toString('latin1'), '%PDF-1.4', 'a real PDF file');
+  } else {
+    t.eq(await page.locator('[data-tx-pdf]').count(), 0, 'no PDF button without YES.help.downloadPdf');
+    t.assert(!(await page.locator('.tx-export__body').innerText()).includes('PDF'), 'the copy does not promise a PDF');
+    t.eq(await page.$$eval('.tx-export__actions .btn', (els) => els.map((e) => e.getAttribute('data-fk'))), ['tx-print', 'tx-csv-all', 'tx-csv-view'], 'Print, then the CSV files');
+  }
+  // Count calls with a stand-in (the real one stays on window.__realPdf for the full build).
+  await page.evaluate(() => {
+    window.__pdfCalls = 0;
+    window.__realPdf = YES.help.downloadPdf || null;
+    YES.help.downloadPdf = function () {
+      window.__pdfCalls++;
+    };
+    YES.renderAll();
+  });
+  const pdfBtn = page.locator('#transactions-root').getByRole('button', { name: 'Download PDF statement', exact: true });
+  t.eq(await pdfBtn.count(), 1, 'one "Download PDF statement" button');
+  t.eq(await page.$$eval('.tx-export__actions .btn', (els) => els.map((e) => e.getAttribute('data-fk'))), ['tx-print', 'tx-pdf', 'tx-csv-all', 'tx-csv-view'], 'Print and PDF (the statement of record), then the CSV files');
+  t.assert((await page.locator('.tx-export__body').innerText()).includes('save it as a PDF'), 'the copy names the PDF');
+  t.eq(await page.$eval('[data-fk="tx-pdf"] svg', (e) => e.getAttribute('aria-hidden')), 'true', 'icon is decorative');
+  await pdfBtn.click();
+  t.eq(await page.evaluate(() => window.__pdfCalls), 1, 'click calls YES.help.downloadPdf() once');
+  await page.focus('[data-fk="tx-pdf"]');
+  await page.keyboard.press('Enter');
+  t.eq(await page.evaluate(() => window.__pdfCalls), 2, 'Enter works too');
+  t.eq(await activeFk(), 'tx-pdf', 'focus stays on the button');
+  const exp = await page.evaluate(() => {
+    const box = (fk) => document.querySelector(`[data-fk="${fk}"]`).getBoundingClientRect();
+    const a = document.querySelector('.tx-export__actions').getBoundingClientRect();
+    const [pr, pdf, all, view] = ['tx-print', 'tx-pdf', 'tx-csv-all', 'tx-csv-view'].map(box);
+    return {
+      pairs: Math.abs(pr.top - pdf.top) < 2 && Math.abs(all.top - view.top) < 2 && all.top > pr.bottom - 1 && Math.abs(pr.left - all.left) < 2 && Math.abs(pdf.left - view.left) < 2,
+      stacked: [pr, pdf, all, view].every((r, i, l) => i === 0 || r.top >= l[i - 1].bottom - 1),
+      fullWidth: [pr, pdf, all, view].every((r) => Math.abs(r.width - a.width) < 2),
+      startAligned: [pr, pdf, all, view].every((r) => Math.abs(r.left - pr.left) < 2),
+      minH: Math.min(pr.height, pdf.height, all.height, view.height),
+      inside: [pr, pdf, all, view].every((r) => r.right <= a.right + 1)
+    };
+  });
+  if (mobile) {
+    t.assert(exp.stacked && exp.fullWidth, 'phone: one full-width list ' + JSON.stringify(exp));
+    t.assert(exp.minH >= 44, 'phone: 44px targets');
+    t.eq(await page.$eval('[data-fk="tx-pdf"]', (e) => getComputedStyle(e).justifyContent), 'flex-start', 'phone: icons and labels start at the same edge');
+  } else {
+    t.assert(exp.pairs, 'desktop: Print + PDF on one row, the two CSV files below, in columns ' + JSON.stringify(exp));
+  }
+  t.assert(exp.inside, 'buttons stay inside the card');
+  await page.evaluate(() => document.querySelector('.tx-export').scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(200);
+  await t.shot('export');
+  await page.evaluate(() => YES.setLang('es'));
+  t.eq((await page.locator('[data-fk="tx-pdf"]').innerText().then(nbsp)).trim(), 'Descargar estado de cuenta en PDF', 'Spanish label');
+  t.assert((await page.locator('.tx-export__body').innerText()).includes('guárdalo en PDF'), 'Spanish copy names the PDF');
+  t.assert(await noHScroll(), 'Spanish: no horizontal scroll');
+  t.eq(await page.evaluate(() => YES.i18n.audit()), {}, 'i18n parity with the PDF strings');
+  await page.evaluate(() => YES.setLang('en'));
+  // The full build keeps its real API; the isolated build keeps the stand-in so
+  // the accessibility checks below cover the button.
+  await page.evaluate(() => {
+    if (window.__realPdf) {
+      YES.help.downloadPdf = window.__realPdf;
+      YES.renderAll();
+    }
+  });
+
   /* ------------------------------------------------------------------ */
   t.step('accessibility of the view');
   await clearAll();
@@ -740,7 +842,7 @@ export default async function (t) {
     await t.shot('chips');
     await clearAll();
 
-    t.step('phone detail: compact footer, language switch in the header');
+    t.step('phone detail: compact footer; the header is the eyebrow and Close (no language switch)');
     await page.evaluate(() => YES.explorer.openTx('TX-260909-2051'));
     await page.waitForTimeout(350);
     const parts = await page.evaluate(() => {
@@ -750,18 +852,35 @@ export default async function (t) {
     });
     t.assert(parts.foot <= 130, 'footer is two rows: ' + JSON.stringify(parts));
     t.assert(parts.body >= parts.vh * 0.55, 'details get most of the sheet: ' + JSON.stringify(parts));
-    t.assert(await page.locator('#tx-dialog [data-lang="es"]').isVisible(), 'language switch visible on the sheet');
+    t.eq(await page.locator('#tx-dialog [data-lang]').count(), 0, 'no language switch on the sheet');
+    const head = await page.evaluate(() => {
+      const d = document.getElementById('tx-dialog');
+      const r = (s) => d.querySelector(s).getBoundingClientRect();
+      const eb = r('.tx-dlg__eyebrow');
+      const cl = r('[data-txd-close]');
+      const ti = r('#tx-dialog-title');
+      const hd = r('.dlg__head');
+      return { sameRow: cl.top < eb.bottom && cl.bottom > eb.top, w: cl.width, h: cl.height, edge: hd.right - cl.right, title: ti.width / hd.width, below: ti.top >= eb.bottom - 1 };
+    });
+    t.assert(head.sameRow && head.below, 'Close beside the eyebrow, the title below: ' + JSON.stringify(head));
+    t.assert(head.w >= 44 && head.h >= 44, '44px Close target: ' + JSON.stringify(head));
+    t.assert(head.edge <= 16, 'Close at the end of the header: ' + JSON.stringify(head));
+    t.assert(head.title >= 0.8, 'the title gets the full width: ' + JSON.stringify(head));
     t.assert(await page.locator('#tx-dialog .tag--illustrative').first().isVisible(), 'demo tag visible on the sheet');
     await t.shot('sheet');
-    await page.click('#tx-dialog [data-lang="es"]');
-    await page.waitForFunction(() => YES.i18n.lang === 'es');
-    t.assert(await dialogOpen(), 'sheet stays open in Spanish');
-    await page.waitForTimeout(200);
-    await t.shot('sheet-es');
-    await page.click('#tx-dialog [data-lang="en"]');
-    await page.waitForFunction(() => YES.i18n.lang === 'en');
-    await page.click('[data-txd-close]');
+    // To change language on a phone: close the sheet, use the Menu, reopen.
+    await page.click('#tx-dialog [data-txd-close]');
     await waitClosed();
+    await headerLang('es');
+    t.eq(await page.getAttribute('#masthead [data-mast-menu]', 'aria-expanded'), 'false', 'Menu closed again');
+    await page.evaluate(() => YES.explorer.openTx('TX-260909-2051'));
+    await page.waitForTimeout(350);
+    t.eq((await page.locator('#tx-dialog-title').innerText().then(nbsp)).trim(), 'Envío a un monedero externo en una red blockchain', 'sheet reopened in Spanish');
+    t.assert(nbsp(await page.locator('#tx-dialog').innerText()).includes('−200,00 EXUSD'), 'Spanish amount on the sheet');
+    await t.shot('sheet-es');
+    await page.click('#tx-dialog [data-txd-close]');
+    await waitClosed();
+    await headerLang('en');
 
     t.step('narrow 320px');
     await page.setViewportSize({ width: 320, height: 640 });
@@ -859,19 +978,75 @@ export default async function (t) {
   }
   t.assert(await noHScroll(), 'no horizontal scroll at the end');
 
-  t.step('dark colour scheme');
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await page.evaluate(() => YES.explorer.applyFilter({ step: 'outgoing' }, { reset: true }));
-  await page.waitForTimeout(900); // let the smooth scroll to the results settle
-  await t.shot('dark-list');
-  await seriousAxe('#view-transactions', 'transactions view (dark)');
-  await page.evaluate(() => YES.explorer.openTx('TX-260909-2051'));
-  await page.waitForTimeout(300);
-  await t.shot('dark-dialog');
-  await seriousAxe('#tx-dialog', 'detail dialog (dark)');
-  await page.keyboard.press('Escape');
-  await waitClosed();
+  t.step('themes: dark (device or choice) and light on a dark device, all from the design tokens');
+  // Surfaces and ink must come from the tokens, so they follow whichever theme
+  // is on screen. Tokens are resolved through a probe element in the live theme.
+  const themeCheck = (dialog) =>
+    page.evaluate((dlg) => {
+      const p = document.createElement('div');
+      p.style.cssText = 'position:absolute;width:1px;height:1px';
+      (dlg ? document.getElementById('tx-dialog') : document.body).appendChild(p);
+      const tok = (v, prop) => {
+        p.style.setProperty(prop, v.startsWith('--') ? `var(${v})` : v);
+        const c = getComputedStyle(p)[prop === 'color' ? 'color' : 'backgroundColor'];
+        p.style.removeProperty(prop);
+        return c;
+      };
+      const cs = (sel) => {
+        const e = document.querySelector(sel);
+        return e ? getComputedStyle(e) : null;
+      };
+      const pairs = dlg
+        ? [
+            ['#tx-dialog', 'backgroundColor', '--surface', 'background-color'],
+            // The pending hero is the warning wash mixed into the surface (20-explorer.css).
+            ['#tx-dialog .tx-dlg__hero--pending', 'backgroundColor', 'color-mix(in srgb, var(--warn-wash) 70%, var(--surface))', 'background-color'],
+            ['#tx-dialog .tx-notin', 'color', '--warn', 'color'],
+            ['#tx-dialog-title', 'color', '--ink', 'color'],
+            ['#tx-dialog .tx-dlg__eyebrow', 'color', '--muted', 'color']
+          ]
+        : [
+            ['#transactions-root .tx-export', 'backgroundColor', '--surface', 'background-color'],
+            ['#transactions-root .tx-open', 'color', '--ink', 'color'],
+            ['#transactions-root .tx-total', 'color', '--ink-2', 'color'],
+            [document.querySelector('.tx-table-wrap') ? '#transactions-root .tx-row:not(.tx-row--pending) .tx-balance' : '#transactions-root .tx-card:not(.tx-card--pending)', document.querySelector('.tx-table-wrap') ? 'color' : 'backgroundColor', document.querySelector('.tx-table-wrap') ? '--ink-2' : '--surface', document.querySelector('.tx-table-wrap') ? 'color' : 'background-color']
+          ];
+      const off = pairs.filter(([sel, prop, token, cssProp]) => {
+        const c = cs(sel);
+        return !c || c[prop] !== tok(token, cssProp);
+      }).map(([sel, prop, token]) => `${sel} ${prop} != ${token}`);
+      const out = { theme: document.documentElement.getAttribute('data-theme'), surface: tok('--surface', 'background-color'), scheme: getComputedStyle(document.documentElement).colorScheme, off };
+      p.remove();
+      return out;
+    }, dialog);
+  const themePass = async (label, scheme, choice, expect, shots) => {
+    await page.mouse.move(0, 0); // no row left hovered (hover tints the title on purpose)
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.evaluate((c) => YES.theme.set(c), choice);
+    await page.evaluate(() => YES.explorer.applyFilter({ step: 'outgoing' }, { reset: true }));
+    await page.waitForTimeout(900); // let the smooth scroll to the results settle
+    const v = await themeCheck(false);
+    t.eq(v.theme, expect, `${label}: html[data-theme]`);
+    t.eq(v.off, [], `${label}: view colours come from the tokens`);
+    t.assert(expect === 'dark' ? v.surface !== 'rgb(255, 255, 255)' : v.surface === 'rgb(255, 255, 255)', `${label}: ${expect} surface (${v.surface})`);
+    if (shots) await t.shot(shots + '-list');
+    await seriousAxe('#view-transactions', `transactions view (${label})`);
+    await page.evaluate(() => YES.explorer.openTx('TX-260930-2247')); // pending: warning colours too
+    await page.waitForTimeout(300);
+    const d = await themeCheck(true);
+    t.eq(d.off, [], `${label}: detail colours come from the tokens`);
+    if (shots) await t.shot(shots + '-dialog');
+    await seriousAxe('#tx-dialog', `detail dialog (${label})`);
+    await page.keyboard.press('Escape');
+    await waitClosed();
+  };
+  await themePass('dark device', 'dark', null, 'dark', 'dark');
+  await themePass('dark choice on a light device', 'light', 'dark', 'dark', mobile ? 'dark-choice' : null);
+  await themePass('light choice on a dark device', 'dark', 'light', 'light', 'light-on-dark');
+  t.eq(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), 'light', 'light choice: native controls are light too');
+  await page.evaluate(() => YES.theme.set(null)); // forget the choice (localStorage) before the next page load
   await page.emulateMedia({ colorScheme: 'light' });
+  await clearAll();
 
   t.step('date chips name the chosen day in any statement timezone');
   await fresh('#/transactions');

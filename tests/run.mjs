@@ -5,6 +5,8 @@
  *   node tests/run.mjs                 run every tests/*.test.mjs
  *   node tests/run.mjs --only explorer run test files whose name contains "explorer"
  *   node tests/run.mjs --file dist/other.html
+ *   node tests/run.mjs --color-scheme dark   run every page with a dark device
+ *                                            setting (the statement follows it)
  *
  * Every page runs OFFLINE: all non-file:// requests are aborted and recorded.
  * The only external request the statement may attempt is the UserWay widget.
@@ -70,7 +72,7 @@ for (const f of files) {
       hasTouch: !!vp.hasTouch,
       deviceScaleFactor: vp.deviceScaleFactor || 1,
       reducedMotion: meta.reducedMotion ? 'reduce' : 'no-preference',
-      colorScheme: meta.colorScheme || 'light',
+      colorScheme: opt('--color-scheme') || meta.colorScheme || 'light',
       locale: meta.locale || 'en-US',
       timezoneId: meta.timezoneId || 'America/Los_Angeles',
       acceptDownloads: true

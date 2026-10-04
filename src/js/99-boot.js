@@ -1,6 +1,7 @@
 /*
- * Boot: apply brand slots, choose language, run the release gate, initialise
- * modules, resolve the initial route and load connected enhancements.
+ * Boot: apply the light/dark theme and brand slots, choose language, run the
+ * release gate, initialise modules, resolve the initial route and load
+ * connected enhancements.
  */
 (function (root) {
   'use strict';
@@ -29,6 +30,8 @@
   }
 
   function boot() {
+    // Light/dark before anything renders (also applied as 04-core.js loads).
+    YES.theme.init();
     applyBrandSlots();
 
     // Showcase-only integrity preview: #/overview?simulate=mismatch

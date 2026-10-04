@@ -6,7 +6,9 @@
  * implementation; the widget only augments it. If the widget cannot load
  * (offline, blocked, timed out) the status becomes 'unavailable' and nothing
  * else changes. If the hosting viewer (e.g. InfoSlips) already provides
- * UserWay, the loader detects it and does not add a second launcher.
+ * UserWay, the loader detects it and does not add a second launcher. The
+ * launcher sits in the corner named by config.userway.position (data-position;
+ * 5 = bottom left), away from the assistant drawer's close button.
  *
  * Status values: idle | disabled | host | loading | loaded | unavailable
  */
@@ -43,6 +45,8 @@
     s.src = cfg.src;
     s.async = true;
     s.setAttribute('data-account', cfg.accountId);
+    // Launcher corner (config: 5 = bottom left, clear of the Ask YES drawer's close).
+    if (cfg.position) s.setAttribute('data-position', String(cfg.position));
     s.setAttribute('data-yes-userway', '');
     var timer = setTimeout(function () {
       if (uw.status === 'loading') set('unavailable');

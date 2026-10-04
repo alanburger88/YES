@@ -12,6 +12,15 @@
     <style>
 /*{{CSS}}*/
     </style>
+    <script>
+      /* The visitor's light/dark choice before the first paint (YES.theme in 04-core.js owns it; print is always light). */
+      (function () {
+        try {
+          var theme = localStorage.getItem('yes.theme');
+          if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to statement</a>

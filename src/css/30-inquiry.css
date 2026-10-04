@@ -30,10 +30,11 @@
   margin-left: calc(-1 * var(--s3));
 }
 /*
- * Back to transaction takes the room the language switch and Close leave, up
- * to its one-line width. On a narrow sheet its label takes two lines, next to
- * its arrow; with very large text, the switch and Close move to a row of their
- * own instead of running off the screen.
+ * Back to transaction on the left, Close on the right. There is no language
+ * switch: the inquiry uses the language chosen in the masthead (ARCHITECTURE
+ * rule 7). Back takes the room Close leaves, up to its one-line width; with
+ * very large text its label wraps next to its arrow, and Close moves to a row
+ * of its own rather than running off the screen.
  */
 .btn.inq-head__back {
   flex: 1 1 0%;
@@ -44,25 +45,9 @@
   justify-content: flex-start;
   text-align: left;
 }
-/* Language switch + close: the page behind the modal is inert, so the inquiry
-   carries its own switch (the same pair as the transaction detail and the
-   assistant drawer). */
-.inq-head__tools {
-  display: flex;
-  align-items: center;
-  gap: var(--s1);
-  flex-shrink: 0;
-  margin-left: auto;
-}
-.inq-head__tools .seg {
-  padding: 2px;
-}
-.inq-head__tools .seg__btn {
-  min-height: 44px; /* a full touch target, like every control in the dialog */
-  padding: 0 10px;
-}
 .inq-head__close {
   flex-shrink: 0;
+  margin-left: auto;
 }
 .inq-head__titlebar {
   display: flex;
@@ -74,6 +59,11 @@
 .dlg__title.inq-head__title {
   flex: 0 1 auto;
   margin: 0;
+}
+/* The demo tag wraps (rather than being cut off by the sheet) with very large text. */
+.inq-head__titlebar .tag {
+  max-width: 100%;
+  white-space: normal;
 }
 .steps.inq-steps {
   margin: var(--s3) var(--s3) 0 0;
@@ -588,9 +578,10 @@ fieldset.inq-group > .inq-hint {
 
 /* ------------------------------------------------------- Small screens */
 @media (max-width: 719px) {
+  /* 8px above and right of Close: its 5px focus ring stays inside the sheet (which clips). */
   .dlg__head.inq-head {
     gap: 2px;
-    padding: var(--s1) var(--s2) var(--s3) var(--s4);
+    padding: var(--s2) var(--s2) var(--s3) var(--s4);
   }
   .inq-head__titlebar {
     gap: var(--s2);
