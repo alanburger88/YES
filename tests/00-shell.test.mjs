@@ -127,6 +127,16 @@ export default async function (t) {
     t.eq((await page.locator('.btn--record .btn__label--short').innerText()).trim(), 'Download', '1000px: "Download" shown');
     t.eq(await page.getByRole('button', { name: 'Download or print', exact: true }).count(), 1, 'its name is still "Download or print" (contains the visible word)');
     await page.setViewportSize({ width: 1280, height: 900 });
+    // The language switch looks the same in every language at a given width:
+    // Spanish shows the full names and the globe too (the longer Spanish demo
+    // badge moves to the band instead), and keeps "Descargar o imprimir" whole.
+    await setLang('es');
+    await page.waitForTimeout(150);
+    t.eq(await page.locator('.mast-wide [data-lang="en"] .seg__long').isVisible(), true, '1280px Spanish: full language names, as in English');
+    t.eq(await page.locator('.mast-wide .seg__icon').isVisible(), true, '1280px Spanish: globe icon, as in English');
+    t.eq(await page.locator('.mast-wide [data-lang="es"] .seg__short').isVisible(), false, '1280px Spanish: no "EN/ES" codes');
+    t.eq(await page.locator('.btn--record .btn__label:not(.btn__label--short)').isVisible(), true, '1280px Spanish: "Descargar o imprimir" in full');
+    await setLang('en');
   }
   await axeBad('first screen');
   if (!mobile) {

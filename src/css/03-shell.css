@@ -6,9 +6,10 @@
  * moves to the roomier layouts instead of overflowing:
  *   ≥ 68em (1088px)  one row: brand · demo badge · language · light/dark ·
  *                    Download or print · Ask YES, then the section tabs.
- *                    Languages other than English (longer) use the compact
- *                    switch (EN/ES) and put the demo badge in the band
- *                    described below, so "Descargar o imprimir" stays whole.
+ *                    Languages other than English (longer) put the demo
+ *                    badge in the band described below, so the language
+ *                    switch (full names, as in English) and "Descargar o
+ *                    imprimir" stay whole.
  *   < 68em           the demo badge becomes a slim full-width band above the
  *                    brand row; the band scrolls away (negative sticky top,
  *                    set from 05-shell.js) and only the brand row and the
@@ -227,28 +228,10 @@
   }
 }
 /* Other languages run longer than English (Spanish needs about 200px more for
-   the same row): the compact switch and "Descargar" at every width. */
+   the same row). The language switch looks the same in every language at a
+   given width (full names here, EN/ES below 68em); instead the longer demo
+   badge moves out of the row. */
 @container mast (width >= 68em) {
-  /* Compact language switch: "EN"/"ES" shown, "English"/"Español" kept as each
-     button's accessible name (visually hidden, never display:none). */
-  html:not([lang|='en']) .mast-wide .seg--lang .seg__long {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    clip-path: inset(50%);
-    white-space: nowrap;
-    border: 0;
-  }
-  html:not([lang|='en']) .mast-wide .seg--lang .seg__short {
-    display: inline;
-  }
-  html:not([lang|='en']) .mast-wide .seg--lang .seg__icon {
-    display: none;
-  }
   /* The longer demo badge moves to the slim band above the brand row (as below
      68em), so the row keeps the full "Descargar o imprimir" label. */
   html:not([lang|='en']) .masthead__bar.has-demo {
