@@ -4110,7 +4110,7 @@
         'overview.video.cue.what': '{description}, del {date}.',
         'overview.video.cue.whatNone': 'Tu saldo se mantuvo en {closing}.',
         'overview.video.cue.select': 'Selecciona cualquier paso del recorrido del saldo.',
-        'overview.video.cue.rows': 'Aparecen sus movimientos, que suman justo ese importe.',
+        'overview.video.cue.rows': 'Aparecen sus movimientos, que suman ese importe.',
         'overview.video.cue.open': 'Abre uno para ver sus fechas, referencia y comisiones.',
         'overview.video.cue.actions': 'Desde ahí, usa Explicar con IA o Preguntar por este movimiento.',
         'overview.video.cue.help': '¿Dudas? Pregunta a YES o abre Ayuda para contactarnos.',

@@ -26,7 +26,7 @@
     "largest": { "caption": "Tu mayor movimiento individual fue de +250,00 EXUSD.", "voice": "Tu mayor movimiento individual sumó doscientas cincuenta unidades de token." },
     "what": { "caption": "Depósito desde cuenta bancaria vinculada, del 1 de septiembre de 2026.", "voice": "Un depósito desde tu cuenta bancaria vinculada, del uno de septiembre de dos mil veintiséis." },
     "select": { "caption": "Selecciona cualquier paso del recorrido del saldo.", "voice": "Selecciona cualquier paso del recorrido del saldo." },
-    "rows": { "caption": "Aparecen sus movimientos, que suman justo ese importe.", "voice": "Aparecen sus movimientos, que suman justo ese importe." },
+    "rows": { "caption": "Aparecen sus movimientos, que suman ese importe.", "voice": "Aparecen sus movimientos, que suman ese importe." },
     "open": { "caption": "Abre uno para ver sus fechas, referencia y comisiones.", "voice": "Abre uno para ver sus fechas, referencia y comisiones." },
     "actions": { "caption": "Desde ahí, usa Explicar con IA o Preguntar por este movimiento.", "voice": "Desde ahí, usa Explicar con IA o Preguntar por este movimiento." },
     "help": { "caption": "¿Dudas? Pregunta a YES o abre Ayuda para contactarnos.", "voice": "¿Dudas? Pregunta a YES o abre Ayuda para contactarnos." },

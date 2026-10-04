@@ -1,0 +1,230 @@
+{
+  "voice": {
+    "id": "EXAVITQu4vr4xnSDxMaL",
+    "name": "Sarah"
+  },
+  "model": "eleven_multilingual_v2",
+  "settings": {
+    "stability": 0.55,
+    "similarity_boost": 0.75,
+    "style": 0,
+    "use_speaker_boost": true
+  },
+  "speed": {
+    "en": 1,
+    "es": 1.06
+  },
+  "generatedAt": "2026-10-04T17:20:39.823Z",
+  "languages": {
+    "en": {
+      "file": "voiceover-en.mp3",
+      "scriptHash": "bfb71bee",
+      "duration": 60.03,
+      "cues": [
+        {
+          "id": "hello",
+          "at": 0,
+          "end": 1.5,
+          "clip": 0.967,
+          "tempo": 1
+        },
+        {
+          "id": "period",
+          "at": 1.5,
+          "end": 6.6,
+          "clip": 4.127,
+          "tempo": 1
+        },
+        {
+          "id": "opening",
+          "at": 6.6,
+          "end": 10.5,
+          "clip": 3.056,
+          "tempo": 1
+        },
+        {
+          "id": "incoming",
+          "at": 10.5,
+          "end": 13.1,
+          "clip": 2.42,
+          "tempo": 1.047
+        },
+        {
+          "id": "outgoing",
+          "at": 13.1,
+          "end": 18.2,
+          "clip": 4.493,
+          "tempo": 1
+        },
+        {
+          "id": "closing",
+          "at": 18.2,
+          "end": 24.5,
+          "clip": 5.094,
+          "tempo": 1
+        },
+        {
+          "id": "largest",
+          "at": 24.5,
+          "end": 29.1,
+          "clip": 3.892,
+          "tempo": 1
+        },
+        {
+          "id": "what",
+          "at": 29.1,
+          "end": 35,
+          "clip": 4.859,
+          "tempo": 1
+        },
+        {
+          "id": "select",
+          "at": 35,
+          "end": 38.2,
+          "clip": 2.508,
+          "tempo": 1
+        },
+        {
+          "id": "rows",
+          "at": 38.2,
+          "end": 41.7,
+          "clip": 3.32,
+          "tempo": 1.086
+        },
+        {
+          "id": "open",
+          "at": 41.7,
+          "end": 45.6,
+          "clip": 3.056,
+          "tempo": 1
+        },
+        {
+          "id": "actions",
+          "at": 45.6,
+          "end": 50.4,
+          "clip": 4.62,
+          "tempo": 1.023
+        },
+        {
+          "id": "help",
+          "at": 50.4,
+          "end": 54.5,
+          "clip": 3.762,
+          "tempo": 1
+        },
+        {
+          "id": "bye",
+          "at": 54.5,
+          "end": 59.3,
+          "clip": 2.821,
+          "tempo": 1
+        }
+      ]
+    },
+    "es": {
+      "file": "voiceover-es.mp3",
+      "scriptHash": "06bfd66f",
+      "duration": 60.03,
+      "cues": [
+        {
+          "id": "hello",
+          "at": 0,
+          "end": 1.5,
+          "clip": 0.784,
+          "tempo": 1
+        },
+        {
+          "id": "period",
+          "at": 1.5,
+          "end": 6.6,
+          "clip": 4.92,
+          "tempo": 1.083
+        },
+        {
+          "id": "opening",
+          "at": 6.6,
+          "end": 10.5,
+          "clip": 3.474,
+          "tempo": 1
+        },
+        {
+          "id": "incoming",
+          "at": 10.5,
+          "end": 13.1,
+          "clip": 2.403,
+          "tempo": 1
+        },
+        {
+          "id": "outgoing",
+          "at": 13.1,
+          "end": 18.2,
+          "clip": 4.859,
+          "tempo": 1
+        },
+        {
+          "id": "closing",
+          "at": 18.2,
+          "end": 24.5,
+          "clip": 5.381,
+          "tempo": 1
+        },
+        {
+          "id": "largest",
+          "at": 24.5,
+          "end": 29.1,
+          "clip": 4.42,
+          "tempo": 1.058
+        },
+        {
+          "id": "what",
+          "at": 29.1,
+          "end": 35,
+          "clip": 5.72,
+          "tempo": 1.028
+        },
+        {
+          "id": "select",
+          "at": 35,
+          "end": 38.2,
+          "clip": 2.926,
+          "tempo": 1
+        },
+        {
+          "id": "rows",
+          "at": 38.2,
+          "end": 41.7,
+          "clip": 3.32,
+          "tempo": 1.078
+        },
+        {
+          "id": "open",
+          "at": 41.7,
+          "end": 45.6,
+          "clip": 3.72,
+          "tempo": 1.032
+        },
+        {
+          "id": "actions",
+          "at": 45.6,
+          "end": 50.4,
+          "clip": 4.62,
+          "tempo": 1.046
+        },
+        {
+          "id": "help",
+          "at": 50.4,
+          "end": 54.5,
+          "clip": 3.527,
+          "tempo": 1
+        },
+        {
+          "id": "bye",
+          "at": 54.5,
+          "end": 59.3,
+          "clip": 2.926,
+          "tempo": 1
+        }
+      ]
+    }
+  }
+}

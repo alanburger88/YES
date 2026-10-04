@@ -48,6 +48,10 @@ const DIST = join(ROOT, 'dist', 'yes-statement.html');
 const API = 'https://api.elevenlabs.io/v1';
 const MODEL = 'eleven_multilingual_v2';
 const SETTINGS = { stability: 0.55, similarity_boost: 0.75, style: 0, use_speaker_boost: true };
+// ElevenLabs' own pacing per language (voice_settings.speed): Spanish runs longer
+// than English in the same caption windows, and a slightly quicker delivery
+// sounds more natural than speeding the audio up afterwards.
+const SPEED = { en: 1, es: 1.06 };
 const SEED = 20261004;
 const LEAD = 0.06; // seconds of air before each line
 const TAIL = 0.12; // seconds kept free before the next cue
@@ -83,8 +87,9 @@ async function api(path, init = {}) {
 }
 
 /** One line of speech as MP3 bytes, cached by everything that shapes it. */
-async function speak(voiceId, text, prev, next) {
-  const body = { text, model_id: MODEL, voice_settings: SETTINGS, seed: SEED };
+async function speak(voiceId, text, prev, next, lang) {
+  const speed = (lang && SPEED[lang]) || 1;
+  const body = { text, model_id: MODEL, voice_settings: speed === 1 ? SETTINGS : { ...SETTINGS, speed }, seed: SEED };
   if (prev) body.previous_text = prev;
   if (next) body.next_text = next;
   const id = createHash('sha256').update(JSON.stringify([voiceId, body])).digest('hex').slice(0, 24);
@@ -182,7 +187,7 @@ async function record() {
   const player = await playerScript();
   const name = opt('--name') || (await voiceName(voiceId));
   mkdirSync(MEDIA, { recursive: true });
-  const manifest = { voice: { id: voiceId, name: name }, model: MODEL, settings: SETTINGS, generatedAt: new Date().toISOString(), languages: {} };
+  const manifest = { voice: { id: voiceId, name: name }, model: MODEL, settings: SETTINGS, speed: SPEED, generatedAt: new Date().toISOString(), languages: {} };
 
   for (const lang of ['en', 'es']) {
     const { cues, hash, duration: total } = player[lang];
@@ -195,7 +200,7 @@ async function record() {
     const placed = [];
     for (let i = 0; i < lines.length; i++) {
       const c = lines[i];
-      const file = await speak(voiceId, c.voice, lines[i - 1] && lines[i - 1].voice, lines[i + 1] && lines[i + 1].voice);
+      const file = await speak(voiceId, c.voice, lines[i - 1] && lines[i - 1].voice, lines[i + 1] && lines[i + 1].voice, lang);
       const d = duration(file);
       const room = c.end - c.at - LEAD - TAIL;
       const tempo = d > room ? d / room : 1;

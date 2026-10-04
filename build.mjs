@@ -128,7 +128,13 @@ const KEEP_COMMENT = /^\/\* ---- [\w./-]+ ---- \*\/$/;
 const REGEX_AFTER_WORD = new Set(['return', 'typeof', 'case', 'do', 'else', 'in', 'instanceof', 'new', 'delete', 'void', 'throw', 'yield', 'await', 'of']);
 
 function minifyJs(src, tokens) {
-  let out = '';
+  // Output as a list of chunks: re-scanning one growing string at every line
+  // break is quadratic, which a packaged recording (a 1 MB+ string) makes slow.
+  const parts = [];
+  const lastChar = () => {
+    for (let k = parts.length - 1; k >= 0; k--) if (parts[k]) return parts[k][parts[k].length - 1];
+    return '';
+  };
   let i = 0;
   const n = src.length;
   let lastSig = ''; // last significant character emitted outside comments
@@ -136,12 +142,21 @@ function minifyJs(src, tokens) {
   const braces = []; // template-literal nesting: 'tpl' marks a ${ … } expression
   const isIdent = (c) => /[\w$]/.test(c);
   const emit = (s, token = true) => {
-    out += s;
+    parts.push(s);
     if (tokens && token && !/^\s+$/.test(s)) tokens.push(s);
   };
   const newline = () => {
-    out = out.replace(/[ \t]+$/, '');
-    if (!out.endsWith('\n')) out += '\n';
+    // Drop trailing spaces/tabs (possibly spread over several chunks), then end the line once.
+    while (parts.length) {
+      const k = parts.length - 1;
+      const trimmed = parts[k].replace(/[ \t]+$/, '');
+      if (trimmed) {
+        parts[k] = trimmed;
+        break;
+      }
+      parts.pop();
+    }
+    if (lastChar() !== '\n') parts.push('\n');
     while (i < n && (src[i] === ' ' || src[i] === '\t')) i++;
   };
   const regexAllowed = () => {
@@ -228,7 +243,7 @@ function minifyJs(src, tokens) {
       i = end + 2;
       if (KEEP_COMMENT.test(body)) emit(body, false);
       else if (body.includes('\n')) newline();
-      else if (isIdent(out.slice(-1)) && isIdent(src[i] || '')) emit(' ');
+      else if (isIdent(lastChar()) && isIdent(src[i] || '')) emit(' ');
       continue;
     }
     if (c === '"' || c === "'") {
@@ -289,7 +304,10 @@ function minifyJs(src, tokens) {
       lastWord = '';
     }
   }
-  return out.replace(/[ \t]+$/gm, '').replace(/^\n+/, '');
+  return parts
+    .join('')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/^\n+/, '');
 }
 
 function minifyCss(src) {
