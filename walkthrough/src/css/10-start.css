@@ -1,0 +1,218 @@
+/*
+ * 10-start.css — the start page (#/start). Owner: foundation.
+ */
+.wt-view[data-view='start'] {
+  padding-bottom: 0;
+}
+.wt-start__hero {
+  display: grid;
+  gap: var(--sp-6);
+  align-items: start;
+  padding-bottom: var(--sp-7);
+}
+@media (min-width: 960px) {
+  .wt-start__hero {
+    grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr);
+    gap: var(--sp-7);
+    padding-top: var(--sp-4);
+  }
+}
+.wt-start__intro h1 {
+  max-width: 16ch;
+  margin-bottom: var(--sp-5);
+}
+.wt-start__intro .wt-lead {
+  margin-bottom: var(--sp-5);
+}
+.wt-start__progress {
+  max-width: 440px;
+  margin: 0 0 var(--sp-5);
+}
+.wt-start__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3) var(--sp-5);
+  margin: 0 0 var(--sp-3);
+}
+.wt-start__meta {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-5);
+  color: var(--muted);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+}
+.wt-start__meta .wt-icon {
+  margin-top: 1px;
+}
+.wt-start__intro .wt-notice {
+  max-width: 64ch;
+  margin-bottom: 0;
+}
+
+/* About you */
+.wt-start__you .wt-card__title {
+  font-size: 1.25rem;
+}
+.wt-start__name {
+  margin: 0 0 var(--sp-3);
+}
+.wt-start__name .wt-field {
+  margin-bottom: 0;
+}
+.wt-start__privacy {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  margin: 0;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--fs-caption);
+}
+.wt-start__privacy .wt-icon {
+  margin-top: 1px;
+  color: var(--highlight);
+}
+
+/* How it works */
+.wt-start__how {
+  padding-block: var(--sp-7);
+}
+.wt-start__how h2 {
+  margin-bottom: var(--sp-5);
+}
+
+/* What you'll review */
+.wt-start__features {
+  padding-block: var(--sp-7) var(--sp-5);
+}
+.wt-start__features h2 {
+  margin-bottom: var(--sp-2);
+}
+.wt-start__features-intro {
+  margin-bottom: var(--sp-5);
+  color: var(--body);
+}
+.wt-start__groups {
+  display: grid;
+  gap: var(--sp-4);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  align-items: start;
+}
+.wt-start__group {
+  padding: var(--sp-4) var(--sp-4) var(--sp-2);
+}
+.wt-start__group-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-2);
+  font-size: 1.0625rem;
+  font-weight: 650;
+}
+.wt-start__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wt-start__feature {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  border-top: 1px solid var(--border);
+}
+.wt-start__feature:first-child {
+  border-top: 0;
+}
+.wt-start__feature-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--target);
+  padding: 6px 0;
+  color: var(--heading);
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 4px;
+}
+.wt-start__feature-link:hover {
+  color: var(--heading);
+}
+.wt-start__feature-link:hover .wt-start__feature-title {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+.wt-start__feature-n {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--control-border);
+  color: var(--body);
+  font-size: 0.75rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.wt-start__feature-title {
+  line-height: 1.3;
+}
+
+/* Results and data links */
+.wt-start__next {
+  padding-block: var(--sp-4) var(--sp-8);
+}
+.wt-start__links {
+  display: grid;
+  gap: var(--sp-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+}
+.wt-start__link {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+.wt-start__link-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--selected-bg);
+  color: var(--selected-text);
+}
+.wt-start__link-text {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 auto;
+}
+.wt-start__link-title {
+  color: var(--heading);
+  font-size: 1.125rem;
+  font-weight: 650;
+}
+.wt-start__link-desc {
+  color: var(--body);
+}
+.wt-start__link-arrow {
+  color: var(--link);
+}
+
+@media (max-width: 719.98px) {
+  .wt-start__actions .wt-btn--primary {
+    width: 100%;
+  }
+  .wt-start__how,
+  .wt-start__features {
+    padding-block: var(--sp-6);
+  }
+}

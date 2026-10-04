@@ -1,0 +1,48 @@
+# InfoSlips · YES statement review — Netlify configuration (SPEC sections 9 and 11).
+# Deploy from walkthrough/:  node build.mjs && netlify deploy --prod --dir public --functions netlify/functions
+# The admin code is the ADMIN_CODE environment variable (functions scope).
+
+[build]
+  command = "node build.mjs"
+  publish = "public"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  # The API reads the feature list it validates against from shared/.
+  included_files = ["shared/features.json"]
+
+# Security headers everywhere.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "same-origin"
+    X-Frame-Options = "SAMEORIGIN"
+    X-Robots-Tag = "noindex, nofollow"
+
+# The app shell: strict CSP. No CSP on /statement/*: the statement needs inline code and UserWay.
+[[headers]]
+  for = "/"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'self'; frame-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'"
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'self'; frame-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'"
+    Cache-Control = "no-cache"
+
+# Content-hashed bundles never change.
+[[headers]]
+  for = "/app.*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/theme-boot.*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

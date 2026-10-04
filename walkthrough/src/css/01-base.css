@@ -1,0 +1,327 @@
+/*
+ * 01-base.css — font, reset, typography, focus, motion, layout utilities.
+ * Owner: foundation.
+ */
+
+/* Inter variable, latin subset, self-hosted (copied by build.mjs). */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('assets/fonts/inter-latin-wght-normal.woff2') format('woff2-variations'), url('assets/fonts/inter-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--mast-h) + 16px);
+  scroll-padding-bottom: 24px;
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--body);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  font-weight: 400;
+  line-height: var(--lh-body);
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html.wt-modal-open {
+  overflow: hidden;
+}
+
+.wt-main {
+  flex: 1 0 auto;
+  outline: none;
+}
+
+/* ---- Typography ---- */
+h1,
+h2,
+h3,
+h4 {
+  color: var(--heading);
+  line-height: var(--lh-tight);
+  margin: 0 0 0.5em;
+  letter-spacing: -0.012em;
+  text-wrap: balance;
+}
+h1 {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+}
+h2 {
+  font-size: var(--fs-h2);
+  font-weight: 700;
+}
+h3 {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+}
+h4 {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+p,
+ul,
+ol,
+dl,
+figure,
+blockquote {
+  margin: 0 0 1em;
+}
+p {
+  text-wrap: pretty;
+}
+small {
+  font-size: var(--fs-caption);
+}
+strong,
+b {
+  font-weight: 650;
+  color: inherit;
+}
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: var(--sp-5) 0;
+}
+
+a {
+  color: var(--link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+a:hover {
+  color: var(--link-hover);
+  text-decoration-thickness: 2px;
+}
+
+img,
+svg,
+video {
+  max-width: 100%;
+}
+img {
+  height: auto;
+  border-style: none;
+}
+svg {
+  flex-shrink: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+button {
+  cursor: pointer;
+}
+[hidden] {
+  display: none !important;
+}
+
+::selection {
+  background: var(--c-lime);
+  color: var(--c-slate-1);
+}
+
+/* ---- Focus: always visible, 3px ring with 2px offset ---- */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+/* Headings receive programmatic focus on navigation: show a quiet ring only for keyboard users. */
+h1[tabindex='-1']:focus,
+h2[tabindex='-1']:focus {
+  outline: none;
+}
+h1[tabindex='-1']:focus-visible,
+h2[tabindex='-1']:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+/* ---- Type helpers ---- */
+.wt-display {
+  font-size: var(--fs-display);
+  font-weight: 800;
+  line-height: var(--lh-tight);
+  letter-spacing: -0.022em;
+}
+.wt-title::after {
+  /* the 4px Green accent bar under page titles */
+  content: '';
+  display: block;
+  width: 56px;
+  height: 4px;
+  margin-top: 0.35em;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.wt-eyebrow {
+  margin: 0 0 var(--sp-3);
+  color: var(--highlight);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.wt-lead {
+  font-size: var(--fs-lg);
+  line-height: 1.55;
+  color: var(--body);
+  max-width: 62ch;
+}
+.wt-caption {
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--muted);
+}
+.wt-label-caps {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.wt-muted {
+  color: var(--muted);
+}
+.wt-num {
+  font-variant-numeric: tabular-nums;
+}
+.wt-prose {
+  max-width: 68ch;
+}
+.wt-prose > :last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 719.98px) {
+  h1 {
+    font-size: 1.75rem; /* 28 */
+  }
+  h2 {
+    font-size: 1.375rem; /* 22 */
+  }
+  h3 {
+    font-size: 1.25rem;
+  }
+  .wt-display {
+    font-size: 2.125rem;
+  }
+  .wt-lead {
+    font-size: var(--fs-body);
+  }
+}
+
+/* ---- Layout ---- */
+.wt-container {
+  width: 100%;
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+@media (min-width: 720px) {
+  :root {
+    --gutter: 24px;
+  }
+}
+@media (min-width: 1024px) {
+  :root {
+    --gutter: 32px;
+  }
+}
+.wt-stack > * + * {
+  margin-top: var(--stack, var(--sp-4));
+}
+.wt-stack > * {
+  margin-bottom: 0;
+}
+.wt-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap, var(--sp-3));
+}
+.wt-cluster--end {
+  justify-content: flex-end;
+}
+.wt-cluster--between {
+  justify-content: space-between;
+}
+.wt-grid {
+  display: grid;
+  gap: var(--gap, var(--sp-4));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--min, 260px)), 1fr));
+}
+.wt-view {
+  padding-block: var(--sp-6) var(--sp-8);
+}
+.wt-view:focus {
+  outline: none;
+}
+.wt-list-plain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* ---- Motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Forced colours: keep outlines, focus and boundaries ---- */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 3px solid Highlight;
+  }
+  .wt-title::after {
+    background: CanvasText;
+  }
+}
