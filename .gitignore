@@ -3,3 +3,6 @@ test-results/
 .DS_Store
 *.log
 .cache/
+walkthrough/public/
+walkthrough/.data/
+walkthrough/.netlify/
