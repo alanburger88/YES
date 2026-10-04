@@ -208,11 +208,16 @@
     var i = l.indexOf(fn);
     if (i !== -1) l.splice(i, 1);
   };
-  WT.emit = function (evt, payload) {
+  /**
+   * Emit an event. An optional second argument (detail) reaches listeners as
+   * their second parameter, e.g. 'answers' → fn(featureId, { featureId, source, ids }).
+   */
+  WT.emit = function (evt, payload, detail) {
     var l = (listeners[evt] || []).slice();
     for (var i = 0; i < l.length; i++) {
       try {
-        l[i](payload);
+        if (arguments.length > 2) l[i](payload, detail);
+        else l[i](payload);
       } catch (e) {
         if (win.console) console.error('[WT] ' + evt + ' listener failed', e);
       }
@@ -582,6 +587,8 @@
 
   var REVIEWER_KEY = 'infoslips.wt.reviewer';
   var CONTROL_RE = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069\uFEFF]/g;
+  // Characters that render as nothing: a name made only of these is empty (as on the server).
+  var INVISIBLE_RE = /[\u00AD\u034F\u115F\u1160\u180E\u200B-\u200F\u2060-\u2064\u3164\uFEFF\uFFA0]/g;
 
   function randomHex(bytes) {
     var a = new Uint8Array(bytes);
@@ -591,40 +598,128 @@
     return s;
   }
 
+  /**
+   * The server's name cleaning: control and bidi characters stripped,
+   * whitespace collapsed, trimmed; a name made only of invisible characters
+   * (zero-width spaces and joiners, U+2060, the BOM …) is empty. Cut to 60
+   * characters (never inside a surrogate pair) and trimmed again, so the
+   * server stores exactly this string.
+   */
   function cleanName(name) {
-    return String(name || '')
+    var s = String(name || '')
+      .replace(/\t/g, ' ')
       .replace(CONTROL_RE, '')
       .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, WT.LIMITS.name);
+      .trim();
+    if (!s.replace(INVISIBLE_RE, '').trim()) return '';
+    if (s.length > WT.LIMITS.name) {
+      s = s.slice(0, WT.LIMITS.name);
+      if (/[\uD800-\uDBFF]$/.test(s)) s = s.slice(0, -1);
+      s = s.trim();
+    }
+    return s;
   }
   WT.cleanName = cleanName;
 
-  var rec = null; // { secret, name, rid, answers, lastStep }
-  function loadReviewer() {
-    if (rec) return rec;
-    var r = WT.storage.get(REVIEWER_KEY, null);
-    if (!r || typeof r !== 'object') r = {};
-    rec = {
+  function clone(v) {
+    return v === undefined ? undefined : JSON.parse(JSON.stringify(v));
+  }
+
+  /** Can this browser keep localStorage? (Private modes may refuse.) Checked once. */
+  var storageOk = null;
+  function canStore() {
+    if (storageOk === null) {
+      var probe = 'infoslips.wt.probe';
+      storageOk = WT.storage.set(probe, '1') && WT.storage.getRaw(probe) === '1';
+      WT.storage.remove(probe);
+    }
+    return storageOk;
+  }
+
+  function normaliseReviewer(r) {
+    if (!r || typeof r !== 'object') return null;
+    return {
       secret: typeof r.secret === 'string' && /^[0-9a-f]{64}$/.test(r.secret) ? r.secret : '',
       name: typeof r.name === 'string' ? cleanName(r.name) : '',
       rid: typeof r.rid === 'string' ? r.rid : '',
-      answers: r.answers && typeof r.answers === 'object' ? r.answers : {},
+      answers: r.answers && typeof r.answers === 'object' && !Array.isArray(r.answers) ? r.answers : {},
       lastStep: typeof r.lastStep === 'string' ? r.lastStep : ''
     };
+  }
+  function blankReviewer() {
+    return { secret: '', name: '', rid: '', answers: {}, lastStep: '' };
+  }
+
+  var rec = null; // { secret, name, rid, answers, lastStep } — the in-memory copy of localStorage
+  // Does the server hold a record for this identity? true / false / null (not known yet).
+  // A name is only stored with an answer, so it is sent with the first answer while this isn't true.
+  var serverHas = null;
+  // The name last re-sent by itself (a record that came back without it); never re-sent twice in a row.
+  var nameResent = '';
+
+  function loadReviewer() {
+    if (rec) return rec;
+    rec = normaliseReviewer(WT.storage.get(REVIEWER_KEY, null)) || blankReviewer();
+    return rec;
+  }
+  /**
+   * Re-read localStorage before a change, so another tab's changes to other
+   * features are kept rather than overwritten. A stored identity wins (another
+   * tab may have started a new reviewer); storage that is empty or unavailable
+   * keeps the in-memory copy.
+   */
+  function refreshReviewer() {
+    loadReviewer();
+    if (!canStore()) return rec;
+    var s = normaliseReviewer(WT.storage.get(REVIEWER_KEY, null));
+    if (s && (s.secret || !rec.secret)) {
+      if (s.secret !== rec.secret) serverHas = null;
+      rec = s;
+      if (mergeOwnIntoRec()) saveReviewer(); // another tab overwrote one of ours: put it back
+    }
     return rec;
   }
   function saveReviewer() {
     WT.storage.set(REVIEWER_KEY, rec);
   }
   function ensureSecret() {
-    loadReviewer();
+    refreshReviewer();
     if (!rec.secret) {
       rec.secret = randomHex(32);
       rec.rid = '';
+      serverHas = false;
       saveReviewer();
     }
     return rec.secret;
+  }
+
+  /** A neutral save status: nothing saved yet, nothing waiting, no error. */
+  function neutralState(pendingNow) {
+    return { saving: false, ok: true, pending: pendingNow || 0, error: null, savedAt: null, willRetry: false, status: null };
+  }
+
+  /**
+   * Gives this browser a fresh identity and drops the save queue without
+   * sending it. The save status goes back to neutral (savedAt null): listeners
+   * get 'saved' with { ok: true, pending: 0, savedAt: null, reset: true } and
+   * should show their idle text rather than "Saved".
+   */
+  function newIdentity() {
+    clearTimeout(saveTimer);
+    clearTimeout(retryTimer);
+    retryDelay = 0;
+    paused = 0;
+    nameResent = '';
+    clearPending();
+    WT.storage.remove(HOLD_KEY);
+    var before = rec ? rec.answers : {};
+    rec = { secret: randomHex(32), name: '', rid: '', answers: {}, lastStep: '' };
+    serverHas = false;
+    saveReviewer();
+    saveState = neutralState(0);
+    WT.emit('reviewer', WT.reviewer.get());
+    WT.emit('answers', null, { featureId: null, source: 'local', ids: Object.keys(before || {}), reset: true });
+    WT.emit('saved', { ok: true, pending: 0, savedAt: null, willRetry: false, reset: true });
   }
 
   WT.reviewer = {
@@ -642,15 +737,25 @@
     displayName: function () {
       return loadReviewer().name || WT.ANONYMOUS;
     },
-    /** Save a name (trimmed, max 60). Saves to the server in the background. Returns the cleaned name. */
+    /**
+     * Save a name (cleaned as on the server, max 60). Returns the cleaned name.
+     * It is kept in this browser at once. The server stores a name only with
+     * answers (a name on its own creates no record): while this reviewer has no
+     * record on the server, the name is sent with the first answer instead of
+     * on its own; once the record exists, a change is queued like an answer.
+     */
     setName: function (name) {
-      loadReviewer();
+      refreshReviewer();
       var clean = cleanName(name);
       if (clean === rec.name) return clean;
-      rec.name = clean;
       ensureSecret();
+      rec.name = clean;
+      nameResent = '';
       saveReviewer();
-      queueName(clean);
+      // With no answers here and no record known on the server, there is
+      // nothing to attach the name to yet: it rides with the first answer.
+      if (serverHas === false && !Object.keys(rec.answers).length) dropQueuedName(); // an older queued name must not win
+      else queueName(clean);
       WT.emit('reviewer', WT.reviewer.get());
       return clean;
     },
@@ -659,7 +764,7 @@
       return WT.feature(id) ? id : '';
     },
     setLastStep: function (id) {
-      loadReviewer();
+      refreshReviewer();
       if (!WT.feature(id) || rec.lastStep === id) return;
       rec.lastStep = id;
       saveReviewer();
@@ -677,7 +782,8 @@
           })
           .join('')
           .slice(0, 24);
-        if (rec.secret === secret) {
+        refreshReviewer();
+        if (rec.secret === secret && rec.rid !== h) {
           rec.rid = h;
           saveReviewer();
         }
@@ -690,20 +796,52 @@
       return !!(r.lastStep || Object.keys(r.answers).length);
     },
     /**
-     * "Start as a new reviewer": tries to save anything still queued, then gives
-     * this browser a fresh identity with no name, answers or progress. The old
-     * answers stay in the shared results. Returns a promise.
+     * "Start as a new reviewer": gives this browser a fresh identity with no
+     * name, answers or progress, and a neutral save status. The old answers stay
+     * in the shared results. Returns a promise.
+     *   reset()                    tries to save anything still queued first
+     *   reset({ discard: true })   never sends: queued changes are dropped
+     * Callers that must not lose unsaved changes flush first and check
+     * WT.answers.pending() (the name dialog asks before discarding them).
      */
-    reset: function () {
+    reset: function (opts) {
+      if (opts && opts.discard) {
+        newIdentity();
+        return Promise.resolve();
+      }
       var done = function () {
-        clearPending();
-        rec = { secret: randomHex(32), name: '', rid: '', answers: {}, lastStep: '' };
-        saveReviewer();
-        WT.emit('reviewer', WT.reviewer.get());
-        WT.emit('answers', null);
-        WT.emit('saved', { ok: true, pending: 0 });
+        newIdentity();
       };
       return WT.answers.flush().then(done, done);
+    },
+    /**
+     * "Remove my answers from the results": stops saving (timers cancelled, an
+     * in-flight or keepalive save awaited), takes the queue out, deletes this
+     * reviewer's record (DELETE /api/me) and then resets with { discard: true },
+     * so a queued save can never re-create the record after the delete. Resolves
+     * with the DELETE result. If the delete fails, the queue is put back, saving
+     * resumes, the identity is kept (so the reviewer can try again) and the
+     * promise rejects with the ApiError.
+     */
+    remove: function () {
+      var secret = loadReviewer().secret;
+      if (secret) WT.storage.set(HOLD_KEY, { secret: secret, until: Date.now() + 30000 }); // other tabs hold off too
+      return WT.answers.pause().then(function () {
+        var taken = takePending();
+        return WT.api.deleteMe().then(
+          function (res) {
+            return WT.reviewer.reset({ discard: true }).then(function () {
+              return res;
+            });
+          },
+          function (err) {
+            WT.storage.remove(HOLD_KEY);
+            restorePending(taken);
+            WT.answers.resume();
+            throw err;
+          }
+        );
+      });
     }
   };
 
@@ -724,6 +862,11 @@
 
   var ADMIN_KEY = 'infoslips.wt.admin';
 
+  /**
+   * Low-level request. opts: { body, secret, admin, timeout, keepalive }.
+   * keepalive lets the request outlive the page (used when the page is hidden
+   * or unloaded; the browser allows 64 KB in flight, and bodies stay under 60 KB).
+   */
   function request(method, path, opts) {
     opts = opts || {};
     var headers = { Accept: 'application/json' };
@@ -736,14 +879,16 @@
           ctrl.abort();
         }, opts.timeout || 15000)
       : null;
-    return fetch(path, {
+    var init = {
       method: method,
       headers: headers,
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
       credentials: 'same-origin',
       cache: 'no-store',
       signal: ctrl ? ctrl.signal : undefined
-    }).then(
+    };
+    if (opts.keepalive) init.keepalive = true;
+    return fetch(path, init).then(
       function (res) {
         clearTimeout(timer);
         if (res.status === 204) return null;
@@ -781,10 +926,11 @@
       if (!r.secret) return Promise.resolve({ rid: '', name: '', answers: {} });
       return request('GET', '/api/me', { secret: r.secret });
     },
-    /** PUT /api/me with { name?, answers? }. secret defaults to this browser's. */
-    saveMe: function (body, secret) {
-      return request('PUT', '/api/me', { secret: secret || ensureSecret(), body: body || {} });
+    /** PUT /api/me with { name?, answers? }. secret defaults to this browser's. opts: { keepalive }. */
+    saveMe: function (body, secret, opts) {
+      return request('PUT', '/api/me', { secret: secret || ensureSecret(), body: body || {}, keepalive: !!(opts && opts.keepalive) });
     },
+    /** DELETE /api/me. Use WT.reviewer.remove() for "Remove my answers": it also stops queued saves. */
     deleteMe: function () {
       var r = loadReviewer();
       if (!r.secret) return Promise.resolve({ ok: true, deleted: false });
@@ -813,7 +959,12 @@
         WT.session.remove(ADMIN_KEY);
         if (was) WT.emit('admin', false);
       },
-      /** Verify a code: resolves true (and stores it) or false. Rejects with ApiError 503 when admin isn't configured. */
+      /**
+       * Verify a code: resolves true (and stores it) or false. Rejects with
+       * ApiError 503 when admin isn't configured (ADMIN_CODE unset or shorter
+       * than 16 characters) and 429 after too many wrong codes (message says
+       * how long to wait).
+       */
       check: function (code) {
         code = String(code || '').trim();
         if (!code) return Promise.resolve(false);
@@ -845,60 +996,244 @@
   /* Answers and the save queue                                          */
   /* ================================================================== */
 
+  /*
+   * The queue (localStorage infoslips.wt.pending) is shared by every tab of
+   * this browser: { secret, answers: { id: answer }, name? }. A cleared answer
+   * is queued as an empty answer with its own updatedAt (the server clears the
+   * feature unless it holds something newer). Every change re-reads the stored
+   * queue and merges per feature (newest updatedAt wins), so two tabs editing
+   * at once never drop each other's entries; any tab may send any entry.
+   */
   var PENDING_KEY = 'infoslips.wt.pending';
+  // { secret, until }: another tab is removing this reviewer ("Remove my answers"), so no tab sends for it.
+  var HOLD_KEY = 'infoslips.wt.hold';
   var VOTES = ['include', 'exclude'];
   var PRIORITIES = ['high', 'medium', 'low'];
-  var pending = null; // { secret, answers: { id: answer|null }, name?: string }
+  var MAX_BODY = 60000; // bytes per request; the API refuses over 64 KB
+  var pendingCache = null; // the last queue read or written by this tab
+  var pendingLoaded = false;
   var saveTimer = null;
   var retryTimer = null;
   var retryDelay = 0;
   var inFlight = null;
   var again = false;
-  var saveState = { saving: false, ok: true, pending: 0, error: null, savedAt: null };
+  var paused = 0;
+  var keepaliveSent = null; // { json, promise } of the last keepalive flush
+  var saveState = { saving: false, ok: true, pending: 0, error: null, savedAt: null, willRetry: false, status: null };
 
-  function loadPending() {
-    if (pending) return pending;
-    var p = WT.storage.get(PENDING_KEY, null);
-    pending = p && typeof p === 'object' && p.answers && typeof p.answers === 'object' ? p : null;
-    return pending;
+  /*
+   * This tab's own changes, queued but not yet delivered by this tab:
+   * { secret, answers: { id: answer } }. Two tabs writing localStorage at the
+   * same moment can overwrite each other (browsers copy storage between tabs
+   * asynchronously, so a re-read just before writing can miss the other tab's
+   * write). Every re-read of the shared queue or answers cache merges these
+   * back in (per feature, newest updatedAt wins), a 'storage' event that lost
+   * them writes them back, and this tab's flush always sends them. An entry
+   * leaves when this tab delivers it or a newer change to that feature wins.
+   */
+  var own = { secret: '', answers: {} };
+  function ownFor(secret) {
+    return secret && own.secret === secret ? own.answers : null;
   }
-  function persistPending() {
-    if (pending && !pendingCount()) pending = null;
-    if (pending) WT.storage.set(PENDING_KEY, pending);
+  /** > 0 when answer a should win over b: newer updatedAt; a tie is broken the same way in every tab. */
+  function cmpAnswer(a, b) {
+    var d = Date.parse((a && a.updatedAt) || 0) - Date.parse((b && b.updatedAt) || 0);
+    if (d) return d;
+    var x = JSON.stringify(a || null);
+    var y = JSON.stringify(b || null);
+    return x === y ? 0 : x > y ? 1 : -1;
+  }
+  /** Merge this tab's own entries into a queue object. Returns true if it changed. */
+  function mergeOwnInto(p) {
+    var mine = p && ownFor(p.secret);
+    if (!mine) return false;
+    var changed = false;
+    Object.keys(mine).forEach(function (id) {
+      var c = cmpAnswer(mine[id], p.answers[id]);
+      if (id in p.answers && c < 0) delete mine[id]; // superseded by a newer change
+      else if (!(id in p.answers) || c > 0) {
+        p.answers[id] = mine[id];
+        changed = true;
+      }
+    });
+    return changed;
+  }
+  /** Apply this tab's own entries to the answers cache (rec). Returns true if it changed. */
+  function mergeOwnIntoRec() {
+    var mine = rec && ownFor(rec.secret);
+    if (!mine) return false;
+    var changed = false;
+    Object.keys(mine).forEach(function (id) {
+      var a = mine[id];
+      var cur = rec.answers[id];
+      if (cur && cmpAnswer(a, cur) < 0) return;
+      if (isEmpty(a)) {
+        if (cur) {
+          delete rec.answers[id];
+          changed = true;
+        }
+      } else if (!cur || cmpAnswer(a, cur) > 0) {
+        rec.answers[id] = clone(a);
+        changed = true;
+      }
+    });
+    return changed;
+  }
+  /** The stored queue with this tab's own entries merged in (null when empty). */
+  function withOwn(p) {
+    var r = loadReviewer();
+    if (!p && ownFor(r.secret) && Object.keys(own.answers).length) p = { secret: r.secret, answers: {} };
+    if (p) mergeOwnInto(p);
+    return p && countOf(p) ? p : null;
+  }
+
+  function parsePending(p) {
+    if (!p || typeof p !== 'object' || typeof p.secret !== 'string' || !p.answers || typeof p.answers !== 'object' || Array.isArray(p.answers)) return null;
+    var out = { secret: p.secret, answers: {} };
+    Object.keys(p.answers).forEach(function (id) {
+      var a = p.answers[id];
+      if (a === null || (a && typeof a === 'object')) out.answers[id] = a;
+    });
+    if (typeof p.name === 'string') out.name = p.name;
+    return out;
+  }
+  function countOf(p) {
+    return p ? Object.keys(p.answers).length + (typeof p.name === 'string' ? 1 : 0) : 0;
+  }
+  /** The queue as this tab last saw it (refreshed by 'storage' events), with its own entries. */
+  function loadPending() {
+    if (!pendingLoaded) {
+      pendingCache = withOwn(parsePending(WT.storage.get(PENDING_KEY, null)));
+      pendingLoaded = true;
+    }
+    return pendingCache;
+  }
+  /** The queue as stored right now (another tab may have changed it), with this tab's own entries. */
+  function freshPending() {
+    if (canStore()) {
+      pendingCache = withOwn(parsePending(WT.storage.get(PENDING_KEY, null)));
+      pendingLoaded = true;
+    } else if (pendingCache) {
+      mergeOwnInto(pendingCache);
+    }
+    return loadPending();
+  }
+  function writePending(p) {
+    pendingCache = countOf(p) ? p : null;
+    pendingLoaded = true;
+    if (pendingCache) WT.storage.set(PENDING_KEY, pendingCache);
     else WT.storage.remove(PENDING_KEY);
   }
   function clearPending() {
-    pending = null;
-    clearTimeout(saveTimer);
-    clearTimeout(retryTimer);
+    own = { secret: '', answers: {} };
+    pendingCache = null;
+    pendingLoaded = true;
     WT.storage.remove(PENDING_KEY);
   }
-  function pendingCount() {
-    var p = loadPending();
-    if (!p) return 0;
-    return Object.keys(p.answers).length + (typeof p.name === 'string' ? 1 : 0);
+  /** Removes and returns the whole queue (WT.reviewer.remove puts it back if the delete fails). */
+  function takePending() {
+    var p = freshPending();
+    var o = own;
+    clearPending();
+    return { queue: p, own: o };
   }
-  function ensurePending() {
-    var secret = ensureSecret();
-    loadPending();
-    if (!pending || pending.secret !== secret) {
-      if (pending && pending.secret !== secret) pending = null; // queued for an old identity
-      pending = { secret: secret, answers: {} };
+  function restorePending(t) {
+    if (!t) return;
+    if (t.own && t.own.secret) {
+      if (own.secret !== t.own.secret) own = { secret: t.own.secret, answers: {} };
+      Object.keys(t.own.answers).forEach(function (id) {
+        if (!(id in own.answers)) own.answers[id] = t.own.answers[id];
+      });
     }
-    return pending;
+    var p = t.queue;
+    if (!p) {
+      writePending(freshPending());
+      return;
+    }
+    var cur = freshPending();
+    if (!cur || cur.secret !== p.secret) {
+      writePending(p);
+      return;
+    }
+    Object.keys(p.answers).forEach(function (id) {
+      if (!(id in cur.answers) || cmpAnswer(p.answers[id], cur.answers[id]) > 0) cur.answers[id] = p.answers[id];
+    });
+    if (typeof p.name === 'string' && typeof cur.name !== 'string') cur.name = p.name;
+    writePending(cur);
+  }
+  function pendingCount() {
+    return countOf(loadPending());
+  }
+  /** Apply a change to the stored queue of this identity (re-read first, so other tabs' entries survive). */
+  function mutatePending(fn) {
+    var secret = ensureSecret();
+    var p = freshPending();
+    if (!p || p.secret !== secret) p = { secret: secret, answers: {} }; // a queue for an old identity is dropped
+    fn(p);
+    writePending(p);
   }
   function queueAnswer(id, value) {
-    ensurePending().answers[id] = value;
-    persistPending();
+    var secret = ensureSecret();
+    if (own.secret !== secret) own = { secret: secret, answers: {} };
+    own.answers[id] = value;
+    mutatePending(function (p) {
+      var cur = p.answers[id];
+      if (!cur || cmpAnswer(value, cur) >= 0) p.answers[id] = value; // per feature, newest updatedAt wins
+    });
     scheduleSave(600);
   }
   function queueName(name) {
-    ensurePending().name = name;
-    persistPending();
+    mutatePending(function (p) {
+      p.name = name;
+    });
     scheduleSave(600);
   }
+  /** Forget a queued name (the current name goes with the next answer instead). */
+  function dropQueuedName() {
+    var p = freshPending();
+    if (!p || typeof p.name !== 'string') return;
+    delete p.name;
+    writePending(p);
+  }
+  /**
+   * Queue this browser's name again when a saved record came back without it
+   * (an admin deleted or reset the record and an answer re-created it). Only
+   * once per name, so a server that cleans the name differently can't loop.
+   */
+  function resendName(serverName) {
+    var name = loadReviewer().name;
+    if (!name || serverName === name || nameResent === name) return;
+    var p = loadPending();
+    if (p && p.secret === rec.secret && typeof p.name === 'string') return; // already on its way
+    nameResent = name;
+    queueName(name);
+  }
+  /** After a request: drop the entries it delivered, unless they changed meanwhile. */
+  function removeSent(body, secret) {
+    var mine = ownFor(secret);
+    if (mine) {
+      Object.keys(body.answers || {}).forEach(function (id) {
+        if (id in mine && JSON.stringify(mine[id]) === JSON.stringify(body.answers[id])) delete mine[id];
+      });
+    }
+    var p = freshPending();
+    if (!p || p.secret !== secret) return;
+    Object.keys(body.answers || {}).forEach(function (id) {
+      if (id in p.answers && JSON.stringify(p.answers[id]) === JSON.stringify(body.answers[id])) delete p.answers[id];
+    });
+    if (typeof body.name === 'string' && p.name === body.name) delete p.name;
+    writePending(p);
+  }
+
+  /** True while a tab is removing this reviewer's answers (WT.reviewer.remove). */
+  function held() {
+    var h = WT.storage.get(HOLD_KEY, null);
+    return !!(h && rec && h.secret === rec.secret && h.until > Date.now());
+  }
+
   function scheduleSave(ms) {
     clearTimeout(saveTimer);
+    if (paused) return;
     saveTimer = setTimeout(function () {
       WT.answers.flush();
     }, ms);
@@ -914,21 +1249,33 @@
     saveState.saving = false;
     saveState.ok = ok;
     saveState.pending = pendingCount();
-    var payload = { ok: ok, pending: saveState.pending };
+    if (ok) {
+      saveState.error = null;
+      saveState.willRetry = false;
+      saveState.status = null;
+    }
+    var payload = { ok: ok, pending: saveState.pending, willRetry: saveState.willRetry };
     if (extra) for (var k in extra) payload[k] = extra[k];
     WT.emit('saved', payload);
   }
 
-  /** Split a body so no request exceeds ~60 KB (the API refuses over 64 KB). */
+  /** Statuses worth retrying by themselves: offline/network, timeouts, rate limits, conflicts, server errors. */
+  function retryable(status) {
+    return !status || status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+  }
+
+  function entrySize(id, a) {
+    return (JSON.stringify(a) || 'null').length * 3 + id.length + 8; // worst case UTF-8
+  }
+  /** Split a queue snapshot so no request exceeds ~60 KB (the API refuses over 64 KB). */
   function chunkBodies(snap) {
     var bodies = [];
     var body = {};
     if (typeof snap.name === 'string') body.name = snap.name;
-    var size = JSON.stringify(body).length;
+    var size = JSON.stringify(body).length * 3;
     Object.keys(snap.answers).forEach(function (id) {
-      var piece = JSON.stringify(snap.answers[id]).length + id.length + 8;
-      var bytes = piece * 3; // worst case UTF-8
-      if (body.answers && size + bytes > 60000) {
+      var bytes = entrySize(id, snap.answers[id]);
+      if (body.answers && size + bytes > MAX_BODY) {
         bodies.push(body);
         body = {};
         size = 2;
@@ -939,6 +1286,94 @@
     });
     bodies.push(body);
     return bodies;
+  }
+  /** The parts of a body: 'name' and the answer ids. */
+  function bodyKeys(body) {
+    var keys = typeof body.name === 'string' ? ['name'] : [];
+    return keys.concat(Object.keys(body.answers || {}));
+  }
+  function bodyOf(src, keys) {
+    var b = {};
+    keys.forEach(function (k) {
+      if (k === 'name') b.name = src.name;
+      else (b.answers = b.answers || {})[k] = src.answers[k];
+    });
+    return b;
+  }
+
+  /**
+   * Send one body. On 413 the body is split in half and each half sent (a
+   * single entry that still gets 413 can't be split: it stays queued and the
+   * error is reported, with no automatic retry). On 422 each entry is sent on
+   * its own and only the entries the server rejects are dropped (with a
+   * console warning), so one bad entry never blocks the rest. Delivered
+   * entries leave the queue as they land. Other errors reject.
+   */
+  function sendBody(body, secret, report, opts) {
+    return WT.api.saveMe(body, secret, opts).then(
+      function (r) {
+        if (r && r.rid) report.last = r;
+        removeSent(body, secret);
+      },
+      function (e) {
+        var status = e && e.status;
+        if (status !== 413 && status !== 422) throw e;
+        var keys = bodyKeys(body);
+        if (status === 413 && keys.length <= 1) throw e;
+        if (keys.length <= 1) {
+          if (win.console) console.warn('[WT] The server refused a saved change (' + status + ': ' + ((e && e.message) || '') + '). It was dropped so the rest can be saved:', keys[0] || '(empty)');
+          report.dropped = report.dropped.concat(keys);
+          removeSent(body, secret);
+          return;
+        }
+        var parts = status === 413 ? [keys.slice(0, Math.ceil(keys.length / 2)), keys.slice(Math.ceil(keys.length / 2))] : keys.map(function (k) { return [k]; });
+        return parts.reduce(function (p, part) {
+          return p.then(function () {
+            return sendBody(bodyOf(body, part), secret, report, opts);
+          });
+        }, Promise.resolve());
+      }
+    );
+  }
+
+  /**
+   * A copy of the queue to send, for the identity it was queued under. Entries
+   * for features this build doesn't know (an older queue) are dropped with a
+   * warning. While the server isn't known to hold this reviewer's record, the
+   * local name rides along with the answers, because the server never stores a
+   * name on its own.
+   */
+  function snapshot() {
+    var p = freshPending();
+    if (!p) return null;
+    var stale = Object.keys(p.answers).filter(function (id) {
+      return !WT.feature(id);
+    });
+    if (stale.length) {
+      if (win.console) console.warn('[WT] Dropped queued answers for unknown features:', stale.join(', '));
+      stale.forEach(function (id) {
+        delete p.answers[id];
+      });
+      writePending(p);
+      if (!countOf(p)) return null;
+    }
+    var snap = clone(p);
+    var r = loadReviewer();
+    var hasAnswer = Object.keys(snap.answers).some(function (id) {
+      return !isEmpty(snap.answers[id]);
+    });
+    if (snap.secret === r.secret && serverHas !== true && hasAnswer && typeof snap.name !== 'string' && r.name) snap.name = r.name;
+    return snap;
+  }
+
+  /** After a save: note whether the server has a record, adopt newer server answers, re-send a lost name. */
+  function afterSave(last, secret) {
+    if (!last || loadReviewer().secret !== secret) return;
+    serverHas = !!last.createdAt;
+    reconcile(last, false);
+    // The record exists but lacks this browser's name (an admin deleted or reset
+    // it and an answer re-created it): this browser's name is the latest choice.
+    if (last.createdAt) resendName(typeof last.name === 'string' ? last.name : '');
   }
 
   function normalise(a) {
@@ -955,41 +1390,164 @@
     return !a || (!a.vote && !a.priority && !String(a.reason || '').trim() && !String(a.comment || '').trim());
   }
   function newer(a, b) {
-    return Date.parse(a.updatedAt || 0) > Date.parse(b.updatedAt || 0);
+    return Date.parse((a && a.updatedAt) || 0) > Date.parse((b && b.updatedAt) || 0);
+  }
+  function emptyAnswer() {
+    return { vote: null, priority: null, reason: '', comment: '', updatedAt: new Date().toISOString() };
+  }
+  function changedIds(before, after) {
+    var ids = [];
+    var seen = {};
+    Object.keys(before || {})
+      .concat(Object.keys(after || {}))
+      .forEach(function (id) {
+        if (seen[id]) return;
+        seen[id] = true;
+        if (JSON.stringify(before[id] || null) !== JSON.stringify(after[id] || null)) ids.push(id);
+      });
+    return ids;
   }
 
-  /** Adopt server answers that are newer than ours (and not waiting to be sent). */
+  /**
+   * 'answers' for changes this tab's UI did not make (another tab via the
+   * 'storage' event, or the server). The first argument stays null ("re-read
+   * your answers"); the detail says which features changed:
+   *   { featureId: the one id or null, ids: [...], source: 'remote', via: 'storage' | 'server', reset? }
+   */
+  function emitRemote(ids, via, extra) {
+    var detail = { featureId: ids.length === 1 ? ids[0] : null, ids: ids, source: 'remote', via: via };
+    if (extra) for (var k in extra) detail[k] = extra[k];
+    WT.emit('answers', null, detail);
+  }
+
+  /**
+   * Adopt server answers that are newer than ours (and not waiting to be sent).
+   * authoritative (the load-time sync): the server wins for anything not queued,
+   * so answers that exist only here are dropped. Names: a queued name always
+   * wins. With no record on the server (new, or removed by an admin), this
+   * browser keeps its name and sends it with the next answer. A record with no
+   * name never wipes ours (the name is sent again instead); otherwise the
+   * server's name is adopted. Emits 'answers' (null, { source: 'remote', via: 'server', ids }).
+   */
   function reconcile(server, authoritative) {
     if (!server || !server.answers) return false;
-    loadReviewer();
+    refreshReviewer();
+    var before = clone(rec.answers);
     var p = loadPending();
-    var queued = (p && p.secret === rec.secret && p.answers) || {};
-    var changed = false;
+    var mine = !!(p && p.secret === rec.secret);
+    var queued = (mine && p.answers) || {};
+    var nameQueued = mine && typeof p.name === 'string';
     if (authoritative) {
       Object.keys(rec.answers).forEach(function (id) {
-        if (!(id in server.answers) && !(id in queued)) {
-          delete rec.answers[id];
-          changed = true;
-        }
+        if (!(id in server.answers) && !(id in queued)) delete rec.answers[id];
       });
     }
     Object.keys(server.answers).forEach(function (id) {
       if (!WT.feature(id) || id in queued) return;
       var s = normalise(server.answers[id]);
-      var mine = rec.answers[id];
-      if (!mine || newer(s, mine) || (authoritative && JSON.stringify(s) !== JSON.stringify(normalise(mine)))) {
-        rec.answers[id] = s;
-        changed = true;
-      }
+      var have = rec.answers[id];
+      if (!have || newer(s, have) || (authoritative && JSON.stringify(s) !== JSON.stringify(normalise(have)))) rec.answers[id] = s;
     });
     if (server.rid && server.rid !== rec.rid) rec.rid = server.rid;
-    if (authoritative && typeof server.name === 'string' && server.createdAt && !(p && typeof p.name === 'string') && server.name !== rec.name) {
-      rec.name = server.name;
-      WT.emit('reviewer', WT.reviewer.get());
+    var renamed = false;
+    var resend = false;
+    if (authoritative && typeof server.name === 'string' && !nameQueued && server.name !== rec.name) {
+      if (!server.createdAt) {
+        // No record: keep our name; snapshot() sends it with the next answer (serverHas is false).
+      } else if (!server.name && rec.name) {
+        resend = true;
+      } else {
+        rec.name = cleanName(server.name);
+        renamed = true;
+      }
     }
     saveReviewer();
-    if (changed) WT.emit('answers', null);
-    return changed;
+    if (renamed) WT.emit('reviewer', WT.reviewer.get());
+    if (resend) resendName(server.name);
+    var ids = changedIds(before, rec.answers);
+    if (ids.length) emitRemote(ids, 'server');
+    return ids.length > 0;
+  }
+
+  /**
+   * Keep this tab in step with the others (they share localStorage): the
+   * queue cache is re-read, the reviewer cache reloaded, and 'reviewer' /
+   * 'answers' (source 'remote', via 'storage') emitted for what changed. When
+   * another tab started a new reviewer, this tab follows with a neutral status.
+   */
+  function onStorage(e) {
+    if (e.key !== REVIEWER_KEY && e.key !== PENDING_KEY && e.key !== HOLD_KEY && e.key !== null) return;
+    if (e.key === HOLD_KEY) {
+      if (!e.newValue && pendingCount()) scheduleSave(0); // another tab's removal failed: carry on saving
+      return;
+    }
+    if (e.key === PENDING_KEY || e.key === null) {
+      pendingLoaded = false;
+      // Another tab wrote a queue for this identity without entries this tab
+      // queued (both wrote at once): write them back. A removed queue (all
+      // delivered, or another tab reset or removed this reviewer) is left alone.
+      var stored = parsePending(WT.storage.get(PENDING_KEY, null));
+      if (stored && ownFor(stored.secret) && mergeOwnInto(stored)) WT.storage.set(PENDING_KEY, stored);
+    }
+    if (e.key !== REVIEWER_KEY && e.key !== null) return;
+    var before = rec ? clone(rec) : null;
+    rec = null;
+    loadReviewer();
+    if (!before) return;
+    if (before.secret === rec.secret && mergeOwnIntoRec()) saveReviewer();
+    if (before.secret !== rec.secret) {
+      serverHas = null;
+      nameResent = '';
+      own = { secret: '', answers: {} };
+      pendingLoaded = false;
+      clearTimeout(saveTimer);
+      clearTimeout(retryTimer);
+      retryDelay = 0;
+      saveState = neutralState(pendingCount());
+      WT.emit('reviewer', WT.reviewer.get());
+      emitRemote(changedIds(before.answers, rec.answers), 'storage', { reset: true });
+      WT.emit('saved', { ok: true, pending: saveState.pending, savedAt: null, willRetry: false, reset: true });
+      return;
+    }
+    if (before.name !== rec.name) WT.emit('reviewer', WT.reviewer.get());
+    var ids = changedIds(before.answers, rec.answers);
+    if (ids.length) emitRemote(ids, 'storage');
+  }
+
+  /** Best effort while the page is hidden or unloading: keepalive requests outlive the page. */
+  function keepaliveFlush() {
+    clearTimeout(saveTimer);
+    if (paused || held() || !pendingCount()) return Promise.resolve(true);
+    var snap = snapshot();
+    if (!snap) return Promise.resolve(true);
+    var json = JSON.stringify(snap);
+    if (keepaliveSent && keepaliveSent.json === json) return keepaliveSent.promise; // visibilitychange + pagehide
+    var report = { last: null, dropped: [] };
+    var promise = Promise.all(
+      chunkBodies(snap).map(function (body) {
+        return sendBody(body, snap.secret, report, { keepalive: true }).then(
+          function () {
+            return true;
+          },
+          function () {
+            return false;
+          }
+        );
+      })
+    ).then(function (oks) {
+      if (keepaliveSent && keepaliveSent.promise === promise) keepaliveSent = null;
+      var ok = oks.every(Boolean);
+      afterSave(report.last, snap.secret);
+      if (ok && !inFlight && !pendingCount()) {
+        saveState.savedAt = new Date().toISOString();
+        emitSaved(true, { savedAt: saveState.savedAt });
+      } else if (!ok && !inFlight) {
+        scheduleSave(1000); // try again normally if the page is still here
+      }
+      return ok;
+    });
+    keepaliveSent = { json: json, promise: promise };
+    return promise;
   }
 
   WT.answers = {
@@ -1005,11 +1563,12 @@
     /**
      * Merge a patch ({ vote?, reason?, priority?, comment? }) into a feature's
      * answer, save it locally now and to the server after 600 ms. An answer with
-     * nothing in it is cleared. Emits 'answers' (id). Returns the answer or null.
+     * nothing in it is cleared. Emits 'answers' with (id, { featureId: id,
+     * ids: [id], source: 'local' }). Returns the answer or null.
      */
     set: function (id, patch) {
       if (!WT.feature(id)) throw new Error('WT.answers.set: unknown feature ' + id);
-      loadReviewer();
+      refreshReviewer();
       var cur = rec.answers[id] || {};
       var merged = {};
       ['vote', 'priority', 'reason', 'comment'].forEach(function (k) {
@@ -1018,20 +1577,25 @@
       merged.updatedAt = new Date().toISOString();
       var next = normalise(merged);
       if (isEmpty(next)) return WT.answers.clear(id);
+      ensureSecret();
       rec.answers[id] = next;
       saveReviewer();
       queueAnswer(id, next);
-      WT.emit('answers', id);
+      WT.emit('answers', id, { featureId: id, ids: [id], source: 'local' });
       return JSON.parse(JSON.stringify(next));
     },
-    /** Remove a feature's answer here and on the server. */
+    /**
+     * Remove a feature's answer here and on the server (queued as an empty
+     * answer with its own updatedAt). Emits 'answers' (id, { featureId: id, ids: [id], source: 'local' }).
+     */
     clear: function (id) {
-      loadReviewer();
+      refreshReviewer();
       var had = !!rec.answers[id];
       delete rec.answers[id];
       saveReviewer();
-      if (had || (loadPending() && id in pending.answers)) queueAnswer(id, null);
-      WT.emit('answers', id);
+      var p = loadPending();
+      if (had || (p && id in p.answers)) queueAnswer(id, emptyAnswer());
+      WT.emit('answers', id, { featureId: id, ids: [id], source: 'local' });
       return null;
     },
     /** { total, answered, voted, include, exclude, prioritised, commented, firstUnanswered } */
@@ -1055,56 +1619,83 @@
     },
     /** Number of changes waiting to reach the server. */
     pending: pendingCount,
-    /** { saving, ok, pending, error, savedAt } for autosave status UIs. */
+    /**
+     * { saving, ok, pending, error, savedAt, willRetry, status } for autosave
+     * status UIs. willRetry is true while a retry is scheduled by itself
+     * (offline, network, 408/409/429/5xx); false after an error that only the
+     * Retry button (or the next change) will resend, e.g. a 4xx.
+     */
     status: function () {
       saveState.pending = pendingCount();
-      return { saving: saveState.saving, ok: saveState.ok, pending: saveState.pending, error: saveState.error, savedAt: saveState.savedAt };
+      return {
+        saving: saveState.saving,
+        ok: saveState.ok,
+        pending: saveState.pending,
+        error: saveState.error,
+        savedAt: saveState.savedAt,
+        willRetry: !saveState.ok && saveState.willRetry,
+        status: saveState.status
+      };
     },
-    /** Send queued changes now. Resolves true when everything is saved. Emits 'saving' then 'saved'. */
-    flush: function () {
+    /**
+     * Send queued changes now. Resolves true when everything is saved. Emits
+     * 'saving' then 'saved' ({ ok, pending, willRetry, savedAt?, error?, status?,
+     * offline?, dropped? }). With nothing queued after a failure (e.g. back
+     * online), it emits a successful 'saved'. opts.keepalive (page hidden or
+     * unloading) sends with fetch keepalive and never waits for a save in flight.
+     */
+    flush: function (opts) {
+      if (opts && opts.keepalive) return keepaliveFlush();
       clearTimeout(saveTimer);
+      if (paused || held()) return Promise.resolve(false);
       if (inFlight) {
         again = true;
         return inFlight;
       }
       if (!pendingCount()) {
+        if (!saveState.ok || saveState.saving) {
+          clearTimeout(retryTimer);
+          retryDelay = 0;
+          emitSaved(true, { savedAt: saveState.savedAt });
+        }
         return Promise.resolve(true);
       }
-      var snap = JSON.parse(JSON.stringify(loadPending()));
+      var snap = snapshot();
+      if (!snap) return Promise.resolve(true);
       saveState.saving = true;
       WT.emit('saving', { pending: pendingCount() });
-      var bodies = chunkBodies(snap);
-      var last = null;
-      var chain = bodies.reduce(function (p, body) {
+      var report = { last: null, dropped: [] };
+      var chain = chunkBodies(snap).reduce(function (p, body) {
         return p.then(function () {
-          return WT.api.saveMe(body, snap.secret).then(function (r) {
-            last = r;
-          });
+          return sendBody(body, snap.secret, report);
         });
       }, Promise.resolve());
       inFlight = chain.then(
         function () {
-          var p = loadPending();
-          if (p && p.secret === snap.secret) {
-            Object.keys(snap.answers).forEach(function (id) {
-              if (id in p.answers && JSON.stringify(p.answers[id]) === JSON.stringify(snap.answers[id])) delete p.answers[id];
-            });
-            if (typeof snap.name === 'string' && p.name === snap.name) delete p.name;
-          }
-          persistPending();
-          if (loadReviewer().secret === snap.secret) reconcile(last, false);
+          afterSave(report.last, snap.secret);
           retryDelay = 0;
           clearTimeout(retryTimer);
-          saveState.error = null;
           saveState.savedAt = new Date().toISOString();
-          emitSaved(true, { savedAt: saveState.savedAt });
+          var extra = { savedAt: saveState.savedAt };
+          if (report.dropped.length) extra.dropped = report.dropped;
+          emitSaved(true, extra);
           return true;
         },
         function (e) {
+          afterSave(report.last, snap.secret); // earlier requests may have landed
+          var status = (e && e.status) || 0;
+          var retry = retryable(status);
           saveState.error = (e && e.message) || 'Not saved';
-          emitSaved(false, { error: saveState.error, status: e && e.status });
-          var status = e && e.status;
-          if (!status || status >= 500 || status === 408 || status === 429) scheduleRetry();
+          saveState.status = status;
+          saveState.willRetry = retry;
+          var extra = { error: saveState.error, status: status };
+          if (status === 0 && win.navigator && navigator.onLine === false) extra.offline = true;
+          emitSaved(false, extra);
+          if (retry) scheduleRetry();
+          else {
+            clearTimeout(retryTimer);
+            retryDelay = 0;
+          }
           return false;
         }
       );
@@ -1121,13 +1712,37 @@
     },
     /** Retry now (for a Retry button). */
     retry: function () {
+      clearTimeout(retryTimer);
+      retryDelay = 0;
       return WT.answers.flush();
+    },
+    /**
+     * Stop sending: cancels the save timers and resolves once no save (normal
+     * or keepalive) is in flight. Changes still queue locally. resume() (or a
+     * new reviewer) sends again. Used by WT.reviewer.remove().
+     */
+    pause: function () {
+      paused++;
+      clearTimeout(saveTimer);
+      clearTimeout(retryTimer);
+      var wait = function () {
+        var busy = inFlight || (keepaliveSent && keepaliveSent.promise);
+        return busy ? busy.then(wait, wait) : Promise.resolve(true);
+      };
+      return wait();
+    },
+    resume: function () {
+      if (paused > 0) paused--;
+      if (!paused && pendingCount()) scheduleSave(0);
     },
     /** Load-time sync (called by WT.boot): server answers win unless a change is queued. */
     sync: function () {
       return WT.api.me().then(
         function (server) {
-          if (server && server.rid) reconcile(server, true);
+          if (server && server.rid && loadReviewer().secret) {
+            serverHas = !!server.createdAt;
+            reconcile(server, true);
+          }
           return true;
         },
         function () {
@@ -1139,23 +1754,21 @@
       if (WT.answers._inited) return;
       WT.answers._inited = true;
       win.addEventListener('online', function () {
-        WT.answers.flush();
+        clearTimeout(retryTimer);
+        retryDelay = 0;
+        WT.answers.flush(); // with nothing queued this reports "saved", so the status leaves "offline"
       });
       win.addEventListener('offline', function () {
+        saveState.willRetry = true;
         emitSaved(false, { offline: true, error: 'You’re offline' });
       });
-      win.addEventListener('storage', function (e) {
-        if (e.key === REVIEWER_KEY) {
-          rec = null;
-          loadReviewer();
-          WT.emit('reviewer', WT.reviewer.get());
-          WT.emit('answers', null);
-        }
-        if (e.key === PENDING_KEY) pending = null;
-      });
-      // Best effort on the way out: send what is queued.
+      win.addEventListener('storage', onStorage);
+      // On the way out (tab hidden, closed or navigated away): send what is queued with keepalive.
       doc.addEventListener('visibilitychange', function () {
-        if (doc.visibilityState === 'hidden' && pendingCount()) WT.answers.flush();
+        if (doc.visibilityState === 'hidden' && pendingCount()) WT.answers.flush({ keepalive: true });
+      });
+      win.addEventListener('pagehide', function () {
+        if (pendingCount()) WT.answers.flush({ keepalive: true });
       });
       if (pendingCount()) WT.answers.flush().then(WT.answers.sync);
       else if (loadReviewer().secret) WT.answers.sync();
@@ -1459,6 +2072,8 @@
           el._wtReturn = null;
           if (ret && ret.isConnected && typeof ret.focus === 'function') {
             ret.focus({ preventScroll: true });
+            // A trigger that is hidden now (e.g. inside the closed phone Menu) can't take focus.
+            if (doc.activeElement !== ret && !topModal()) WT.focusView();
           } else if (!topModal()) {
             WT.focusView();
           }

@@ -154,7 +154,7 @@ button {
 }
 
 ::selection {
-  background: var(--c-lime);
+  background: var(--selection-bg); /* Lime in light, Acorn in dark */
   color: var(--c-slate-1);
 }
 
@@ -209,6 +209,8 @@ h2[tabindex='-1']:focus-visible {
   border-radius: 2px;
   background: var(--accent);
 }
+/* Eyebrows use the accent ink: Dark Green on white (8.21:1); Green on Slate 1
+   (6.48:1) and Acorn on Slate 2 cards (5.44:1) in dark, never Lime. */
 .wt-eyebrow {
   margin: 0 0 var(--sp-3);
   color: var(--highlight);

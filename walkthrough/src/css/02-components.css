@@ -1221,8 +1221,11 @@ kbd {
 .wt-toast .wt-icon {
   margin-top: 1px;
 }
+/* Errors get a neutral bar in the toast's own text colour (White on the
+   Slate 1 toast in light, Slate 1 on the White toast in dark: 17.85:1), so it
+   differs from the Green bar without Lime, which is 1.36:1 on White. */
 .wt-toast--error {
-  border-left-color: var(--c-lime);
+  border-left-color: var(--toast-text);
 }
 @media (prefers-reduced-motion: no-preference) {
   .wt-toast {
@@ -1273,6 +1276,11 @@ kbd {
   }
   .wt-switch__input:checked + .wt-switch__track {
     background: Highlight;
+  }
+  /* Forced colours paint a transparent border in the text colour, which would
+     underline every tab: only the selected one keeps its line. */
+  .wt-tab {
+    border-bottom-color: Canvas;
   }
   .wt-tab[aria-selected='true'] {
     border-bottom-color: Highlight;

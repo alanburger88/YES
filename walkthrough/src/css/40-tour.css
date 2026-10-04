@@ -7,6 +7,14 @@
  * bar between them maximises either one ([data-pane="statement" | "panel"]).
  * The tour fills the space under the masthead exactly, so the page itself never
  * scrolls; the panel and the statement scroll on their own.
+ * Short screens (max-height: 480px, e.g. 400% zoom): the split gives way and the
+ * page scrolls normally: the statement (about 70vh), the bar, then the panel.
+ *
+ * The bar is a size container (tourbar): its controls shed their text labels as
+ * it narrows (icon-only, with a tooltip and the same accessible name).
+ * The statement frame is sized and scaled by 40-tour.js through custom
+ * properties on .wt-tour: --dev-x/y/w/h (the device box in the stage) and
+ * --frame-lw/lh/s (the frame's logical size and its scale).
  */
 
 /* ---- Fill the viewport under the masthead ---- */
@@ -33,6 +41,10 @@ html[data-view='tour'] #view-tour {
   --spot-inner: var(--bg); /* white in light, Slate 1 in dark: contrast on any background */
   --spot-text: var(--bg);
   --tour-shadow: 0 -1px 0 var(--border), 0 -8px 24px rgb(15 23 42 / 0.06);
+  --tour-canvas: var(--hover-fill); /* Slate 7 in light, Slate 2 in dark: the desk the device sits on */
+  --device-edge: var(--border-strong); /* Slate 5 in light, Slate 3 in dark */
+  --device-shadow: 0 1px 2px rgb(15 23 42 / 0.08), 0 14px 36px rgb(15 23 42 / 0.14);
+  --dev-radius: 0px;
   position: relative;
   display: grid;
   flex: 1 1 auto;
@@ -47,15 +59,63 @@ html[data-view='tour'] #view-tour {
 }
 :root[data-theme='dark'] .wt-tour {
   --tour-shadow: 0 -1px 0 var(--border), 0 -8px 24px rgb(0 0 0 / 0.35);
+  --device-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 14px 36px rgb(0 0 0 / 0.4);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) .wt-tour {
     --tour-shadow: 0 -1px 0 var(--border), 0 -8px 24px rgb(0 0 0 / 0.35);
+    --device-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 14px 36px rgb(0 0 0 / 0.4);
   }
 }
 @media (min-width: 720px) and (max-width: 1023.98px) {
   .wt-tour {
     --panel-w: 340px;
+  }
+}
+
+/* =================================================================== */
+/* Tooltips for icon-only controls ([data-tip], shown where enabled)   */
+/* =================================================================== */
+.wt-tour [data-tip] {
+  position: relative;
+}
+.wt-tour [data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: 30;
+  max-width: 260px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  box-shadow: var(--shadow-pop);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: normal;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 3px);
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease), visibility 0s linear var(--dur);
+}
+/* .has-tip turns a tooltip on: 40-tour.js sets it where the control's text is hidden or cut short. */
+.wt-tour .has-tip:focus-visible::after,
+.wt-tour .has-tip:has(:focus-visible)::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition-delay: 0s;
+}
+@media (hover: hover) {
+  .wt-tour .has-tip:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, 0);
+    transition-delay: 0.25s, 0.25s, 0s;
   }
 }
 
@@ -138,7 +198,7 @@ html[data-view='tour'] #view-tour {
   color: var(--highlight);
 }
 .wt-tour__sec {
-  margin: 0 0 var(--sp-5);
+  margin: 0 0 var(--sp-4);
 }
 .wt-tour__sec p,
 .wt-tour__try p {
@@ -152,42 +212,9 @@ html[data-view='tour'] #view-tour {
   font-weight: 650;
 }
 
-/* Value for YES / for customers */
-.wt-tour__values {
-  display: grid;
-  gap: var(--sp-4);
-  margin: 0 0 var(--sp-5);
-  padding: var(--sp-4) var(--sp-4) var(--sp-4);
-  border-radius: 14px;
-}
-.wt-tour__value + .wt-tour__value {
-  padding-top: var(--sp-4);
-  border-top: 1px solid var(--border);
-}
-.wt-tour__list {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.wt-tour__list li {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
-  font-size: 0.9375rem;
-  line-height: 1.5;
-}
-.wt-tour__list .wt-icon {
-  margin-top: 4px;
-  color: var(--highlight);
-  stroke-width: 2.6;
-}
-
 /* Try it: a callout (white with a Green bar in light, the Dark Green section in dark) */
 .wt-tour__try {
-  margin: 0 0 var(--sp-5);
+  margin: 0;
   padding: 14px 16px 16px;
   border: 1px solid var(--border);
   border-left: 4px solid var(--accent);
@@ -207,6 +234,13 @@ html[data-view='tour'] #view-tour {
 .wt-tour__try .wt-tour__h .wt-icon {
   color: var(--highlight);
 }
+.wt-tour__goto {
+  margin-top: var(--sp-3);
+}
+.wt-tour__goto .wt-icon {
+  width: 16px;
+  height: 16px;
+}
 
 /* The polite "couldn't highlight" note */
 .wt-tour__note.is-shown {
@@ -216,20 +250,11 @@ html[data-view='tour'] #view-tour {
   margin: 0;
 }
 
-.wt-tour__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  margin: 0 0 var(--sp-4);
-}
-.wt-tour__content [data-brand-notice] {
-  margin: 0;
-}
-
-/* Your view */
+/* Your view: the form, straight after Try it */
 .wt-tour__view {
   margin-top: var(--sp-5);
   padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  scroll-margin-top: var(--sp-3);
 }
 .wt-tour__fieldset {
   margin: 0;
@@ -280,6 +305,74 @@ html[data-view='tour'] #view-tour {
   font-size: var(--fs-caption);
 }
 
+/* Why it matters (a disclosure) and the data requirements */
+.wt-tour__more {
+  margin-top: var(--sp-5);
+}
+.wt-tour__why {
+  margin: 0 0 var(--sp-4);
+  border-radius: 14px;
+}
+.wt-tour__why > summary {
+  min-height: 48px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-size: 0.9375rem;
+  line-height: 1.3;
+}
+.wt-tour__why > summary::before {
+  order: 2;
+  margin: 0 4px 0 auto;
+}
+.wt-tour__why > summary:hover {
+  background: var(--hover-fill);
+}
+.wt-tour__why[open] > summary {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.wt-tour__why-icon {
+  flex: none;
+  color: var(--highlight);
+}
+.wt-tour__why > .wt-tour__values {
+  padding: var(--sp-2) 16px 16px;
+}
+.wt-tour__values {
+  display: grid;
+  gap: var(--sp-4);
+}
+.wt-tour__value + .wt-tour__value {
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border);
+}
+.wt-tour__list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wt-tour__list li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.wt-tour__list .wt-icon {
+  margin-top: 4px;
+  color: var(--highlight);
+  stroke-width: 2.6;
+}
+.wt-tour__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
 .wt-tour__keys {
   display: flex;
   align-items: flex-start;
@@ -298,36 +391,132 @@ html[data-view='tour'] #view-tour {
   padding: 0 5px;
 }
 
-/* Navigation: sticky at the bottom of the panel */
+/* =================================================================== */
+/* Navigation: sticky at the bottom of the panel                        */
+/* =================================================================== */
 .wt-tour__nav {
   flex: none;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   grid-template-areas:
-    'steps restart'
-    'prev next';
+    'state state steps restart'
+    'prev next next next';
   align-items: center;
-  gap: var(--sp-2) var(--sp-3);
-  padding: var(--sp-2) var(--sp-5) var(--sp-4);
+  gap: var(--sp-2);
+  padding: 10px var(--sp-5) var(--sp-4);
   padding-bottom: calc(var(--sp-4) + env(safe-area-inset-bottom, 0px));
   background: var(--surface-2);
   box-shadow: var(--tour-shadow);
 }
-.wt-tour__tool--steps {
-  grid-area: steps;
+
+/* The state chip: what I said about this feature; it leads to the form */
+.wt-tour__state {
+  grid-area: state;
   justify-self: start;
-  margin-left: -10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 4px 14px 4px 5px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-pill);
+  background: var(--control-bg);
+  color: var(--heading);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
-.wt-tour__tool--restart {
-  grid-area: restart;
-  justify-self: end;
-  margin-right: -10px;
+.wt-tour__state:hover {
+  border-color: var(--heading);
+  background: var(--hover-fill);
 }
+.wt-tour__state:empty {
+  visibility: hidden;
+}
+.wt-tour__state-dot {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+.wt-tour__state-dot .wt-icon {
+  stroke-width: 2.6;
+}
+.wt-tour__state[data-state='none'] .wt-tour__state-dot {
+  border: 1.5px dashed var(--control-border);
+  color: var(--body);
+}
+.wt-tour__state[data-state='include'] .wt-tour__state-dot {
+  background: var(--include-bg);
+  color: var(--include-text);
+}
+.wt-tour__state[data-state='exclude'] .wt-tour__state-dot {
+  background: var(--exclude-bg);
+  color: var(--exclude-text);
+}
+.wt-tour__state-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wt-tour__state-rest {
+  color: var(--body);
+  font-weight: 500;
+}
+.wt-tour__state[data-state='none'] .wt-tour__state-rest {
+  color: var(--link);
+  font-weight: 600;
+}
+
+/* All steps and Restart: icon buttons with a tooltip */
 .wt-tour__tool {
   --_fg: var(--body);
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
 }
 .wt-tour__tool:hover {
   --_fg: var(--heading);
+}
+.wt-tour__tool--steps {
+  grid-area: steps;
+}
+.wt-tour__tool--restart {
+  grid-area: restart;
+  margin-right: -6px;
+}
+.wt-tour__tool--restart::after {
+  left: auto;
+  right: 0;
+  transform: translate(0, 3px);
+}
+.wt-tour .wt-tour__tool--restart.has-tip:focus-visible::after,
+.wt-tour .wt-tour__tool--restart.has-tip:hover::after {
+  transform: none;
+}
+.wt-tour__tool-label {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
 .wt-tour__prev {
   grid-area: prev;
@@ -348,40 +537,41 @@ html[data-view='tour'] #view-tour {
     transform: translateX(3px);
   }
 }
+.wt-tour__next[aria-busy='true'] .wt-icon {
+  display: none;
+}
 
 /* =================================================================== */
-/* Bar (Dim the rest, phone layout toggles)                            */
+/* Bar: View as, open in a new tab, Dim the rest, the branding notice  */
 /* =================================================================== */
 .wt-tour__bar {
   grid-area: bar;
   position: relative;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
+  z-index: 3;
   min-width: 0;
-  min-height: 52px;
-  padding: 2px var(--sp-4) 2px var(--sp-5);
+  container: tourbar / inline-size;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
 }
+.wt-tour__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px var(--sp-3);
+  min-height: 46px;
+  padding: 6px var(--sp-4) 2px var(--sp-5);
+}
 .wt-tour__bar-label {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: var(--sp-2);
   min-width: 0;
-  margin: 0 auto 0 0;
-  color: var(--body);
+  margin: 0;
+  color: var(--heading);
   font-size: var(--fs-caption);
   line-height: 1.3;
-}
-.wt-tour__bar-label > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-}
-.wt-tour__bar-label strong {
-  color: var(--heading);
 }
 .wt-tour__bar-label .wt-icon {
   flex: none;
@@ -399,17 +589,225 @@ html[data-view='tour'] #view-tour {
   width: 16px;
   height: 16px;
 }
+
+/* View as: a compact segmented control (real radios) */
+.wt-tour__views {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.wt-tour__views-label {
+  color: var(--body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.wt-tour__seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--control-border);
+  border-radius: 10px;
+  background: var(--control-bg);
+}
+.wt-tour__seg-opt {
+  position: relative;
+  display: block;
+}
+.wt-tour__seg-input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.wt-tour__seg-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 34px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: var(--body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.wt-tour__seg-face .wt-icon {
+  flex: none;
+}
+.wt-tour__seg-input:hover + .wt-tour__seg-face {
+  background: var(--hover-fill);
+  color: var(--heading);
+}
+.wt-tour__seg-input:checked + .wt-tour__seg-face {
+  background: var(--selected-bg);
+  color: var(--selected-text);
+}
+.wt-tour__seg-input:focus-visible + .wt-tour__seg-face {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Open the statement in a new tab */
+.wt-tour__newtab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-pill);
+  background: var(--control-bg);
+  color: var(--heading);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.wt-tour__newtab:hover {
+  border-color: var(--heading);
+  background: var(--hover-fill);
+  color: var(--heading);
+  text-decoration: none;
+}
+.wt-tour__newtab .wt-icon {
+  flex: none;
+  color: var(--highlight);
+}
+
+/* Dim the rest */
 .wt-tour__dim {
   flex: none;
 }
 .wt-tour__dim .wt-switch {
-  font-size: var(--fs-caption);
+  min-height: 36px;
+  gap: 8px;
+  font-size: 0.8125rem;
   font-weight: 600;
   white-space: nowrap;
 }
+.wt-tour__dim .wt-switch__track {
+  width: 40px;
+  height: 24px;
+}
+.wt-tour__dim .wt-switch__track::after {
+  width: 18px;
+  height: 18px;
+}
+.wt-tour__dim .wt-switch__input:checked + .wt-switch__track::after {
+  transform: translateX(16px);
+}
+.wt-tour__dim::after {
+  left: auto;
+  right: 0;
+  transform: translate(0, 3px);
+}
+
+/* The info line: how to use the frame, and the branding notice */
+.wt-tour__info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px var(--sp-4);
+  padding: 2px var(--sp-4) 7px var(--sp-5);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+.wt-tour__bar-hint {
+  margin: 0;
+  color: var(--muted);
+}
+.wt-tour__brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--body);
+}
+.wt-tour__brand .wt-icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--highlight);
+}
+
+/* Desktop bar: tooltips sit below the controls (over the statement) */
+.wt-tour__bar [data-tip]::after {
+  top: calc(100% + 8px);
+  bottom: auto;
+  transform: translate(-50%, -3px);
+}
+.wt-tour__bar .wt-tour__dim::after {
+  transform: translate(0, -3px);
+}
+.wt-tour__bar .wt-tour__dim.has-tip:hover::after,
+.wt-tour__bar .wt-tour__dim.has-tip:has(:focus-visible)::after {
+  transform: none;
+}
+
+/* The bar sheds text as it narrows (container widths). */
+@container tourbar (max-width: 839.98px) {
+  .wt-tour__bar-label,
+  .wt-tour__bar-hint {
+    display: none; /* the branding notice takes the hint's place */
+  }
+  .wt-tour__views {
+    margin-right: auto;
+  }
+}
+@container tourbar (max-width: 639.98px) {
+  .wt-tour__views-label,
+  .wt-tour__newtab-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .wt-tour__newtab {
+    width: 36px;
+    padding: 0;
+  }
+}
+@container tourbar (max-width: 479.98px) {
+  .wt-tour__seg-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .wt-tour__seg-face {
+    padding: 0 8px;
+  }
+  .wt-tour__tools {
+    gap: 6px var(--sp-2);
+  }
+}
 
 /* =================================================================== */
-/* Stage: the frame, the overlay and the edge indicator               */
+/* Stage: the device with the frame, the overlay and the edge indicator */
 /* =================================================================== */
 .wt-tour__stage {
   grid-area: stage;
@@ -417,19 +815,44 @@ html[data-view='tour'] #view-tour {
   z-index: 1;
   min-width: 0;
   min-height: 0;
-  background: var(--bg);
+  background: var(--tour-canvas);
 }
 .wt-tour__frame-wrap {
   position: absolute;
   inset: 0;
   overflow: hidden;
 }
+.wt-tour__device {
+  position: absolute;
+  top: var(--dev-y, 0px);
+  left: var(--dev-x, 0px);
+  width: var(--dev-w, 100%);
+  height: var(--dev-h, 100%);
+  overflow: hidden;
+  border-radius: var(--dev-radius);
+  background: var(--bg);
+}
+.wt-tour[data-device='desktop'] .wt-tour__device {
+  box-shadow: 0 0 0 1px var(--border);
+}
+/* Mobile and Tablet: a device outline (rounded corners, a slate edge, a soft shadow) */
+.wt-tour[data-chrome='on'][data-device='mobile'] {
+  --dev-radius: 24px;
+}
+.wt-tour[data-chrome='on'][data-device='tablet'] {
+  --dev-radius: 18px;
+}
+.wt-tour[data-chrome='on'] .wt-tour__device {
+  box-shadow: 0 0 0 1px var(--device-edge), var(--device-shadow);
+}
 .wt-tour__frame {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: var(--frame-lw, 100%);
+  height: var(--frame-lh, 100%);
   border: 0;
   background: var(--bg);
+  transform: scale(var(--frame-s, 1));
+  transform-origin: 0 0;
 }
 
 /* Loading veil until the statement has booted */
@@ -681,7 +1104,7 @@ html[data-view='tour'] #view-tour {
   .wt-tour {
     /* About 52svh. On short screens (landscape phones, 200% zoom) the frame gives
        way so the panel keeps room for its navigation and a few lines of text. */
-    --frame-h: max(96px, min(52svh, calc(100svh - var(--mast-h) - 49px - 160px)));
+    --frame-h: max(96px, min(52svh, calc(100svh - var(--mast-h) - 84px - 160px)));
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: var(--frame-h) auto minmax(0, 1fr);
     grid-template-areas:
@@ -693,19 +1116,63 @@ html[data-view='tour'] #view-tour {
     border-left: 0;
   }
   .wt-tour__bar {
-    min-height: 48px;
-    padding: 2px 8px 2px var(--gutter);
     border-top: 1px solid var(--border);
     box-shadow: 0 -4px 12px rgb(15 23 42 / 0.08);
   }
-  .wt-tour__bar-label {
-    display: none;
+  .wt-tour__tools {
+    gap: 6px var(--sp-2);
+    min-height: 44px;
+    padding: 4px 12px 2px;
+  }
+  .wt-tour__bar-label,
+  .wt-tour__bar-hint,
+  .wt-tour__views-label,
+  .wt-tour__newtab-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .wt-tour__newtab {
+    width: 36px;
+    padding: 0;
   }
   .wt-tour__panes {
     display: flex;
-    margin-right: auto;
   }
-    .wt-tour__scroll {
+  .wt-tour__views {
+    margin-right: 0;
+  }
+  .wt-tour__dim {
+    margin-left: auto;
+  }
+  .wt-tour__info {
+    padding: 0 12px 6px;
+    font-size: 0.75rem;
+  }
+  /* Phone bar tooltips sit above the controls (over the statement) */
+  .wt-tour__bar [data-tip]::after {
+    top: auto;
+    bottom: calc(100% + 8px);
+    transform: translate(-50%, 3px);
+  }
+  .wt-tour__bar .wt-tour__dim::after {
+    transform: translate(0, 3px);
+  }
+  .wt-tour__pane:first-child::after {
+    left: 0;
+    transform: translate(0, 3px);
+  }
+  .wt-tour .wt-tour__pane:first-child.has-tip:hover::after,
+  .wt-tour .wt-tour__pane:first-child.has-tip:focus-visible::after {
+    transform: none;
+  }
+
+  .wt-tour__scroll {
     padding: var(--sp-4) var(--gutter) var(--sp-5);
   }
   .wt-tour__head {
@@ -721,29 +1188,53 @@ html[data-view='tour'] #view-tour {
     padding: var(--sp-4);
   }
   .wt-tour__nav {
-    grid-template-columns: auto auto auto minmax(0, 1fr);
-    grid-template-areas: 'prev steps restart next';
+    grid-template-columns: auto auto auto auto minmax(0, 1fr);
+    grid-template-areas: 'prev state steps restart next';
     gap: var(--sp-2);
     padding: var(--sp-2) var(--gutter);
     padding-bottom: calc(var(--sp-2) + env(safe-area-inset-bottom, 0px));
+  }
+  /* The chip is an icon on phones: its words stay for screen readers */
+  .wt-tour__state {
+    justify-self: center;
+    justify-content: center;
+    width: var(--target);
+    height: var(--target);
+    padding: 0;
+    border-radius: 50%;
+  }
+  .wt-tour__state-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .wt-tour__state-dot {
+    width: 28px;
+    height: 28px;
+  }
+  .wt-tour__state::after {
+    left: 50%;
   }
   .wt-tour__tool {
     width: var(--target);
     height: var(--target);
     min-height: var(--target);
-    padding: 0;
     margin: 0 !important;
     justify-self: center !important;
   }
-  .wt-tour__tool-label {
-    position: absolute !important;
-    width: 1px !important;
-    height: 1px !important;
-    margin: -1px !important;
-    overflow: hidden !important;
-    clip: rect(0 0 0 0) !important;
-    clip-path: inset(50%) !important;
-    white-space: nowrap !important;
+  .wt-tour__tool--restart::after {
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, 3px);
+  }
+  .wt-tour .wt-tour__tool--restart.has-tip:focus-visible::after,
+  .wt-tour .wt-tour__tool--restart.has-tip:hover::after {
+    transform: translate(-50%, 0);
   }
   .wt-tour__prev,
   .wt-tour__next {
@@ -771,6 +1262,66 @@ html[data-view='tour'] #view-tour {
     height: var(--frame-h);
     visibility: hidden;
   }
+
+  /* Narrow phone bars: icon-only Statement / Panel, then a shorter "Dim". */
+  @container tourbar (max-width: 439.98px) {
+    .wt-tour__pane-text,
+    .wt-tour__dim-more {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .wt-tour__pane {
+      width: 36px;
+      padding: 0;
+      justify-content: center;
+    }
+  }
+  @container tourbar (max-width: 359.98px) {
+    .wt-tour__dim .wt-switch__label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .wt-tour__tools {
+      gap: 6px;
+    }
+  }
+  @container tourbar (max-width: 679.98px) {
+    .wt-tour__seg-text {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .wt-tour__seg-face {
+      padding: 0 8px;
+    }
+  }
+}
+/* Very narrow phones: the state chip makes way for the step controls. */
+@media (max-width: 359.98px) {
+  .wt-tour__nav {
+    grid-template-columns: auto auto auto minmax(0, 1fr);
+    grid-template-areas: 'prev steps restart next';
+  }
+  .wt-tour__state {
+    display: none;
+  }
 }
 /* The Alt+arrow tips are for keyboards: leave them out on touch-only devices. */
 @media (hover: none) and (pointer: coarse) {
@@ -778,25 +1329,83 @@ html[data-view='tour'] #view-tour {
     display: none;
   }
 }
-@media (max-width: 379.98px) {
-  .wt-tour__pane {
-    padding-inline: 8px;
+
+/* =================================================================== */
+/* Short screens (400% zoom, 200% zoom on a laptop, landscape phones):  */
+/* the page scrolls; the statement is about 70vh, then the bar, then    */
+/* the panel and its navigation in the normal flow.                    */
+/* =================================================================== */
+@media (max-height: 480px) {
+  html[data-view='tour'] body {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
   }
-  .wt-tour__dim .wt-switch__label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
+  html[data-view='tour'] .wt-main,
+  html[data-view='tour'] #view-tour {
+    display: block;
+  }
+  .wt-tour {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+  }
+  .wt-tour__stage {
+    order: 1;
+    flex: none;
+    height: 70vh;
+    min-height: 150px;
+  }
+  .wt-tour__bar {
+    order: 2;
+    border-top: 1px solid var(--border);
+    box-shadow: none;
+  }
+  .wt-tour__panel {
+    order: 3;
+    display: block;
+    border-left: 0;
+  }
+  .wt-tour__scroll {
+    overflow: visible;
+    padding-inline: max(var(--gutter), calc((100% - 720px) / 2));
+  }
+  .wt-tour__nav {
+    position: static;
+    box-shadow: none;
+    border-top: 1px solid var(--border);
+    padding-inline: max(var(--gutter), calc((100% - 720px) / 2));
+  }
+  .wt-tour[data-pane='statement'] .wt-tour__stage {
+    height: calc(100vh - var(--mast-h));
+  }
+  .wt-tour[data-pane='statement'] .wt-tour__scroll {
+    display: none;
+  }
+  .wt-tour[data-pane='panel'] .wt-tour__stage {
+    height: 0;
+    min-height: 0;
     overflow: hidden;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    white-space: nowrap;
+    visibility: hidden;
   }
 }
 
 /* =================================================================== */
 /* All steps dialog                                                    */
 /* =================================================================== */
+.wt-steplist__brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 var(--sp-3);
+  color: var(--body);
+  font-size: var(--fs-caption);
+}
+.wt-steplist__brand .wt-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--highlight);
+}
 .wt-steplist__summary {
   display: flex;
   flex-wrap: wrap;
@@ -984,7 +1593,7 @@ html[data-view='tour'] #view-tour {
 }
 
 /* =================================================================== */
-/* Forced colours: keep the outline, tag and indicator visible          */
+/* Forced colours: keep the outline, tag, indicator and device visible  */
 /* =================================================================== */
 @media (forced-colors: active) {
   .wt-spot__ring {
@@ -993,7 +1602,8 @@ html[data-view='tour'] #view-tour {
   }
   .wt-spot__tag,
   .wt-tour__edge,
-  .wt-spot__busy {
+  .wt-spot__busy,
+  .wt-tour [data-tip]::after {
     border: 1px solid CanvasText;
     forced-color-adjust: none;
     background: Canvas;
@@ -1001,5 +1611,16 @@ html[data-view='tour'] #view-tour {
   }
   .wt-steplist__item.is-current {
     border-color: Highlight;
+  }
+  .wt-tour__device {
+    outline: 1px solid CanvasText;
+  }
+  .wt-tour__seg-input:checked + .wt-tour__seg-face {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+  .wt-tour__state-dot {
+    border: 1px solid CanvasText;
   }
 }

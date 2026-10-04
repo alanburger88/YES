@@ -24,11 +24,20 @@
   /* Moderation actions                                                  */
   /* ------------------------------------------------------------------ */
 
+  /** The server's text, asking to try again once at most (it often already does). */
+  function tryAgain(message) {
+    if (WT.results && WT.results.tryAgain) return WT.results.tryAgain(message);
+    var base = String(message || 'Something went wrong.').trim();
+    if (!/[.!?]$/.test(base)) base += '.';
+    return /\btry again\b/i.test(base) ? base : base + ' Please try again.';
+  }
+
   function failMessage(err, what) {
     if (err && err.status === 401) return 'Your admin code is no longer valid, so you’ve been signed out. Sign in again on the Admin page.';
     if (err && err.status === 503) return 'Admin is not configured on this site.';
     if (err && err.status === 404) return 'That reviewer no longer exists. The results have been refreshed.';
-    return 'We couldn’t ' + what + '. ' + ((err && err.message) || 'Please try again.');
+    if (err && err.status === 0) return 'We couldn’t ' + what + ': we couldn’t reach the server. Check your connection and try again.';
+    return 'We couldn’t ' + what + '. ' + tryAgain(err && err.message);
   }
 
   function done(msg) {
@@ -70,10 +79,12 @@
         if (!yes) return false;
         return WT.api.admin.deleteReviewer(rid).then(
           function () {
-            // Reload first, then move focus (the trigger disappears with the
-            // reload), then confirm: the toast is announced after the new focus.
-            var reload = WT.results && WT.results.load ? WT.results.load({ force: true }) : Promise.resolve();
+            // 'moderated' makes the results reload (forced). Wait for that
+            // reload, which removes the trigger's row, then move focus to a
+            // control that is still there, then confirm: the toast's
+            // announcement follows the new focus instead of being cut off.
             WT.emit('moderated', true);
+            var reload = WT.results && WT.results.load ? WT.results.load() : null;
             return Promise.resolve(reload).then(function () {
               focusAfterRemoval(next);
               WT.toast('Answers deleted for ' + who + '.', { kind: 'success' });
@@ -288,7 +299,7 @@
           view.configured = false;
           view.error = 'Admin is not configured. Set the ADMIN_CODE environment variable in Netlify and redeploy.';
         } else {
-          view.error = err && err.status === 0 ? 'We couldn’t reach the server. Check your connection and try again.' : (err && err.message) || 'Something went wrong. Please try again.';
+          view.error = err && err.status === 0 ? 'We couldn’t reach the server. Check your connection and try again.' : tryAgain(err && err.message);
         }
         render();
         focusCode();

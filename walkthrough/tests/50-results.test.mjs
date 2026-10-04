@@ -101,6 +101,13 @@ export async function seedResults(api, features, opts = {}) {
 
 const pct = (n, d) => (d ? Math.round((n / d) * 100) + '%' : '–');
 const plural = (n, one, many) => n.toLocaleString('en-GB') + ' ' + (n === 1 ? one : many || one + 's');
+/** What a sighted reader sees: the text without visually hidden parts. */
+const visibleText = (loc) =>
+  loc.evaluate((el) => {
+    const c = el.cloneNode(true);
+    c.querySelectorAll('.wt-sr-only').forEach((x) => x.remove());
+    return c.textContent.replace(/\s+/g, ' ').trim();
+  });
 const join = (a) => (a.length <= 1 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]);
 const LABEL = { high: 'High', medium: 'Medium', low: 'Low' };
 
@@ -589,7 +596,7 @@ export default async function (ctx) {
         assert.ok(badges.startsWith(r.vote === 'include' ? 'Include' : r.vote === 'exclude' ? 'Exclude' : 'No vote'), 'vote badge');
         // An Exclude vote's priority is shown as "if included" (and isn't counted).
         assert.ok(badges.endsWith(!r.priority ? 'No priority' : LABEL[r.priority] + ' priority' + (r.vote === 'exclude' ? ' if included' : '')), 'priority badge: ' + badges);
-        if (r.vote === 'exclude' && r.priority) assert.equal(text(await it.locator('.wt-badge--if').innerText()), LABEL[r.priority] + ' if included');
+        if (r.vote === 'exclude' && r.priority) assert.equal(await visibleText(it.locator('.wt-badge--if')), LABEL[r.priority] + ' if included');
         if (r.reason) assert.equal(await it.locator('.wt-resp__part--reason .wt-resp__text').innerText(), r.reason);
         else assert.equal(await it.locator('.wt-resp__part--reason').count(), 0);
         if (r.comment) assert.equal(await it.locator('.wt-resp__part--comment .wt-resp__text').innerText(), r.comment);
@@ -761,6 +768,68 @@ export default async function (ctx) {
   });
 
   /* ------------------------------------------------------------------ */
+  await step('after a save: an answer saved while the results are open shows up straight away', async () => {
+    const P = await openPage(ctx);
+    try {
+      await openResults(P);
+      const { page } = P;
+      const f = features[2];
+      const before = Number(await page.locator('[data-count="reviewers"] strong').innerText());
+      const t0 = Date.now();
+      // The last answer of the walkthrough, saved from this tab: an Exclude with a priority.
+      await page.evaluate((id) => {
+        window.WT.answers.set(id, { vote: 'exclude', priority: 'high' });
+        return window.WT.answers.flush();
+      }, f.id);
+      await until(async () => Number(await page.locator('[data-count="reviewers"] strong').innerText()) === before + 1, 6000, 'own answer counted without waiting for the 30 s poll');
+      assert.ok(Date.now() - t0 < 6000, 'refreshed after the save');
+      // Its priority is shown as "if included" and isn't counted.
+      const api0 = (await results()).features[f.id];
+      await openResults(P, '#/results/' + f.id);
+      const mine = page.locator('.wt-resp').filter({ has: page.locator('.wt-badge--if') }).first();
+      assert.equal(await visibleText(mine.locator('.wt-badge--if')), 'High if included');
+      assert.equal(text(await mine.locator('.wt-badge--if').textContent()), 'High priority if included');
+      const counted = api0.responses.filter((r) => r.vote !== 'exclude' && r.priority).length;
+      assert.equal(await page.evaluate((id) => { const p = window.WT.results.model().find((r) => r.id === id).priority; return p.high + p.medium + p.low; }, f.id), counted, 'priorities from Exclude votes are not counted');
+      // Clean up: later steps expect the seeded reviewers only.
+      await page.evaluate(() => window.WT.api.deleteMe());
+      res = await results();
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  await step('forced colours: High, Medium and Low look different, and segment labels name the priority', async () => {
+    const P = await openPage(ctx);
+    try {
+      await P.page.emulateMedia({ forcedColors: 'active' });
+      await openResults(P);
+      const { page } = P;
+      const looks = await page.evaluate(() =>
+        ['high', 'medium', 'low'].map((k) => [document.querySelector('#fig-mix .wt-mark--' + k), document.querySelector('#fig-mix .wt-key--' + k)].map((m) => {
+          const cs = getComputedStyle(m);
+          return [cs.backgroundColor, cs.backgroundImage === 'none' ? 'solid' : 'pattern', cs.outlineStyle === 'none' ? 'no outline' : 'outline ' + cs.outlineWidth].join(' / ');
+        }))
+      );
+      assert.equal(new Set(looks.map((l) => l[0])).size, 3, 'segments: ' + looks.map((l) => l[0]).join(' | '));
+      assert.equal(new Set(looks.map((l) => l[1])).size, 3, 'legend keys: ' + looks.map((l) => l[1]).join(' | '));
+      const labs = await page.locator('#fig-mix .wt-mark .wt-seg__lab').allTextContents();
+      assert.ok(labs.length && labs.every((t) => /^[HML] \d+%$/.test(t)), 'labels: ' + labs.slice(0, 5).join(', '));
+      // Only the current sub-view is underlined.
+      const lines = await page.locator('.wt-subnav__link').evaluateAll((as) => as.map((a) => [a.getAttribute('aria-current') === 'page', getComputedStyle(a).borderBottomColor]));
+      const cur = lines.filter((l) => l[0]).map((l) => l[1]);
+      assert.ok(lines.filter((l) => !l[0]).every((l) => !cur.includes(l[1])), 'sub-nav underline marks only the current view: ' + JSON.stringify(lines));
+      await page.locator('#fig-mix').scrollIntoViewIfNeeded();
+      await shot(page, 'results-forced-colors-mix');
+      assertNoErrors(P.errors, assert, P.external);
+    } finally {
+      await P.close();
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
   await step('colour contrast: chart marks >= 3:1 and chart text >= 4.5:1, brand colours only, both themes', async () => {
     for (const scheme of ['light', 'dark']) {
       const P = await openPage(ctx, { colorScheme: scheme });
@@ -768,6 +837,30 @@ export default async function (ctx) {
         await openResults(P);
         const { page } = P;
         assert.equal(await page.evaluate(() => document.documentElement.getAttribute('data-theme')), scheme);
+        if (scheme === 'dark') {
+          // The brand keeps Lime to one or two highlights per view: on the
+          // results it is only the focus ring. Eyebrows are Green on Slate 1;
+          // links and accents on Slate 2 cards are Acorn.
+          const ink = await page.evaluate(() => {
+            if (document.activeElement) document.activeElement.blur();
+            const lime = [];
+            for (const el of document.querySelectorAll('#view-results *')) {
+              const cs = getComputedStyle(el);
+              for (const p of ['color', 'backgroundColor', 'borderTopColor', 'borderBottomColor', 'borderLeftColor', 'fill', 'stroke']) {
+                if (p.startsWith('border') && parseFloat(cs[p.replace('Color', 'Width')]) === 0) continue;
+                if (cs[p] === 'rgb(219, 230, 76)') lime.push(p + ' ' + (el.className.baseVal ?? el.className));
+              }
+            }
+            return {
+              lime,
+              eyebrow: getComputedStyle(document.querySelector('#view-results .wt-eyebrow')).color,
+              cardLink: getComputedStyle(document.querySelector('#view-results .wt-sum a')).color
+            };
+          });
+          assert.deepEqual(ink.lime, [], 'no Lime on the results overview');
+          assert.equal(ink.eyebrow, 'rgb(78, 175, 96)', 'eyebrow is Green on Slate 1');
+          assert.equal(ink.cardLink, 'rgb(128, 209, 0)', 'links on cards are Acorn');
+        }
         const sample = await page.evaluate(() => {
           const bgOf = (el) => {
             for (let e = el; e; e = e.parentElement) {
@@ -895,13 +988,19 @@ export default async function (ctx) {
     try {
       let fail = true;
       await P.page.route('**/api/results*', (route) =>
-        fail ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: 'Something went wrong on our side.' } }) }) : route.continue()
+        fail ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: 'Something went wrong on our side. Please try again.' } }) }) : route.continue()
       );
       await gotoApp(P.page, base, '#/results');
       const notice = P.page.locator('#view-results .wt-notice--error');
       await notice.waitFor();
       assert.equal(await notice.getAttribute('role'), 'alert');
       assert.match(text(await notice.innerText()), /We couldn’t load the results\./);
+      // The server already asks to try again, so the page doesn't say it twice.
+      assert.equal((text(await notice.innerText()).match(/try again/gi) || []).length, 1, 'one "try again": ' + text(await notice.innerText()));
+      assert.deepEqual(
+        await P.page.evaluate(() => ['Something went wrong on our side. Please try again.', 'Too many wrong admin codes. Try again in 5 minutes.', 'The server answered 502', ''].map((m) => window.WT.results.tryAgain(m))),
+        ['Something went wrong on our side. Please try again.', 'Too many wrong admin codes. Try again in 5 minutes.', 'The server answered 502. Please try again.', 'Something went wrong. Please try again.']
+      );
       fail = false;
       await P.page.locator('[data-action="retry"]').click();
       await P.page.locator('#fig-support').waitFor();
@@ -999,12 +1098,23 @@ export default async function (ctx) {
       await confirm.locator('[data-wt-close="cancel"].wt-btn--secondary').click();
       await confirm.waitFor({ state: 'hidden' });
       assert.equal((await results()).reviewers, now.reviewers);
+      // The row below (or above, for the last row) takes focus once the reload has removed this one.
+      const rowsBefore = await page.locator('.wt-mx-table tbody tr[data-rid]').evaluateAll((trs) => trs.map((t) => t.getAttribute('data-rid')));
+      const at = rowsBefore.indexOf(victim.rid);
+      const heir = rowsBefore[at + 1] || rowsBefore[at - 1];
+      await page.evaluate(() => {
+        window.__live = [];
+        new MutationObserver(() => window.__live.push(document.getElementById('wt-live').textContent)).observe(document.getElementById('wt-live'), { childList: true, characterData: true, subtree: true });
+      });
       await del.click();
       await confirm.waitFor({ state: 'visible' });
       await confirm.locator('[data-wt-confirm]').click();
       await until(async () => (await results()).reviewers === now.reviewers - 1, 5000, 'reviewer deleted');
       await until(async () => (await page.locator(`tr[data-rid="${victim.rid}"]`).count()) === 0, 5000, 'row removed');
       assert.equal(Number(await page.locator('[data-count="reviewers"] strong').innerText()), now.reviewers - 1);
+      await until(async () => (await page.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-fk'))) === 'mxdel-' + heir, 5000, 'focus on the next row’s Delete');
+      assert.ok(await page.evaluate(() => document.activeElement !== document.body), 'focus is not lost to the page');
+      await until(async () => (await page.evaluate(() => window.__live.join(' | '))).includes('Answers deleted for Aisha Patel.'), 4000, 'announced');
 
       // Reset all: the confirm button stays disabled until RESET is typed.
       await page.locator('.wt-adminbar [data-mod="reset"]').click();

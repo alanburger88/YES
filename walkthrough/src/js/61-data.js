@@ -3,11 +3,13 @@
  * SPEC section 7. Owner: data view.
  *
  * A scope switch picks the features: "Features I included" (WT.answers),
- * "Features most reviewers want" (more include than exclude votes, the same
- * rule as the Results tile: WT.results.wanted, from WT.api.results), "All
- * features", or "Custom" (a checklist fine-tunes any of them). The merged explorer (WT.json) shows their data, followed by a card per
- * feature. #/data/<featureId> preselects one feature. If the results API can't
- * be reached, the group option shows a notice and the others keep working.
+ * "Features most reviewers want" (more include than exclude votes: the same
+ * rule and label as the Results tile, WT.results.wanted / WANTED, applied to
+ * WT.api.results), "All features", or "Custom" (a checklist fine-tunes any of
+ * them). The merged explorer (WT.json) shows their data, followed by a card
+ * per feature. #/data/<featureId> preselects one feature. If the results API
+ * can't be reached, the group option shows a notice and the others keep
+ * working. The compact branding notice sits under the intro, as on Results.
  */
 (function (WT) {
   'use strict';

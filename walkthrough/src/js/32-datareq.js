@@ -406,10 +406,10 @@
     ),
 
     'explain-ai': entry(
-      'The statement totals and transaction fields sent to YES’s governed AI service, including the balance after each transaction and any verified network reference, and the guardrails, disclaimer and retention it runs with.',
+      'The statement totals and transaction fields sent to YES’s governed AI service (including the balance after each transaction and any verified network reference), with its guardrails, disclaimer and retention.',
       [
-        'For a button, the AI service receives the fields in ai.inputFields for the selected figure or transaction and the statement totals. A follow-up question typed in Ask YES is sent as typed (see Ask YES assistant).',
-        'The balance before a transaction is its balanceAfter minus its amount; unverified on-chain details are never sent.',
+        AI_QUESTION_NOTE,
+        'A button sends the fields for the selected figure or transaction and the statement totals. The balance before a transaction is its balanceAfter minus its amount; unverified on-chain details are never sent.',
         'Answers must cite the transaction IDs they used. If the service is off or fails, the statement falls back to approved template explanations.'
       ],
       AI_CORE.concat(['ai.retentionDays'], BALANCES, AI_TX)

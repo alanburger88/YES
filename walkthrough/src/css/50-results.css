@@ -1814,6 +1814,11 @@ td.wt-mx {
   .wt-adminbar {
     border: 1px solid CanvasText;
   }
+  /* Only the current sub-view keeps its underline (a transparent border
+     would otherwise be painted in the link colour). */
+  .wt-subnav__link {
+    border-bottom-color: Canvas;
+  }
   .wt-subnav__link[aria-current='page'] {
     border-bottom-color: Highlight;
   }

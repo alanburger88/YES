@@ -11,11 +11,12 @@
  *   strings Dark Green #1D5941 (8.6:1), numbers Medium Green #277656 (5.2:1),
  *   true/false/null Slate 1, punctuation Slate 2 (9.4:1). Dark, always on
  *   Slate 1 #0F172A: keys White, strings Acorn (9.38:1), numbers Green (6.48:1),
- *   true/false/null Slate 5 (12:1), punctuation Slate 4 (6.96:1). Lime is kept
- *   for search matches only, so the code view stays mostly green.
+ *   true/false/null Slate 5 (12:1), punctuation Slate 4 (6.96:1). No Lime
+ *   in dark mode: the brand keeps it for focus and the tour spotlight.
  * - Grey fills (details pane, hovered or selected rows) take --muted to the
  *   body colour, since Slate 3 is under 4.5:1 on #F8F8F8 and #F1F5F9.
- * - Search matches use Lime with Slate 1 text (15:1), as text selection does.
+ * - Search matches are marked like text selection: Lime in light and Acorn
+ *   in dark, always with Slate 1 text (13.12:1 / 9.38:1).
  */
 
 /* =================================================================== */
@@ -30,6 +31,7 @@
   --jx-n: var(--c-medium-green);
   --jx-b: var(--c-slate-1);
   --jx-p: var(--c-slate-2);
+  --jx-mark: var(--c-lime);
   color: var(--body);
 }
 :root[data-theme='dark'] .wt-jx {
@@ -39,6 +41,7 @@
   --jx-n: var(--c-green);
   --jx-b: var(--c-slate-5);
   --jx-p: var(--c-slate-4);
+  --jx-mark: var(--c-acorn);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) .wt-jx {
@@ -48,6 +51,7 @@
     --jx-n: var(--c-green);
     --jx-b: var(--c-slate-5);
     --jx-p: var(--c-slate-4);
+    --jx-mark: var(--c-acorn);
   }
 }
 
@@ -354,7 +358,7 @@
 .wt-jx__mark {
   padding: 0 1px;
   border-radius: 3px;
-  background: var(--c-lime);
+  background: var(--jx-mark);
   color: var(--c-slate-1);
 }
 .wt-jx__nomatch {
@@ -922,6 +926,12 @@
 .wt-dv__fictional .wt-icon {
   margin-top: 1px;
   color: var(--highlight);
+}
+/* The compact branding notice under the intro (the page shows statement screenshots). */
+.wt-dv__head [data-brand-notice] {
+  width: fit-content;
+  max-width: 100%;
+  margin-top: var(--sp-4);
 }
 .wt-dv__h2 {
   margin: 0;

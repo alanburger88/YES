@@ -24,6 +24,7 @@
     sig: '',
     loadedAt: 0,
     loading: null,
+    queued: null,
     error: null,
     refreshError: null,
     manual: false,
@@ -453,12 +454,19 @@
     );
   }
 
+  /**
+   * An error message that asks to try again exactly once: the server's own
+   * messages often end with "Please try again." (or "Try again in 5 minutes.").
+   */
+  function tryAgain(message) {
+    var base = String(message || 'Something went wrong.').trim();
+    if (!/[.!?]$/.test(base)) base += '.';
+    return /\btry again\b/i.test(base) ? base : base + ' Please try again.';
+  }
+
   function errorBody() {
     var e = state.error || {};
-    var base = String(e.message || 'Something went wrong.').trim();
-    if (!/[.!?]$/.test(base)) base += '.';
-    // The server's message may already ask to try again: don't say it twice.
-    var msg = e.status === 0 ? 'We couldn’t reach the server. Check your connection and try again.' : /try again\.?$/i.test(base) ? base : base + ' Please try again.';
+    var msg = e.status === 0 ? 'We couldn’t reach the server. Check your connection and try again.' : tryAgain(e.message);
     return (
       '<div class="wt-results__error">' +
         WT.ui.notice({ kind: 'error', title: 'We couldn’t load the results.', text: msg }) +
@@ -903,10 +911,26 @@
     return WT.fmt.plural(d.reviewers, 'reviewer') + ', ' + WT.fmt.plural(d.answers, 'answer') + ' and ' + WT.fmt.plural(d.comments, 'comment');
   }
 
-  /** Fetch results. opts: { manual, force }. Resolves with the data (or null on failure). */
+  /**
+   * Fetch results. opts: { manual, force }. Resolves with the data (or null on
+   * failure). A plain call joins the newest request in flight. A forced call
+   * must reflect every change made before it (a save, a deletion), so while an
+   * older request is in flight it queues one more request after it; forced
+   * calls that arrive meanwhile share that queued request.
+   */
   function load(opts) {
     opts = opts || {};
-    if (state.loading) return state.loading;
+    if (state.loading) {
+      if (!opts.force) return state.queued || state.loading;
+      if (!state.queued) {
+        var next = function () {
+          state.queued = null;
+          return load(opts);
+        };
+        state.queued = state.loading.then(next, next);
+      }
+      return state.queued;
+    }
     state.manual = !!opts.manual;
     var asAdmin = WT.api.admin.signedIn();
     var p = WT.api.results({ admin: asAdmin }).then(
@@ -1092,7 +1116,9 @@
     /** How "wanted" is named everywhere: { label, rule }. */
     WANTED: WANTED,
     /** Priority counts that ignore Exclude votes, from a features[id] object. */
-    priorityOf: priorityOf
+    priorityOf: priorityOf,
+    /** An error message that says "Please try again." once at most. */
+    tryAgain: tryAgain
   };
 
   WT.register({
@@ -1135,16 +1161,13 @@
         if (visible()) load({ force: true });
       });
       // A save that lands while the results are on screen (say, the last answer
-      // of the walkthrough) shows up straight away instead of at the next poll.
+      // of the walkthrough, or one made in another tab's tour) shows up straight
+      // away instead of at the next poll. Debounced, since saves come in bursts;
+      // forced, so a request already in flight from before the save is not reused.
       var refreshAfterSave = WT.debounce(function () {
         if (!visible() || doc.visibilityState === 'hidden') return;
-        var again = function () {
-          return load({ force: true }).then(schedule, schedule);
-        };
-        // A load already in flight may have started before the save landed.
-        if (state.loading) state.loading.then(again, again);
-        else again();
-      }, 300);
+        load({ force: true }).then(schedule, schedule);
+      }, 400);
       WT.on('saved', function (s) {
         if (!s || !s.ok) return;
         state.loadedAt = 0;

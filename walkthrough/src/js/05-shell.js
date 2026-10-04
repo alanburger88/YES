@@ -113,6 +113,7 @@
 
     nameDlg.querySelector('[data-wt-new-reviewer]').addEventListener('click', function (e) {
       var btn = e.currentTarget;
+      if (isBusy(btn)) return;
       WT.dialog
         .confirm({
           title: 'Start as a new reviewer?',
@@ -122,17 +123,48 @@
         })
         .then(function (yes) {
           if (!yes) return;
-          return WT.reviewer.reset().then(function () {
-            WT.dialog.setReturn(nameDlg, null);
-            WT.dialog.close(nameDlg, 'reset');
-            WT.go('/start');
-            WT.toast('You’re now a new reviewer on this browser.', { kind: 'success' });
-          });
+          busy(btn, true);
+          return saveEverything()
+            .then(function () {
+              // Saves are failing (offline, or the server refuses them): say so before anything is lost.
+              var n = WT.answers.pending();
+              if (!n) return true;
+              var st = WT.answers.status();
+              return WT.dialog.confirm({
+                title: 'Some answers aren’t saved yet',
+                body:
+                  WT.fmt.plural(n, 'change') + ' on this browser ' + (n === 1 ? 'hasn’t' : 'haven’t') + ' reached the shared results yet' +
+                  (st.error ? ' (' + String(st.error).replace(/\.$/, '') + ')' : '') +
+                  '. If you start as a new reviewer now, ' + (n === 1 ? 'it' : 'they') + ' will be lost. To keep ' + (n === 1 ? 'it' : 'them') + ', choose “Keep my changes” and try again once you’re back online.',
+                confirmLabel: 'Discard and start as a new reviewer',
+                cancelLabel: 'Keep my changes',
+                danger: true,
+                trigger: btn
+              });
+            })
+            .then(function (go) {
+              if (!go) return;
+              return WT.reviewer.reset({ discard: true }).then(function () {
+                WT.dialog.setReturn(nameDlg, null);
+                WT.dialog.close(nameDlg, 'reset');
+                WT.go('/start');
+                WT.toast('You’re now a new reviewer on this browser.', { kind: 'success' });
+              });
+            })
+            .then(
+              function () {
+                busy(btn, false);
+              },
+              function () {
+                busy(btn, false);
+              }
+            );
         });
     });
 
     nameDlg.querySelector('[data-wt-remove-answers]').addEventListener('click', function (e) {
       var btn = e.currentTarget;
+      if (isBusy(btn)) return;
       WT.dialog
         .confirm({
           title: 'Remove your answers?',
@@ -143,16 +175,19 @@
         })
         .then(function (yes) {
           if (!yes) return;
-          return WT.api.deleteMe().then(
+          busy(btn, true);
+          // WT.reviewer.remove() stops queued and in-flight saves before the DELETE,
+          // so nothing can re-create the record afterwards, then starts a new reviewer.
+          return WT.reviewer.remove().then(
             function () {
-              return WT.reviewer.reset().then(function () {
-                WT.dialog.setReturn(nameDlg, null);
-                WT.dialog.close(nameDlg, 'removed');
-                WT.go('/start');
-                WT.toast('Your answers are removed.', { kind: 'success' });
-              });
+              busy(btn, false);
+              WT.dialog.setReturn(nameDlg, null);
+              WT.dialog.close(nameDlg, 'removed');
+              WT.go('/start');
+              WT.toast('Your answers are removed.', { kind: 'success' });
             },
             function (err) {
+              busy(btn, false);
               WT.toast('We couldn’t remove your answers. ' + ((err && err.message) || 'Please try again.'), { kind: 'error' });
             }
           );
@@ -160,14 +195,56 @@
     });
   }
 
-  /** Open the name dialog. trigger gets focus back afterwards. */
+  /**
+   * Marks a button busy (spinner) while a slow action runs. It stays enabled,
+   * so focus can return to it from a confirm dialog; clicks are ignored meanwhile.
+   */
+  function busy(btn, on) {
+    if (!btn) return;
+    if (on) btn.setAttribute('aria-busy', 'true');
+    else btn.removeAttribute('aria-busy');
+  }
+  function isBusy(btn) {
+    return !!btn && btn.getAttribute('aria-busy') === 'true';
+  }
+
+  /**
+   * Sends everything queued. A save already in flight resolves first, so
+   * changes queued meanwhile get one more flush. Resolves when done (whatever
+   * the outcome: check WT.answers.pending()).
+   */
+  function saveEverything() {
+    var settle = function () {
+      return true;
+    };
+    return WT.answers
+      .flush()
+      .then(function (ok) {
+        return ok !== false && WT.answers.pending() ? WT.answers.flush() : ok;
+      })
+      .then(settle, settle);
+  }
+
+  /**
+   * Where focus goes when the name dialog closes. The chip lives in the phone
+   * Menu, which closes when the dialog opens, so on phones (Menu open, or the
+   * chip tucked away in it) focus returns to the Menu button instead.
+   */
+  function returnTarget(trigger) {
+    var t = trigger || els.chip;
+    if (t && els.menu && els.menuBtn && els.menu.contains(t) && (menuOpen() || WT.isNarrow())) return els.menuBtn;
+    return t;
+  }
+
+  /** Open the name dialog. trigger gets focus back afterwards (the Menu button on phones). */
   function openNameDialog(trigger) {
     if (!nameDlg) buildNameDialog();
     var input = nameDlg.querySelector('#wt-name-input');
     input.value = WT.reviewer.name();
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    var ret = returnTarget(trigger);
     setMenu(false);
-    WT.dialog.open(nameDlg, { trigger: trigger || els.chip, initialFocus: input });
+    WT.dialog.open(nameDlg, { trigger: ret, initialFocus: input });
   }
 
   WT.shell = {

@@ -357,7 +357,10 @@ export default async function (ctx) {
       const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('infoslips.wt.reviewer')));
       assert.equal(stored.name, 'Sam Ortega');
       assert.match(stored.secret, /^[0-9a-f]{64}$/);
-      await until(async () => (await api('/api/me', { secret: stored.secret })).json.name === 'Sam Ortega', 6000, 'name saved to the server');
+      // A name on its own stays in this browser: the server stores it with the first answer.
+      await sleep(900);
+      assert.equal((await api('/api/me', { secret: stored.secret })).json.createdAt, undefined, 'a name alone creates no record');
+      assert.equal(await page.evaluate(() => window.WT.answers.pending()), 0, 'nothing queued for a name alone');
 
       // Escape discards an edit.
       await chip.click();
@@ -381,6 +384,7 @@ export default async function (ctx) {
       // Start as a new reviewer (confirmed). The old answers stay on the server.
       await page.evaluate((id) => window.WT.answers.set(id, { vote: 'include' }), first);
       await page.evaluate(() => window.WT.answers.flush());
+      assert.equal((await api('/api/me', { secret: stored.secret })).json.name, 'Sam Ortega', 'the name went with the first answer');
       await chip.click();
       await page.click('[data-wt-new-reviewer]');
       const confirm = page.locator('#wt-confirm');
@@ -516,7 +520,9 @@ export default async function (ctx) {
       await until(async () => /Jo Bloggs$/.test((await page.locator('#wt-reviewer-chip').innerText()).trim()), 3000, 'chip updated');
       assert.equal(await page.locator('#start-name').inputValue(), 'Jo Bloggs', 'cleaned value shown');
       const secret = await page.evaluate(() => window.WT.reviewer.get().secret);
-      await until(async () => (await api('/api/me', { secret })).json.name === 'Jo Bloggs', 6000, 'saved to server');
+      // Kept in this browser; the server stores it with the first answer.
+      await page.evaluate((id) => window.WT.answers.set(id, { vote: 'include' }), first);
+      await until(async () => (await api('/api/me', { secret })).json.name === 'Jo Bloggs', 6000, 'saved to server with the first answer');
       assertNoErrors(P.errors, assert, P.external);
     } finally {
       await P.close();
