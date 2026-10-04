@@ -28,6 +28,12 @@
       PRODUCT_NAME: { en: 'Example USD Stablecoin', es: 'Example USD Stablecoin' },
       ISSUER_OR_PARTNER: { en: '[Issuer or partner — pending YES approval]', es: '[Emisor o socio — pendiente de aprobación de YES]' },
       VIDEO_POSTER: null, // approved poster image (data URI or packaged asset) — placeholder SVG is drawn when null
+      /* Approved recorded voiceover for "Your statement in 60 seconds", one per
+         language, as data: audio URIs (e.g. data:audio/mpeg;base64,…) so the file
+         still fetches nothing. When a language has one, the player plays it in
+         sync with the animation; otherwise it narrates with the device's
+         built-in voice (Web Speech API), and captions are always available. */
+      VIDEO_VOICEOVER: { en: null, es: null },
       DISCLOSURES: {
         en: '[Approved YES disclosures appear here. Final wording for holdings, custody, issuance, reserves, redemption and protections requires YES legal approval.]',
         es: '[Aquí aparecerán las divulgaciones aprobadas por YES. La redacción final sobre tenencias, custodia, emisión, reservas, canje y protecciones requiere la aprobación legal de YES.]'
