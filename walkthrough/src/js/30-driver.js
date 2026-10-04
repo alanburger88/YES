@@ -7,9 +7,16 @@
  * contentWindow, or window itself when this file is injected into the statement
  * page. Re-read win.YES on every call: a frame reload replaces it.
  *
+ * Step activation, as the tour does it (SPEC section 5):
+ *   await WT.driver.reset(win);                    // or reset(win, { top: false })
+ *   await WT.driver.apply(win, WT.steps[id]);
+ *   var el = await WT.driver.target(win, WT.steps[id]);   // null: "We couldn't highlight…"
+ *   if (el) await WT.driver.scrollToTarget(win, el);
+ *   // then draw the overlay and focus the step's h1 (the statement pulls focus into the frame, G4)
+ *
  * API (every method is safe to call at any time, in any order)
  *
- *   WT.driver.reset(win) → Promise<{ ok, problems[] }>
+ *   WT.driver.reset(win, { top = true }) → Promise<{ ok, problems[] }>
  *     Returns the statement to a clean state: closes the phone Menu, the Ask YES
  *     drawer (and drops its conversation), the inquiry (and its draft), the
  *     transaction detail and any other open dialog; clears the journey
@@ -17,8 +24,10 @@
  *     Overview disclosures; pauses the video; leaves the integrity preview
  *     (which reloads the frame); restores the baseline language and theme;
  *     drops sub-routes from the frame's address (with replace, never a push or
- *     history.back()); and scrolls to the top. It never changes the view.
- *     `problems` lists anything still not clean (see check()).
+ *     history.back()); and scrolls to the top (top: false keeps the scroll
+ *     position, so a following scrollToTarget() glides from where the reader
+ *     was instead of jumping to the top first). It never changes the view.
+ *     `problems` lists anything still not clean (see check()). Never rejects.
  *
  *   WT.driver.apply(win, step) → Promise<{ ok, errors[], aborted? }>
  *     Runs step.setup (or an array of actions) in order. {menu} actions always
@@ -63,7 +72,7 @@
  *       the frame, and follows language changes the visitor makes in the
  *       statement, except during a step whose setup set the language.
  *     baseline(win, { … }) is accepted too; the baseline is shared.
- *   WT.driver.check(win) → { ok, problems[] }   the clean-state check reset() uses
+ *   WT.driver.check(win, { top = true }) → { ok, problems[] }   the clean-state check reset() uses
  *   WT.driver.selectors(win, step) → string[]   the target list in use
  *   WT.driver.topInset(win) → number            height of the pinned masthead, px
  *   WT.driver.visible(win, el), WT.driver.firstVisible(win, selector)
@@ -86,6 +95,14 @@
  * and animation frames, never the frame's (G3); the journey is cleared without
  * history.back() and the detail is closed with replace (G1); location.replace()
  * gets absolute URLs only (G2); print is never triggered (G15).
+ *
+ * The PARENT page never scrolls because of the driver. scrollToTarget() only
+ * scrolls inside the frame, and reset()/apply() put back the scroll position
+ * of the parent page and of every scroll container around the frame: the
+ * statement's own scrollIntoView() calls (Understand topics, Help sections,
+ * view headings) also scroll the frame's ancestors (verified). Steps use the
+ * statement's deep links through { route }, so the driver adds no history
+ * entries: browser Back/Forward only see the tour's own #/tour/<id> pushes.
  */
 (function (WT) {
   'use strict';
@@ -293,6 +310,56 @@
     var cs = win.getComputedStyle(m);
     if (cs.position !== 'sticky' && cs.position !== 'fixed') return 0;
     return Math.round(m.getBoundingClientRect().height);
+  }
+
+  /**
+   * Remember the scroll position of everything around the frame (the frame
+   * element's scrollable ancestors and their windows, up to the top); the
+   * returned function restores whatever the statement moved.
+   */
+  function guardParents(win) {
+    var saved = [];
+    try {
+      for (var w = win; w && w.frameElement && w.parent && w.parent !== w; w = w.parent) {
+        var pw = w.parent;
+        saved.push({ win: pw, x: pw.scrollX, y: pw.scrollY });
+        for (var el = w.frameElement.parentElement; el && el !== pw.document.documentElement; el = el.parentElement) {
+          if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) saved.push({ el: el, x: el.scrollLeft, y: el.scrollTop });
+        }
+      }
+    } catch (e) {
+      /* cross-origin parent: nothing we may touch */
+    }
+    var restore = function () {
+      var moved = false;
+      saved.forEach(function (s) {
+        try {
+          if (s.win) {
+            if (s.win.scrollX !== s.x || s.win.scrollY !== s.y) {
+              s.win.scrollTo({ left: s.x, top: s.y, behavior: 'instant' });
+              moved = true;
+            }
+          } else if (s.el.scrollLeft !== s.x || s.el.scrollTop !== s.y) {
+            s.el.scrollTo({ left: s.x, top: s.y, behavior: 'instant' });
+            moved = true;
+          }
+        } catch (e) {
+          /* ignore */
+        }
+      });
+      return moved;
+    };
+    restore.empty = !saved.length;
+    return restore;
+  }
+  /** Restore the parents now, and again while the statement keeps moving them (a smooth scroll in progress). */
+  async function keepParents(restore) {
+    if (restore.empty) return;
+    restore();
+    for (var i = 0; i < 3; i++) {
+      await frame1();
+      if (restore()) i = 0;
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -549,6 +616,7 @@
     if (gen !== st.gen) return { ok: false, aborted: true, errors: errors };
     if (!(await ready(win))) return { ok: false, errors: ['statement not ready'] };
     var list = actionsOf(step);
+    var restore = guardParents(win);
     var ordered = list
       .filter(function (a) {
         return kindOf(a) !== 'menu';
@@ -566,15 +634,17 @@
         errors.push(errText(e));
       }
     }
+    await keepParents(restore);
     if (gen !== st.gen) return { ok: false, aborted: true, errors: errors };
     await settle(win);
+    await keepParents(restore);
     return { ok: !errors.length, errors: errors };
   }
 
   /* ------------------------------------------------------------------ */
   /* Reset and the clean-state check                                     */
   /* ------------------------------------------------------------------ */
-  function check(win) {
+  function check(win, opts) {
     var problems = [];
     var y = Y(win);
     var d = D(win);
@@ -605,11 +675,12 @@
     });
     if (y.overview && y.overview.video && y.overview.video.state().playing) problems.push('video playing');
     if (y.nav && y.nav.current().param) problems.push('sub-route ' + win.location.hash);
-    if (win.scrollY > 1) problems.push('scrollY ' + win.scrollY);
+    if (!(opts && opts.top === false) && win.scrollY > 1) problems.push('scrollY ' + win.scrollY);
     return { ok: !problems.length, problems: problems };
   }
 
-  async function doReset(win, st, gen) {
+  async function doReset(win, st, gen, opts) {
+    var top = !(opts && opts.top === false);
     if (gen !== st.gen) return { ok: true, skipped: true, problems: [] };
     if (!(await ready(win))) return { ok: false, problems: ['statement not ready'] };
     // 0. The integrity preview (#/overview?simulate=mismatch): leaving it reloads the frame.
@@ -625,6 +696,7 @@
     var y = attach(win);
     var d = D(win);
     if (!y || !y.state) return { ok: false, problems: ['statement not ready'] };
+    var restore = guardParents(win);
     st.driving++;
     try {
       // 1. Phone Menu
@@ -717,21 +789,24 @@
     }
     // 13. Top of the page
     await frame2();
-    win.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    await frame1();
-    if (win.scrollY > 1) win.scrollTo(0, 0);
-    return check(win);
+    if (top) {
+      win.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      await frame1();
+      if (win.scrollY > 1) win.scrollTo(0, 0);
+    }
+    await keepParents(restore);
+    return check(win, { top: top });
   }
 
   /* ------------------------------------------------------------------ */
   /* Public API                                                          */
   /* ------------------------------------------------------------------ */
   WT.driver = {
-    reset: function (win) {
+    reset: function (win, opts) {
       var st = S(win);
       var gen = ++st.gen; // aborts a running apply() at its next action
       return queue(st, function () {
-        return doReset(win, st, gen);
+        return doReset(win, st, gen, opts);
       }).catch(function (e) {
         return { ok: false, problems: [errText(e)] };
       });
@@ -771,7 +846,7 @@
     isPhone: isPhone,
     ready: ready,
     baseline: function (a, b) {
-      var opts = a && (a.document || a.YES !== undefined) ? b : a;
+      var opts = a && a.document ? b : a;
       opts = opts || {};
       if ('lang' in opts) base.lang = opts.lang || null;
       if ('theme' in opts) base.theme = opts.theme === 'light' || opts.theme === 'dark' ? opts.theme : null;
