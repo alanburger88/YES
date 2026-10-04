@@ -56,7 +56,9 @@ walkthrough/
 | Files | Owner |
 |---|---|
 | `package.json`, `netlify.toml`, `build.mjs`, `server/*`, `netlify/functions/*`, `src/index.html`, `src/js/00-core.js`, `src/js/05-shell.js`, `src/js/10-start.js`, `src/js/99-boot.js`, `src/css/00-tokens.css`, `src/css/01-base.css`, `src/css/02-components.css`, `src/css/05-shell.css`, `src/css/10-start.css`, `tests/run.mjs`, `tests/00-api.test.mjs`, `tests/01-shell.test.mjs` | foundation |
-| `docs/STATEMENT-MAP.md`; `shared/features.json` **ids, order and sections** (frozen once the explore phase ends) | explore (read-only on the statement) |
+| `docs/STATEMENT-MAP.md` | explore (read-only on the statement) |
+
+**The 22 feature ids in `shared/features.json` are frozen** (`32-datareq.js` is already keyed by them). Only `title`/`short` wording may change (owner: steps).
 | `shared/features.json` (title/short wording only), `src/js/30-driver.js`, `src/js/31-steps.js`, `scripts/shots.mjs`, `src/shots/*`, `tests/30-steps.test.mjs` | steps |
 | `src/js/32-datareq.js`, `tests/32-datareq.test.mjs` | data requirements |
 | `src/js/40-tour.js`, `src/css/40-tour.css`, `tests/40-tour.test.mjs` | tour |
@@ -238,7 +240,7 @@ A failed step still shows the panel, with a polite note: "We couldn't highlight 
 `[{ "id": "journey", "order": 3, "section": "overview", "title": "Balance journey", "short": "One-line summary" }]`.
 - Ids are kebab-case and stable; server validation uses them.
 - Sections are `overview`, `transactions`, `understand`, `help` and `everywhere`.
-- Aim for 18–22 features that together cover **every** feature of the statement. A starter list is in the file; refine it after studying the statement, keeping ids stable once tests use them.
+- The list has 22 features that together cover every feature of the statement. The ids are frozen.
 
 **`WT.steps`.** An object keyed by feature id, defined in `31-steps.js`:
 ```js
