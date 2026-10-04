@@ -2412,25 +2412,42 @@
   /* -------------------------------------------------------- the player */
   /** The approved recording for the current language, if packaged as a data: audio URI. */
   /*
-   * Fingerprint of the narration script in the current language (FNV-1a over
-   * each cue's id, timing and caption). A recording generated for this script
-   * carries the same fingerprint (scripts/voiceover.mjs); if the statement's
-   * figures or the wording change, the fingerprints differ and the outdated
-   * recording is not played: the device voice narrates instead.
+   * Fingerprint of the narration script in the current language. A recording
+   * made for this script carries the same fingerprint (scripts/voiceover.mjs);
+   * if the statement's figures or the wording change, the fingerprints differ
+   * and the outdated recording is not played: the device voice narrates.
+   * It is built from the facts and the caption templates, never from formatted
+   * text: browsers format dates and numbers slightly differently (thin spaces
+   * in "1 – 30", grouping support), and every browser must agree.
    */
   function scriptHash() {
-    var cues = VP.cues && VP.cues.length && VP.cuesLang === YES.i18n.lang ? VP.cues : cueList(vidModel());
-    var str = YES.i18n.lang + '\n' + cues
-      .map(function (c) {
-        return c.id + '|' + c.at + '|' + c.end + '|' + c.text;
-      })
-      .join('\n');
+    var m = vidModel();
+    var s = m.s;
+    var big = m.big;
+    var lang = YES.i18n.lang;
+    var table = YES.i18n.dict[lang] || {};
+    var facts = [s.id, s.customer.firstName, s.periodStart, s.periodEnd, s.timezone, s.assetId, s.opening, m.inc, m.out, s.closing, big ? [big.id, big.amount, big.postedAt, YES.L(big.description)].join('~') : '-'].join('|');
+    var lines = VID.cues.map(function (c, i) {
+      var id = c.id;
+      if ((id === 'largest' || id === 'what') && !big) id += 'None';
+      var end = i + 1 < VID.cues.length ? VID.cues[i + 1].at : VID.lastCueEnd;
+      return c.id + '|' + c.at + '|' + end + '|' + String(table['overview.video.cue.' + id] || '');
+    });
+    var str = 'v2\n' + lang + '\n' + facts + '\n' + lines.join('\n');
     var h = 0x811c9dc5;
     for (var i = 0; i < str.length; i++) {
       h ^= str.charCodeAt(i);
       h = Math.imul(h, 0x01000193) >>> 0;
     }
     return ('0000000' + h.toString(16)).slice(-8);
+  }
+  /** Why the packaged recording is or isn't used: 'ready' | 'stale' | 'failed' | 'none'. */
+  function recordingStatus() {
+    var slot = YES.config.slots && YES.config.slots.VIDEO_VOICEOVER;
+    var v = slot && slot[YES.i18n.lang];
+    if (!v) return 'none';
+    if (!recordedSrc()) return v.scriptHash && v.scriptHash !== scriptHash() ? 'stale' : 'none';
+    return VP.audioFailed[YES.i18n.lang] ? 'failed' : 'ready';
   }
   var staleWarned = {};
   /**
@@ -3055,7 +3072,16 @@
     }
     if (p && p.catch)
       p.catch(function (err) {
-        if (!err || err.name !== 'AbortError') audioFailed();
+        var name = err && err.name;
+        if (name === 'AbortError') return; // superseded by a pause or seek
+        if (name === 'NotAllowedError') {
+          // The browser wants a fresh tap or click before sound starts. Pause
+          // and keep the recording: the next press of Play tries it again.
+          VP.audioBlocked = true;
+          vpPause();
+          return;
+        }
+        audioFailed(); // the recording itself cannot play: device voice
       });
   }
   function audioPause() {
@@ -3473,7 +3499,8 @@
         chapter: VP.started ? chapterAt(VP.t) : -1,
         captions: VP.cc,
         muted: VP.muted,
-        mode: mode()
+        mode: mode(),
+        recording: recordingStatus()
       };
     },
     chapters: function () {

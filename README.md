@@ -104,13 +104,15 @@ node scripts/voiceover.mjs check                               # offline: spoken
 node scripts/voiceover.mjs voices                              # the account's female voices
 node scripts/voiceover.mjs samples --voices <id1>,<id2>,<id3>  # short English + Spanish samples in .cache/samples/
 node scripts/voiceover.mjs record --voice <id>                 # English and Spanish → src/media/
+node scripts/voiceover.mjs restamp                             # re-stamp fingerprints, no re-recording
 node build.mjs                                                 # packages the recordings into the file
 ```
 
 - **What gets spoken:** `scripts/voiceover-script.json` holds one line per caption, in both languages. Each line uses the caption's words, with amounts and dates written out so they're read exactly. The generator refuses to record if a line no longer matches its caption.
 - **Staying in step:** each line is recorded separately, with its neighbouring lines passed as context so the delivery flows. It is placed at its caption's start time and the track is levelled. A line that runs slightly long is sped up by at most 15%. Anything longer fails, so the cue can be retimed instead.
 - **Model and format:** `eleven_multilingual_v2`, with the same voice for English and Spanish. The result is a mono 64 kbps MP3, about 0.5 MB per language.
-- **Outdated recordings are never played:** each recording carries the fingerprint of the script it was made for (`YES.overview.video.scriptHash()`). If the statement's figures or wording change, the player ignores the outdated recording, uses the device voice and warns in the console. To fix that, run `record` again.
+- **Outdated recordings are never played:** each recording carries the fingerprint of the script it was made for (`YES.overview.video.scriptHash()`). The fingerprint is built from the statement's facts (name, ISO dates, raw amounts) and the caption templates, never from formatted text, so every browser computes the same value. If the figures or wording change, the player ignores the outdated recording, uses the device voice and warns in the console. To fix that, run `record` again. If only the fingerprint method changes, run `restamp` instead: it re-stamps the existing audio after checking every caption still matches its recorded line.
+- **Diagnostics:** `YES.overview.video.state().recording` is `ready`, `stale` (made for another script), `failed` (the audio can't play here) or `none`, and `state().mode` shows what is narrating (`recorded`, `voice` or `none`). If the browser blocks sound until a fresh tap, the video pauses and the next press of Play tries the recording again. It doesn't fall back to the device voice.
 - **Network:** an API credential for `api.elevenlabs.io` also lets the session reach that host. Without one, the environment must allow it under Custom network access. Generated lines are cached in `.cache/voiceover/`, which is not committed, so a re-run doesn't spend credits on unchanged lines.
 
 ## Build and test

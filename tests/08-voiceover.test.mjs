@@ -70,6 +70,7 @@ export default async function (t) {
       t.eq(s && s.voice, manifest.voice.name, `${lang}: voice name carried along`);
     }
     t.eq(await mode(), 'recorded', 'English plays the packaged recording');
+    t.eq(await state(() => YES.overview.video.state().recording), 'ready', 'state() reports the recording as ready');
     const dur = await state(
       () =>
         new Promise((done) => {
@@ -89,6 +90,50 @@ export default async function (t) {
     await page.evaluate(() => YES.help.open('about'));
     const helpText = await page.locator('#view-help').innerText();
     t.assert(/English: approved recording set/.test(helpText) && /Spanish: approved recording set/.test(helpText), 'Help lists both recordings as set');
+  }
+
+  if (manifest) {
+    t.step('another browser formats dates and numbers differently: the recording still plays');
+    // Imitate an engine without thin spaces in date ranges and without
+    // useGrouping: 'always' (Spanish 1000,00 instead of 1.000,00). The
+    // fingerprint is built from facts and templates, so it must not change.
+    const page2 = await page.context().newPage();
+    await page2.addInitScript(() => {
+      const fr = Intl.DateTimeFormat.prototype.formatRange;
+      if (fr) {
+        Intl.DateTimeFormat.prototype.formatRange = function (a, b) {
+          return fr.call(this, a, b).replace(/\s*[–-]\s*/g, '–').replace(/[\u2009\u202f]/g, '');
+        };
+      }
+      const NF = Intl.NumberFormat;
+      const Patched = function (loc, opts) {
+        if (opts && opts.useGrouping === 'always') opts = Object.assign({}, opts, { useGrouping: true });
+        return new NF(loc, opts);
+      };
+      Patched.prototype = NF.prototype;
+      Patched.supportedLocalesOf = NF.supportedLocalesOf;
+      Intl.NumberFormat = Patched;
+    });
+    await page2.goto(page.url());
+    await page2.waitForFunction(() => window.YES && YES.ready === true);
+    const other = await page2.evaluate(() => {
+      const r = {};
+      for (const l of ['en', 'es']) {
+        YES.setLang(l, { silent: true });
+        r[l] = { hash: YES.overview.video.scriptHash(), recording: YES.overview.video.state().recording, mode: YES.overview.video.state().mode, text: YES.overview.video.cues().map((c) => c.text).join(' ') };
+      }
+      return r;
+    });
+    const here = await state(() => {
+      YES.setLang('en', { silent: true });
+      return YES.overview.video.cues().map((c) => c.text).join(' ');
+    });
+    t.assert(other.en.text !== here, 'the imitation really changed the captions (date range formatting)');
+    for (const lang of ['en', 'es']) {
+      t.eq(other[lang].hash, manifest.languages[lang].scriptHash, `${lang}: same fingerprint under different formatting`);
+      t.eq([other[lang].recording, other[lang].mode], ['ready', 'recorded'], `${lang}: the recording is used`);
+    }
+    await page2.close();
   }
 
   t.step('the fingerprint guard: a recording for another script is not played');

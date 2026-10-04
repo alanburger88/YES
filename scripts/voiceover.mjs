@@ -243,11 +243,41 @@ async function check() {
   console.log('✔ The spoken script matches every caption.');
 }
 
+/**
+ * Re-stamp existing recordings with the player's current script fingerprint,
+ * without recording again — only after confirming that every caption still
+ * matches the line that was recorded for it (e.g. after a change to how the
+ * fingerprint is computed).
+ */
+async function restamp() {
+  const file = join(MEDIA, 'voiceover.json');
+  if (!existsSync(file)) die('No src/media/voiceover.json to re-stamp.');
+  const manifest = JSON.parse(readFileSync(file, 'utf8'));
+  const script = JSON.parse(readFileSync(join(ROOT, 'scripts', 'voiceover-script.json'), 'utf8'));
+  const player = await playerScript();
+  for (const lang of Object.keys(manifest.languages)) {
+    const rec = manifest.languages[lang];
+    const cues = player[lang].cues;
+    if (cues.length !== rec.cues.length) die(`${lang}: the player has ${cues.length} cues, the recording ${rec.cues.length}. Record again.`);
+    cues.forEach((c, i) => {
+      const r = rec.cues[i];
+      const s = script[lang][c.id];
+      if (r.id !== c.id || r.at !== c.at || r.end !== c.end) die(`${lang}/${c.id}: cue timing changed since recording. Record again.`);
+      if (!s || norm(s.caption) !== norm(c.text)) die(`${lang}/${c.id}: caption changed since recording. Record again.`);
+    });
+    console.log(`  ${lang}: ${rec.scriptHash} → ${player[lang].hash}`);
+    rec.scriptHash = player[lang].hash;
+  }
+  writeFileSync(file, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('✔ Re-stamped src/media/voiceover.json — now run: node build.mjs');
+}
+
 if (cmd === 'check') await check();
+else if (cmd === 'restamp') await restamp();
 else if (cmd === 'voices') await listVoices();
 else if (cmd === 'samples') await samples();
 else if (cmd === 'record') await record();
 else {
-  console.log('Usage: node scripts/voiceover.mjs check | voices | samples --voices id1,id2 | record --voice id [--name Name]');
+  console.log('Usage: node scripts/voiceover.mjs check | restamp | voices | samples --voices id1,id2 | record --voice id [--name Name]');
   process.exit(cmd ? 1 : 0);
 }
