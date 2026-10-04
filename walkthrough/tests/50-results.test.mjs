@@ -104,12 +104,24 @@ const plural = (n, one, many) => n.toLocaleString('en-GB') + ' ' + (n === 1 ? on
 const join = (a) => (a.length <= 1 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]);
 const LABEL = { high: 'High', medium: 'Medium', low: 'Low' };
 
+/**
+ * Priorities count only responses whose vote is not Exclude (an Exclude
+ * vote's priority means "if included"). Recomputed from responses, so the
+ * expectation holds whether or not the server already applies the rule.
+ */
+function priorityOf(x) {
+  const p = { high: 0, medium: 0, low: 0 };
+  for (const r of x.responses) if (r.vote !== 'exclude' && r.priority in p) p[r.priority]++;
+  return p;
+}
 function rowsOf(res, features) {
   return features.map((f, index) => {
     const x = res.features[f.id];
     const votes = x.include + x.exclude;
-    const pn = x.priority.high + x.priority.medium + x.priority.low;
-    return { id: f.id, title: f.title, index, ...x, votes, pn, share: votes ? x.include / votes : null, net: x.include - x.exclude };
+    const priority = priorityOf(x);
+    const pn = priority.high + priority.medium + priority.low;
+    const score = pn ? Math.round(((priority.high * 3 + priority.medium * 2 + priority.low) / pn) * 100) / 100 : null;
+    return { id: f.id, title: f.title, index, ...x, priority, score, votes, pn, share: votes ? x.include / votes : null, net: x.include - x.exclude };
   });
 }
 function supportOrder(rows) {
@@ -253,6 +265,7 @@ export default async function (ctx) {
     assert.ok(rows.some((r) => r.include && r.exclude), 'a debated feature');
     assert.equal(rows.slice(-3).every((r) => !r.votes && !r.responses.length), true, 'the last three features have no answers');
     assert.ok(rows.some((r) => r.undecided > 0), 'answers without a vote');
+    assert.ok(rows.some((r) => r.responses.some((x) => x.vote === 'exclude' && x.priority)), 'an Exclude vote with a priority');
   });
 
   /* ------------------------------------------------------------------ */
@@ -314,8 +327,11 @@ export default async function (ctx) {
       assert.equal(await kpi('reviewers'), String(res.reviewers));
       assert.equal(await kpi('answers'), String(res.answers));
       assert.equal(await kpi('comments'), String(res.comments));
-      assert.equal(await kpi('majority'), String(rows.filter((r) => r.votes && r.include > r.exclude).length));
-      assert.match(text(await P.page.locator('[data-kpi="majority"] .wt-kpi__sub').innerText()), new RegExp('of ' + N + ' features'));
+      // One rule everywhere (WT.results.wanted, also the Data page): more include than exclude votes.
+      assert.equal(await kpi('majority'), String(rows.filter((r) => r.include > r.exclude).length));
+      assert.equal(text(await P.page.locator('[data-kpi="majority"] .wt-kpi__label').innerText()).toLowerCase(), 'features most reviewers want');
+      assert.equal(text(await P.page.locator('[data-kpi="majority"] .wt-kpi__sub').innerText()), 'of ' + N + ', with more include than exclude votes');
+      assert.equal(await P.page.evaluate(() => window.WT.features.filter((f) => window.WT.results.wanted(window.WT.results.data().features[f.id])).length), rows.filter((r) => r.include > r.exclude).length);
       assertNoErrors(P.errors, assert, P.external);
     } finally {
       await P.close();
@@ -353,6 +369,8 @@ export default async function (ctx) {
           ? `: ${r.include} include, ${r.exclude} exclude, ${pct(r.include, r.votes)} include` + (r.undecided ? `, ${r.undecided} without a vote` : '')
           : ': no votes yet';
         assert.equal(sr, want, 'support sr ' + r.id);
+        // The values are part of the link's name, not a sibling it leaves out.
+        assert.equal(text(await row.locator('a.wt-chart__label').textContent()), r.title + want, 'support link name ' + r.id);
         assert.equal(await row.locator('.wt-shot-box--thumb').count(), 1, 'thumbnail ' + r.id);
         assert.equal(await row.locator('a.wt-chart__label').getAttribute('href'), '#/results/' + r.id);
         if (r.include) {
@@ -389,6 +407,11 @@ export default async function (ctx) {
         );
         assert.deepEqual(segs, ['high', 'medium', 'low'].filter((k) => r.priority[k]).map((k) => [k, r.priority[k]]), 'mix segments ' + r.id);
       }
+      // In-segment labels name the priority by letter, so colour is never needed to read them.
+      const labs = await page.locator('#fig-mix .wt-mark .wt-seg__lab').evaluateAll((els) => els.map((e) => [e.parentElement.className.match(/wt-mark--(\w+)/)[1], e.textContent]));
+      assert.ok(labs.length > 10, 'segment labels');
+      for (const [k, t] of labs) assert.match(t, new RegExp('^' + k[0].toUpperCase() + ' \\d+%$'), 'segment label ' + t);
+      assert.match(text(await page.locator('#fig-mix .wt-fig__desc').innerText()), /Priorities come only from reviewers who didn’t vote Exclude\. The number on the right is how many set a priority \(Exclude votes not counted\)\.$/);
       const mixTable = await page.locator('#fig-mix table tbody tr').evaluateAll((trs) => trs.map((tr) => Array.from(tr.children, (c) => c.textContent.replace(/\s+/g, ' ').trim())));
       assert.deepEqual(
         mixTable,
@@ -433,6 +456,17 @@ export default async function (ctx) {
       // The table choice survives an auto-refresh re-render.
       await page.evaluate(() => window.WT.results.load({ force: true }));
       assert.ok(await page.locator('#fig-score .wt-fig__table').isVisible(), 'table stays open after a refresh');
+
+      // Tab stops: one link per feature in the Support chart; the Priority mix
+      // and Score labels repeat those destinations, so they stay out of the tab order.
+      const stops = await page.evaluate(() => ['support', 'mix', 'score'].map((id) => {
+        const links = Array.from(document.querySelectorAll('#fig-' + id + ' .wt-fig__chart a'));
+        return [links.length, links.filter((a) => a.tabIndex >= 0).length];
+      }));
+      assert.deepEqual(stops[0], [N, N], 'support: one tab stop per feature');
+      assert.equal(stops[1][1], 0, 'priority mix labels are not tab stops');
+      assert.equal(stops[2][1], 0, 'score labels are not tab stops');
+      assert.match(text(await page.locator('#fig-mix .wt-mix__row a.wt-chart__label').first().textContent()), /: (High \d+ \(\d+%\), Medium \d+ \(\d+%\), Low \d+ \(\d+%\), from \d+ priority responses?|no priorities yet)$/);
 
       // Tooltips: hovering a row shows its values (as text), Escape hides it.
       const r0 = page.locator(`#fig-support .wt-sup__row[data-id="${sup[0].id}"] .wt-sup__plot`);
@@ -551,9 +585,11 @@ export default async function (ctx) {
         const name = text(await it.locator('.wt-resp__name').innerText());
         assert.equal(name.replace(/ You$/, ''), r.name || 'Anonymous reviewer');
         assert.equal(/ You$/.test(name), r.rid === me.rid, 'You badge for ' + r.rid);
-        const badges = text(await it.locator('.wt-resp__badges').innerText());
+        const badges = text(await it.locator('.wt-resp__badges').textContent());
         assert.ok(badges.startsWith(r.vote === 'include' ? 'Include' : r.vote === 'exclude' ? 'Exclude' : 'No vote'), 'vote badge');
-        assert.ok(badges.endsWith(r.priority ? LABEL[r.priority] + ' priority' : 'No priority'), 'priority badge');
+        // An Exclude vote's priority is shown as "if included" (and isn't counted).
+        assert.ok(badges.endsWith(!r.priority ? 'No priority' : LABEL[r.priority] + ' priority' + (r.vote === 'exclude' ? ' if included' : '')), 'priority badge: ' + badges);
+        if (r.vote === 'exclude' && r.priority) assert.equal(text(await it.locator('.wt-badge--if').innerText()), LABEL[r.priority] + ' if included');
         if (r.reason) assert.equal(await it.locator('.wt-resp__part--reason .wt-resp__text').innerText(), r.reason);
         else assert.equal(await it.locator('.wt-resp__part--reason').count(), 0);
         if (r.comment) assert.equal(await it.locator('.wt-resp__part--comment .wt-resp__text').innerText(), r.comment);
@@ -623,15 +659,17 @@ export default async function (ctx) {
             return;
           }
           const sym = a.vote === 'include' ? '✓' : a.vote === 'exclude' ? '✗' : '–';
-          assert.equal(cells[k][0], sym + (a.priority ? a.priority[0].toUpperCase() : ''), `cell ${p.rid} ${f.id}`);
-          const said = (a.vote ? (a.vote === 'include' ? 'Include' : 'Exclude') : 'No vote') + (a.priority ? `, ${LABEL[a.priority]} priority` : ', no priority');
+          const cond = a.vote === 'exclude' && a.priority;
+          const letter = a.priority ? a.priority[0].toUpperCase() : '';
+          assert.equal(cells[k][0], sym + (cond ? '(' + letter + ')' : letter), `cell ${p.rid} ${f.id}`);
+          const said = (a.vote ? (a.vote === 'include' ? 'Include' : 'Exclude') : 'No vote') + (a.priority ? `, ${LABEL[a.priority]} priority` + (cond ? ' if included' : '') : ', no priority');
           assert.ok(cells[k][1].startsWith(f.title + ': ' + said), `sr ${cells[k][1]}`);
         });
         assert.equal(text(await tr.locator('td.wt-mx__total').innerText()), `${p.answered} / ${N}`);
       }
       // Legend, sticky header and first column, horizontal scroll inside its own container.
       const legend = text(await page.locator('.wt-mx-legend').innerText());
-      for (const w of ['Include', 'Exclude', 'No vote', 'High, Medium or Low priority']) assert.ok(legend.includes(w), 'legend ' + w);
+      for (const w of ['Include', 'Exclude', 'No vote', 'High, Medium or Low priority', 'Exclude, with the priority if it were included (not counted)']) assert.ok(legend.includes(w), 'legend ' + w);
       const sticky = await page.evaluate(() => {
         const th = document.querySelector('.wt-mx-table thead th');
         const rh = document.querySelector('.wt-mx-table tbody th');

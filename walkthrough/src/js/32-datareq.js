@@ -47,7 +47,7 @@
     'statement.language': ['string<enum: ' + LANGS + '>', true, 'en', 'Language the statement opens in: the customer’s preferred language.', S.prefs],
     'statement.opening': ['integer<minor units>', true, 100000, 'Balance at the start of the period, in minor units of the statement asset (100000 = 1,000.00 EXUSD).', S.ledger],
     'statement.closing': ['integer<minor units>', true, 114750, 'Balance at the cut-off. It must equal the opening balance plus every posted movement.', S.ledger],
-    'statement.controlTotals.postedCount': ['number', false, 15, 'Number of posted transactions YES counted for the period. InfoSlips checks its own count against it.', S.ledger],
+    'statement.controlTotals.postedCount': ['integer', false, 15, 'Number of posted transactions YES counted for the period. InfoSlips checks its own count against it.', S.ledger],
     'statement.controlTotals.netMovement': ['integer<minor units>', false, 14750, 'Net posted movement YES calculated for the period. InfoSlips checks its own sum against it.', S.ledger],
     'statement.correction.supersedesVersion': ['string', false, '1.0', 'For a corrected statement: the version it replaces.', S.ledger],
     'statement.correction.reason.en': ['string', false, 'A fee on 20 September was corrected.', 'For a corrected statement: what changed, in plain English.', S.ledger],
@@ -71,7 +71,7 @@
     'asset.id': ['string<currency>', true, 'EXUSD', 'Code of the stablecoin the statement is in. Every balance and amount uses it.', S.ledger],
     'asset.symbol': ['string', true, 'EXUSD', 'Symbol shown beside amounts.', S.ledger],
     'asset.name.en': ['string', true, 'Example USD Stablecoin', 'Product name of the asset in English.', S.content],
-    'asset.precision': ['number', true, 2, 'Decimal places of the asset. Amounts are integers in minor units at this precision.', S.ledger],
+    'asset.precision': ['integer', true, 2, 'Decimal places of the asset. Amounts are integers in minor units at this precision.', S.ledger],
     'asset.unitLabel.en': ['string', false, 'token units', 'What one unit is called in English, for the explanations.', S.content],
     'asset.unitLabel.es': ['string', false, 'unidades de token', 'What one unit is called in Spanish.', S.content],
     'asset.fiat.currency': ['string<currency>', false, 'USD', 'Currency of the optional fiat equivalent.', S.fx],
@@ -82,7 +82,7 @@
 
     /* ---------------- Transactions ---------------- */
     'transactions[].id': ['string', true, 'TX-260909-2051', 'Unique transaction ID, stable across statements and support systems.', S.ledger],
-    'transactions[].seq': ['number', true, 4, 'Ledger sequence. It orders transactions with the same posted time (a movement before its fee).', S.ledger],
+    'transactions[].seq': ['integer', true, 4, 'Ledger sequence. It orders transactions with the same posted time (a movement before its fee).', S.ledger],
     'transactions[].type': ['string<enum: ' + TX_TYPES + '>', true, 'transfer_out', 'Transaction type. InfoSlips groups types into the balance-journey categories.', S.ledger],
     'transactions[].status': ['string<enum: posted|pending|failed|unknown>', true, 'posted', 'Ledger status. Only posted transactions count in balances; the rest are listed and labelled.', S.ledger],
     'transactions[].rail': ['string<enum: internal|onchain|other>', true, 'onchain', 'Where the money moved: inside YES, on a blockchain network, or through a bank or card.', S.ledger],
@@ -96,7 +96,7 @@
     'transactions[].description.es': ['string', false, 'Envío a un monedero externo en una red blockchain', 'Plain-language description in Spanish. Required when Spanish is offered.', S.ledger],
     'transactions[].counterparty.en': ['string', true, 'External wallet 0x9C1D…44B7', 'Who the money came from or went to, in English, with account numbers and addresses already masked by YES.', S.ledger],
     'transactions[].counterparty.es': ['string', false, 'Monedero externo 0x9C1D…44B7', 'The counterparty in Spanish, masked the same way.', S.ledger],
-    'transactions[].memo': ['string', false, 'Rent share', 'The customer’s own note, shown as written and never translated.', S.ledger],
+    'transactions[].memo': ['string', false, 'Rent share', 'The note the customer or the sender attached to the transfer, shown as written and never translated.', S.ledger],
     'transactions[].reference': ['string', true, 'REF-N8C4-2VB9', 'Reference the customer can quote to YES support.', S.ledger],
     'transactions[].parentId': ['string', false, 'TX-260909-2051', 'On a fee line: the ID of the transaction the fee was charged for.', S.ledger],
     'transactions[].feeKind': ['string<enum: ' + FEE_KINDS + '>', false, 'network_transfer', 'On a fee line: what the fee was for.', S.ledger],
@@ -108,7 +108,7 @@
     'transactions[].notes[].es': ['string', false, 'La comisión de transferencia aparece como una línea propia para que cada importe pueda rastrearse.', 'The same note in Spanish.', S.ledger],
     'transactions[].onchain.network': ['string', false, 'Example Network', 'Blockchain network of an on-chain transfer.', S.chain],
     'transactions[].onchain.hash': ['string', false, '0xDE40000000000000000000000000000000000000000000000000000000E19C', 'Full transaction hash. The statement shows it shortened.', S.chain],
-    'transactions[].onchain.confirmations': ['number', false, 64, 'Confirmations at the statement cut-off.', S.chain],
+    'transactions[].onchain.confirmations': ['integer', false, 64, 'Confirmations at the statement cut-off.', S.chain],
     'transactions[].onchain.verified': ['boolean', false, true, 'Whether YES verified the on-chain details. Unverified details are not shown.', S.chain],
     'transactions[].onchain.explorerUri': ['string<uri>', false, 'https://explorer.example.com/tx/0xDE40000000000000000000000000000000000000000000000000000000E19C', 'Approved block-explorer link for the transaction.', S.chain],
 
@@ -139,7 +139,7 @@
     'content.evidence[].validity.to': ['string<date-time>', true, '2026-10-31T23:59:59-04:00', 'When the fact goes stale. After this it is hidden and the page says so.', S.content],
     'content.evidence[].verified': ['boolean', true, true, 'Whether YES verified the fact. Unverified facts are never shown as claims.', S.content],
     'content.i18n.bundleVersion': ['string', true, 'yes-stmt-copy-2026.09.2', 'Version of the approved English and Spanish interface copy used for this statement run.', S.content],
-    'content.i18n.locales': ['array', true, ['en-US', 'es-US'], 'Locale tags for number and date formatting, one per offered language.', S.content],
+    'content.i18n.locales': ['array', true, ['en-US', 'es-ES'], 'Locale tags for number and date formatting, one per offered language. The demo statement formats Spanish as es-ES; YES chooses the tag for its audience (es-US or es-MX for the Americas).', S.content],
     'content.i18n.fallbackLanguage': ['string<enum: ' + LANGS + '>', true, 'en', 'Language used when a translation is missing.', S.content],
     'content.glossary[].copyId': ['string', true, 'GLS-012-POSTED-DATE', 'Approved-copy ID of a glossary term.', S.content],
     'content.glossary[].term.en': ['string', true, 'Posted date', 'The term in English.', S.content],
@@ -181,18 +181,19 @@
     'support.hours.en': ['string', true, 'Mon–Fri, 8 am–8 pm ET', 'Support opening hours in English.', S.support],
     'support.hours.es': ['string', false, 'Lun–vie, 8:00–20:00 ET', 'Support opening hours in Spanish.', S.support],
     'support.chatAvailable': ['boolean', false, false, 'Whether in-app chat is offered.', S.support],
-    'support.feedback.enabled': ['boolean', false, true, 'Whether the “Was this statement clear?” feedback is collected.', S.support],
+    'support.feedback.enabled': ['boolean', false, true, 'Whether the “How clear was this statement?” feedback is collected.', S.support],
     'support.feedback.endpoint': ['string<uri>', false, 'https://api.example.com/yes/statement-feedback', 'Where InfoSlips sends the rating and optional comment.', S.support],
     'support.inquiry.enabled': ['boolean', true, true, 'Whether customers can raise an inquiry from the statement.', S.support],
     'support.inquiry.endpoint': ['string<uri>', true, 'https://api.example.com/yes/cases', 'Authenticated case-management endpoint that receives the inquiry and returns a case reference.', S.support],
     'support.inquiry.reasons': ['array', true, ['unrecognized', 'amount', 'pending', 'fee', 'other'], 'Inquiry reasons YES accepts. InfoSlips offers only the ones that fit each transaction.', S.support],
     'support.inquiry.channels': ['array', true, ['in_app', 'email', 'phone'], 'Reply channels the customer may choose. Contact details come from the profile, never from the form.', S.support],
-    'support.inquiry.responseTargetDays': ['number', false, 2, 'Business days within which YES aims to reply.', S.support],
+    'support.inquiry.responseTargetDays': ['integer', false, 2, 'Business days within which YES aims to reply.', S.support],
     'support.cases[].txId': ['string', false, 'TX-260909-2052', 'Transaction an open inquiry is about.', S.support],
     'support.cases[].ref': ['string', false, 'CASE-2026-118402', 'Case reference to show the customer.', S.support],
     'support.cases[].status': ['string<enum: open|in_progress|resolved>', false, 'open', 'Where the inquiry stands.', S.support],
     'support.cases[].openedAt': ['string<date-time>', false, '2026-10-02T11:20:00-04:00', 'When the inquiry was raised.', S.support],
-    'document.recordRetentionYears': ['number', false, 7, 'How many years YES keeps the statement of record. Shown in the record section.', S.docgen],
+    'document.recordRetentionYears': ['integer', false, 7, 'How many years YES keeps the statement of record. Shown in the record section.', S.content],
+    'integrity.alertEndpoint': ['string<uri>', true, 'https://api.example.com/yes/statement-exceptions', 'Where InfoSlips reports a statement that failed its checks, so YES can correct and reissue it.', S.support],
 
     /* ---------------- AI service ---------------- */
     'ai.enabled': ['boolean', true, true, 'Whether YES’s governed AI service is switched on for this customer.', S.ai],
@@ -201,18 +202,39 @@
     'ai.inputFields': [
       'array',
       true,
-      ['statement.period.start', 'statement.period.end', 'statement.asOf', 'statement.opening', 'statement.closing', 'asset.id', 'asset.precision', 'transactions[].id', 'transactions[].type', 'transactions[].status', 'transactions[].rail', 'transactions[].postedAt', 'transactions[].amount', 'transactions[].description.en', 'transactions[].fees[].amount'],
-      'The only statement fields the AI service receives. Names, addresses, account numbers, memos and wallet hashes are never sent.',
+      [
+        'statement.period.start',
+        'statement.period.end',
+        'statement.asOf',
+        'statement.opening',
+        'statement.closing',
+        'asset.id',
+        'asset.precision',
+        'transactions[].id',
+        'transactions[].type',
+        'transactions[].status',
+        'transactions[].rail',
+        'transactions[].postedAt',
+        'transactions[].amount',
+        'transactions[].balanceAfter',
+        'transactions[].description.en',
+        'transactions[].fees[].amount',
+        'transactions[].onchain.network',
+        'transactions[].onchain.hash',
+        'transactions[].onchain.confirmations',
+        'transactions[].onchain.verified'
+      ],
+      'The only statement fields the AI service receives, besides the customer’s own question. Names, addresses, account numbers, memos, counterparties and wallet addresses are never sent, and on-chain details only when verified.',
       S.ai
     ],
-    'ai.guardrails.maxAnswerChars': ['number', true, 900, 'Longest answer the service may return.', S.ai],
+    'ai.guardrails.maxAnswerChars': ['integer', true, 900, 'Longest answer the service may return.', S.ai],
     'ai.guardrails.blockedTopics': ['array', true, ['investment advice', 'price predictions', 'account changes', 'other customers'], 'Topics the service declines, pointing the customer to human help instead.', S.ai],
     'ai.guardrails.maskIdentifiers': ['boolean', true, true, 'Masked identifiers stay masked in everything the service receives and returns.', S.ai],
     'ai.guardrails.citeRows': ['boolean', true, true, 'Each answer lists the transaction IDs it used, so the statement can show the rows behind it.', S.ai],
     'ai.disclaimer.en': ['string', true, 'Answers use this statement only. They are not financial advice.', 'Approved disclaimer shown with every answer, in English.', S.content],
     'ai.disclaimer.es': ['string', false, 'Las respuestas usan solo este estado de cuenta. No son asesoramiento financiero.', 'Approved disclaimer in Spanish.', S.content],
     'ai.suggestedQuestions': ['array', false, ['why_balance', 'fees_paid', 'largest', 'pending', 'statement_vs_live', 'peg', 'onchain_sent'], 'Approved starter questions, by ID, in display order.', S.content],
-    'ai.retentionDays': ['number', false, 30, 'How long the AI service keeps a conversation for audit. 0 keeps nothing.', S.ai]
+    'ai.retentionDays': ['integer', false, 30, 'How long the AI service keeps a conversation for audit. 0 keeps nothing.', S.ai]
   };
 
   function clone(v) {
@@ -249,11 +271,28 @@
   var VOICE = ['content.video.voiceover[].language', 'content.video.voiceover[].uri', 'content.video.voiceover[].scriptFingerprint', 'content.video.voiceover[].durationSeconds'];
   var CAPTIONS = ['content.video.captions[].language', 'content.video.captions[].uri', 'content.video.captions[].scriptFingerprint'];
   var AI_CORE = ['ai.enabled', 'ai.endpoint', 'ai.policyVersion', 'ai.inputFields', 'ai.guardrails.maxAnswerChars', 'ai.guardrails.blockedTopics', 'ai.guardrails.maskIdentifiers', 'ai.guardrails.citeRows', 'ai.disclaimer.en', 'ai.disclaimer.es'];
-  var AI_TX = ['transactions[].id', 'transactions[].type', 'transactions[].status', 'transactions[].rail', 'transactions[].postedAt', 'transactions[].amount', 'transactions[].description.en', 'transactions[].fees[].amount'];
+  var AI_TX = [
+    'transactions[].id',
+    'transactions[].type',
+    'transactions[].status',
+    'transactions[].rail',
+    'transactions[].postedAt',
+    'transactions[].amount',
+    'transactions[].balanceAfter',
+    'transactions[].description.en',
+    'transactions[].fees[].amount',
+    'transactions[].onchain.network',
+    'transactions[].onchain.hash',
+    'transactions[].onchain.confirmations',
+    'transactions[].onchain.verified'
+  ];
+  /* What the customer types to the AI service is personal data too (see the notes). */
+  var AI_QUESTION_NOTE =
+    'The AI service receives only the fields in ai.inputFields and the customer’s own question. The question is sent as typed and may contain personal details, so it is covered by ai.retentionDays and the privacy notice. Descriptions must not include counterparty names.';
 
   WT.dataReq = {
     $common: entry(
-      'The statement envelope every feature needs: who it is for, which account and asset, the period and when the data was taken.',
+      'The statement envelope every feature needs: who it is for (an internal ID and the first name used in greetings), which account and asset, the period and when the data was taken.',
       [
         'Amounts are signed integers in the asset’s minor units (precision 2: 100000 = 1,000.00). Never floats.',
         'Date-times are ISO 8601 with the UTC offset of statement.timezone.',
@@ -273,7 +312,6 @@
         'statement.language',
         'customer.id',
         'customer.firstName',
-        'customer.displayName',
         'account.maskedId',
         'account.label.en',
         'account.label.es',
@@ -338,7 +376,7 @@
     explorer: entry(
       'Every transaction in the period, posted or not, with the fields customers search, filter and sort by.',
       ['Search, filters, sorting and the CSV export all run in the browser. Nothing goes back to YES.', 'Include transactions that were pending, failed or unknown at the cut-off, so the list is complete.'],
-      TX_CORE.concat(['transactions[].rail', 'transactions[].method', 'transactions[].initiatedAt', 'transactions[].asset'], TX_TEXT, ['transactions[].memo', 'transactions[].reference'])
+      TX_CORE.concat(['transactions[].rail', 'transactions[].method', 'transactions[].initiatedAt', 'transactions[].asset', 'transactions[].balanceAfter'], TX_TEXT, ['transactions[].memo', 'transactions[].reference'])
     ),
 
     detail: entry(
@@ -368,12 +406,13 @@
     ),
 
     'explain-ai': entry(
-      'The transaction fields sent to YES’s governed AI service, and the guardrails and disclaimer it runs with.',
+      'The statement totals and transaction fields sent to YES’s governed AI service, including the balance after each transaction and any verified network reference, and the guardrails, disclaimer and retention it runs with.',
       [
-        'The AI service receives only the fields in ai.inputFields for the selected transaction and the statement totals. Nothing else is sent.',
+        'For a button, the AI service receives the fields in ai.inputFields for the selected figure or transaction and the statement totals. A follow-up question typed in Ask YES is sent as typed (see Ask YES assistant).',
+        'The balance before a transaction is its balanceAfter minus its amount; unverified on-chain details are never sent.',
         'Answers must cite the transaction IDs they used. If the service is off or fails, the statement falls back to approved template explanations.'
       ],
-      AI_CORE.concat(AI_TX)
+      AI_CORE.concat(['ai.retentionDays'], BALANCES, AI_TX)
     ),
 
     inquiry: entry(
@@ -396,14 +435,19 @@
         'customer.contact.phoneMasked',
         'transactions[].id',
         'transactions[].reference',
-        'transactions[].status'
+        'transactions[].status',
+        'transactions[].type',
+        'transactions[].amount',
+        'transactions[].postedAt',
+        'transactions[].description.en',
+        'transactions[].counterparty.en'
       ]
     ),
 
     assistant: entry(
       'The statement fields the assistant may use, the AI guardrails and disclaimer, approved starter questions and the human-help route.',
       [
-        'The AI service receives only the fields in ai.inputFields, plus the approved explanations. Names, addresses, account numbers and memos are never sent.',
+        AI_QUESTION_NOTE,
         'Questions outside the statement get an honest “I can’t answer that” and the support contacts.'
       ],
       AI_CORE.concat(['ai.suggestedQuestions', 'ai.retentionDays'], BALANCES, AI_TX, ['support.phone', 'support.email'])
@@ -440,12 +484,12 @@
     ),
 
     download: entry(
-      'Mailing address, approved disclosures, issuer name and logo for the statement of record, plus the transaction fields in the CSV.',
+      'The customer’s full name and mailing address, approved disclosures, issuer name and logo for the statement of record, plus the transaction fields in the CSV.',
       [
         'InfoSlips builds the PDF, the print version and the CSV from the same data. Production files carry no demo watermark.',
         'The CSV lists every transaction, including those not in the balance, with the statement facts on each row.'
       ],
-      ['customer.address[]', 'content.disclosures.en', 'content.disclosures.es', 'content.issuer.name', 'brand.logo.uri', 'brand.logo.alt', 'preferences.paperSize', 'document.recordRetentionYears'].concat(TX_CORE, [
+      ['customer.displayName', 'customer.address[]', 'content.disclosures.en', 'content.disclosures.es', 'content.issuer.name', 'brand.logo.uri', 'brand.logo.alt', 'preferences.paperSize', 'document.recordRetentionYears'].concat(TX_CORE, [
         'transactions[].initiatedAt',
         'transactions[].balanceAfter',
         'transactions[].reference',
@@ -461,10 +505,10 @@
     ),
 
     integrity: entry(
-      'Balances, ordered transactions with recorded running balances and fee links, and YES’s own control totals.',
+      'Balances, ordered transactions with recorded running balances and fee links, YES’s own control totals, and where to report a statement that fails its checks.',
       [
         'Before showing anything, InfoSlips checks unique IDs, integer amounts, one asset, the period, opening + movements = closing, every running balance, categories and fee links.',
-        'If any check fails, the statement is withheld and YES is alerted. Nothing is adjusted to make it add up.'
+        'If any check fails, the statement is withheld and reported to integrity.alertEndpoint, so YES can correct and reissue it. Nothing is adjusted to make it add up.'
       ],
       BALANCES.concat(TX_CORE, [
         'transactions[].asset',
@@ -475,7 +519,8 @@
         'statement.controlTotals.postedCount',
         'statement.controlTotals.netMovement',
         'statement.correction.supersedesVersion',
-        'statement.correction.reason.en'
+        'statement.correction.reason.en',
+        'integrity.alertEndpoint'
       ])
     ),
 
@@ -512,7 +557,7 @@
     accessibility: entry(
       'Accessibility preferences, the UserWay account, the accessibility statement link, and captions and voiceover assets with their script fingerprint.',
       [
-        'WCAG 2.2 AA is built in and needs no data. These fields add YES’s widget, preferences and alternative formats.',
+        'The statement is designed to meet WCAG 2.2 AA without extra data. These fields add YES’s widget, preferences and alternative formats.',
         'Captions and voiceover must carry the same script fingerprint as the statement, or InfoSlips uses its own captions and the device voice.'
       ],
       ['accessibility.userway.enabled', 'accessibility.userway.accountId', 'accessibility.statementUri', 'preferences.accessibility.alternateFormat', 'preferences.accessibility.reducedMotion', 'brand.logo.alt'].concat(CAPTIONS, VOICE)

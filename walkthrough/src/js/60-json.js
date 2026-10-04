@@ -47,6 +47,7 @@
     'string<uri>': 'Text (web link)',
     'string<masked>': 'Text (masked)',
     'integer<minor units>': 'Whole number (minor units)',
+    integer: 'Whole number',
     number: 'Number',
     boolean: 'Yes or no',
     object: 'Group of fields',
@@ -60,6 +61,7 @@
     'string<uri>': 'web links',
     'string<masked>': 'masked text',
     'integer<minor units>': 'whole numbers (minor units)',
+    integer: 'whole numbers',
     number: 'numbers',
     boolean: 'yes or no values',
     object: 'records'
@@ -72,6 +74,7 @@
     'string<uri>': 'A full web address, starting with https://.',
     'string<masked>': 'Text that YES masks before sending it, so only a few characters stay visible.',
     'integer<minor units>': 'A whole number in the asset’s smallest unit: 100000 means 1,000.00. Never a decimal.',
+    integer: 'A whole number, such as a count. Never a decimal.',
     number: 'A number.',
     boolean: 'true or false.',
     enum: 'Exactly one of the allowed values below.'
@@ -407,6 +410,7 @@
       case 'string<currency>':
         return { type: 'string', pattern: '^[A-Z][A-Z0-9]{2,9}$' };
       case 'integer<minor units>':
+      case 'integer':
         return { type: 'integer' };
       case 'number':
         return { type: 'number' };

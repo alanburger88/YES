@@ -5,7 +5,7 @@
   "description": "InfoSlips walkthrough app: YES stakeholders tour the interactive YES statement and vote on which features belong in production.",
   "type": "module",
   "engines": {
-    "node": ">=20.10"
+    "node": ">=22.12"
   },
   "scripts": {
     "build": "node build.mjs",

@@ -12,6 +12,9 @@
  *   update(key, fn)     → the value written (or the current value when fn
  *                         returns undefined). fn(current | null) must be pure:
  *                         the Blobs store may call it again after a conflict.
+ *   deleteAll(prefix)   → number of keys deleted. One bulk call on Netlify
+ *                         Blobs (store.deleteAll) when every key in the store
+ *                         has the prefix; batched deletes otherwise.
  *
  * memoryStore()       – tests and `node server/dev.mjs --store memory`
  * fileStore(dir)      – local development that survives restarts
@@ -25,6 +28,17 @@ import { randomBytes } from 'node:crypto';
 
 const clone = (v) => (v === undefined || v === null ? null : JSON.parse(JSON.stringify(v)));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const DELETE_CONCURRENCY = 32;
+
+/** Deletes keys with at most DELETE_CONCURRENCY requests in flight. */
+async function deleteKeys(store, keys) {
+  let next = 0;
+  const worker = async () => {
+    while (next < keys.length) await store.delete(keys[next++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(DELETE_CONCURRENCY, keys.length) }, worker));
+  return keys.length;
+}
 
 /** Serialises async work per key inside one process. */
 function keyedLock() {
@@ -74,6 +88,16 @@ export function memoryStore() {
     },
     async list(prefix = '') {
       return [...map.keys()].filter((k) => k.startsWith(prefix)).sort();
+    },
+    async deleteAll(prefix = '') {
+      let n = 0;
+      for (const k of [...map.keys()]) {
+        if (k.startsWith(prefix)) {
+          map.delete(k);
+          n++;
+        }
+      }
+      return n;
     }
   });
 }
@@ -131,6 +155,9 @@ export function fileStore(dir) {
         })
         .filter((k) => k !== null && k.startsWith(prefix))
         .sort();
+    },
+    async deleteAll(prefix = '') {
+      return deleteKeys(this, await this.list(prefix));
     }
   });
 }
@@ -162,6 +189,22 @@ export function blobsStore(blob, { attempts = 6 } = {}) {
         for (const b of page.blobs || []) keys.push(b.key);
       }
       return keys.sort();
+    },
+    /**
+     * Deletes every key with the prefix. The 'reviews' store only ever holds
+     * r/* keys, so this is normally one store.deleteAll() call (in
+     * @netlify/blobs 11); if the store holds anything else, or the client has
+     * no deleteAll, it falls back to batched deletes of just the prefixed keys.
+     */
+    async deleteAll(prefix = '') {
+      const all = await this.list('');
+      const keys = all.filter((k) => k.startsWith(prefix));
+      if (typeof blob.deleteAll === 'function' && keys.length === all.length) {
+        if (!keys.length) return 0;
+        const res = await blob.deleteAll();
+        return res && typeof res.deletedBlobs === 'number' ? res.deletedBlobs : keys.length;
+      }
+      return deleteKeys(this, keys);
     },
     async update(key, fn) {
       for (let attempt = 0; attempt < attempts; attempt++) {

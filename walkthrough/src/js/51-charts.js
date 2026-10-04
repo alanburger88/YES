@@ -5,7 +5,15 @@
  * marks are spans sized from JS with el.style.setProperty (the CSP forbids
  * style="" in markup). Every chart sits in a <figure> with a <figcaption>, a
  * legend, a "Show as table" toggle and a table that is the source of truth.
- * Marks are aria-hidden; each row carries its values as screen-reader text.
+ * Marks are aria-hidden; each row's feature link carries its values in its
+ * name ("Running balance chart: 6 include, 0 exclude, 100% include").
+ *
+ * Keyboard: only the Support chart's links are tab stops (22, one per
+ * feature, each showing its tooltip on focus). The Priority mix and Score
+ * labels lead to the same 22 pages, so they stay clickable and readable by
+ * screen readers but are left out of the tab order (tabindex="-1"); the
+ * "Show as table" toggles, the tables' links and "Every feature, ranked" give
+ * keyboard users the same data and destinations without 44 more stops.
  *
  * Colour (brand palette only, SPEC section 4; validated with the dataviz
  * skill's validate_palette.js and re-checked in the browser by
@@ -15,7 +23,7 @@
  *   role      light (on #FFFFFF)            dark (on #334155)
  *   include   Medium Green #277656  5.51:1   Green  #4EAF60  3.76:1
  *   exclude   Slate 2      #334155 10.35:1   Slate 4 #94A3B8 4.04:1
- *   high      Slate 1      #0F172A 17.85:1   Lime   #DBE64C  7.61:1
+ *   high      Slate 1      #0F172A 17.85:1   White  #FFFFFF 10.35:1
  *   medium    Dark Green   #1D5941  8.21:1   Acorn  #80D100  5.44:1
  *   low       Medium Green #277656  5.51:1   Green  #4EAF60  3.76:1
  *   score     Medium Green #277656  5.51:1   Green  #4EAF60  3.76:1
@@ -23,10 +31,15 @@
  * Include/exclude is a polarity pair (side of the axis also encodes it):
  * worst CVD ΔE 15.3 light / 11.0 dark, normal-vision ΔE 17.2 / 16.5.
  * High/Medium/Low is an ordinal ramp: monotone lightness with ΔL >= 0.06 in
- * both modes (the dark ramp passes every ordinal check; in light the darkest
- * step is near-neutral Slate 1, because no third brand green reaches 3:1 on
- * white). Segments are split by 2px surface gaps, ordered H → M → L, labelled
- * in place when the label fits, and always backed by the legend and table.
+ * both modes. Only two brand greens reach 3:1 on each card (Dark Green and
+ * Medium Green on white; Acorn and Green on Slate 2, Lime being kept for
+ * focus and the tour spotlight), so the strongest step is the strongest
+ * neutral ink: Slate 1 in light, White in dark (OKLCH L 1.00 / 0.78 / 0.68).
+ * The validator's single-hue check flags only that achromatic step.
+ * Segments are split by 2px surface gaps, ordered H → M → L, labelled in
+ * place when the label fits ("H 60%", so the letter names the step without
+ * colour), and always backed by the legend and table. Forced colours give
+ * each priority its own fill: solid, hatched and outlined (50-results.css).
  */
 (function (WT) {
   'use strict';
@@ -35,7 +48,7 @@
 
   var PALETTE = {
     light: { surface: '#ffffff', include: '#277656', exclude: '#334155', high: '#0f172a', medium: '#1d5941', low: '#277656', score: '#277656' },
-    dark: { surface: '#334155', include: '#4eaf60', exclude: '#94a3b8', high: '#dbe64c', medium: '#80d100', low: '#4eaf60', score: '#4eaf60' }
+    dark: { surface: '#334155', include: '#4eaf60', exclude: '#94a3b8', high: '#ffffff', medium: '#80d100', low: '#4eaf60', score: '#4eaf60' }
   };
   var PRIORITIES = ['high', 'medium', 'low'];
 
@@ -118,9 +131,16 @@
   function plural(n, one, many) {
     return WT.fmt.plural(n, one, many);
   }
-  function featureLink(r, cls, fk, extra) {
-    return '<a class="' + cls + '" href="#/results/' + encodeURIComponent(r.id) + '" data-fk="' + WT.esc(fk) + '">' + (extra || '') +
-      '<span class="wt-chart__name">' + WT.esc(r.title) + '</span></a>';
+  /**
+   * A row's feature label: a link whose name carries the row's values (sr).
+   * quiet: true leaves it out of the tab order (still a link for pointers and
+   * screen readers), for charts whose destinations the Support chart repeats.
+   */
+  function featureLink(r, cls, fk, extra, sr, quiet) {
+    return '<a class="' + cls + '" href="#/results/' + encodeURIComponent(r.id) + '" data-fk="' + WT.esc(fk) + '"' + (quiet ? ' tabindex="-1"' : '') + '>' + (extra || '') +
+      '<span class="wt-chart__name">' + WT.esc(r.title) + '</span>' +
+      (sr ? '<span class="wt-sr-only">: ' + WT.esc(sr) + '</span>' : '') +
+      '</a>';
   }
 
   /* ------------------------------------------------------------------ */
@@ -208,9 +228,8 @@
           : '<span class="wt-sup__half wt-sup__half--neg"></span><span class="wt-sup__axis"></span><span class="wt-sup__half wt-sup__half--pos"><span class="wt-chart__none">No votes yet</span></span>';
         return (
           '<li class="wt-chart__row wt-sup__row' + (r.votes ? '' : ' is-empty') + '" data-id="' + WT.esc(r.id) + '"' + tipAttr(r.title, lines) + '>' +
-            featureLink(r, 'wt-chart__label', 'sup-' + r.id, shotBox({ id: r.id, thumb: true, alt: '' })) +
+            featureLink(r, 'wt-chart__label', 'sup-' + r.id, shotBox({ id: r.id, thumb: true, alt: '' }), sr) +
             '<span class="wt-chart__plot wt-sup__plot" aria-hidden="true">' + plot + '</span>' +
-            '<span class="wt-sr-only">: ' + WT.esc(sr) + '</span>' +
           '</li>'
         );
       })
@@ -261,6 +280,13 @@
       .join('');
   }
 
+  /** In-segment label: the priority's letter, then its share ("H 60%"). */
+  function prioLabel(total) {
+    return function (p) {
+      return p.label.charAt(0) + ' ' + pctOf(p.n, total);
+    };
+  }
+
   function prioParts(p) {
     return [
       { kind: 'high', label: 'High', n: p.high },
@@ -286,11 +312,10 @@
           : 'no priorities yet';
         return (
           '<li class="wt-chart__row wt-mix__row' + (r.pn ? '' : ' is-empty') + '" data-id="' + WT.esc(r.id) + '"' + tipAttr(r.title, lines) + '>' +
-            featureLink(r, 'wt-chart__label', 'mix-' + r.id) +
+            featureLink(r, 'wt-chart__label', 'mix-' + r.id, '', sr, true) +
             '<span class="wt-chart__plot wt-mix__plot" aria-hidden="true">' +
-              (r.pn ? '<span class="wt-hbar">' + stack(prioParts(p), r.pn) + '</span><span class="wt-chart__n">' + r.pn + '</span>' : '<span class="wt-chart__none">No priorities yet</span>') +
+              (r.pn ? '<span class="wt-hbar">' + stack(prioParts(p), r.pn, prioLabel(r.pn)) + '</span><span class="wt-chart__n">' + r.pn + '</span>' : '<span class="wt-chart__none">No priorities yet</span>') +
             '</span>' +
-            '<span class="wt-sr-only">: ' + WT.esc(sr) + '</span>' +
           '</li>'
         );
       })
@@ -298,9 +323,9 @@
     var chart =
       '<div class="wt-chart__scale" aria-hidden="true"><span class="wt-chart__scale-spacer"></span>' +
         '<span class="wt-chart__plot wt-mix__plot"><span class="wt-axis"><span>0%</span><span>50%</span><span>100%</span></span><span class="wt-chart__n">n</span></span></div>' +
-      '<ol class="wt-chart wt-mix" role="list" aria-label="Priority mix by feature, among reviewers who set a priority">' + items + '</ol>';
+      '<ol class="wt-chart wt-mix" role="list" aria-label="Priority mix by feature, among reviewers who set a priority and didn’t vote Exclude">' + items + '</ol>';
     var tableHtml = table({
-      caption: 'Priority mix by feature, among reviewers who set a priority',
+      caption: 'Priority mix by feature, among reviewers who set a priority and didn’t vote Exclude',
       cls: 'wt-fig-table wt-fig-table--mix',
       cols: [{ label: 'Feature' }, { label: 'High', num: true }, { label: 'Medium', num: true }, { label: 'Low', num: true }, { label: 'With a priority', num: true }],
       rows: rows.map(function (r) {
@@ -339,7 +364,7 @@
         var sr = 'rank ' + (i + 1) + ', score ' + scoreText(r.score) + ' of 3 from ' + plural(r.pn, 'priority response') + ', ' + plural(r.include, 'include vote');
         return (
           '<li class="wt-chart__row wt-score__row" data-id="' + WT.esc(r.id) + '"' + tipAttr(r.title, lines) + '>' +
-            featureLink(r, 'wt-chart__label', 'score-' + r.id, '<span class="wt-score__rank" aria-hidden="true">' + (i + 1) + '</span>') +
+            featureLink(r, 'wt-chart__label', 'score-' + r.id, '<span class="wt-score__rank" aria-hidden="true">' + (i + 1) + '</span>', sr, true) +
             '<span class="wt-chart__plot wt-score__plot" aria-hidden="true">' +
               '<span class="wt-score__track">' +
                 '<span class="wt-score__grid wt-score__grid--1"></span><span class="wt-score__grid wt-score__grid--2"></span><span class="wt-score__grid wt-score__grid--3"></span>' +
@@ -348,7 +373,6 @@
               '</span>' +
               '<span class="wt-chart__val wt-score__val">' + scoreText(r.score) + '</span>' +
             '</span>' +
-            '<span class="wt-sr-only">: ' + WT.esc(sr) + '</span>' +
           '</li>'
         );
       })
@@ -359,7 +383,7 @@
         '<span class="wt-score__val"></span></span></div>' +
       '<ol class="wt-chart wt-score" role="list" aria-label="Priority score ranking, from 1 (Low) to 3 (High)">' + items + '</ol>';
     var tableHtml = table({
-      caption: 'Priority score ranking (High 3, Medium 2, Low 1), features with at least one include vote',
+      caption: 'Priority score ranking (High 3, Medium 2, Low 1; Exclude votes not counted), features with at least one include vote',
       cls: 'wt-fig-table wt-fig-table--score',
       cols: [{ label: 'Rank', num: true }, { label: 'Feature' }, { label: 'Score', num: true }, { label: 'High', num: true }, { label: 'Medium', num: true }, { label: 'Low', num: true }, { label: 'Include votes', num: true }],
       rowHeader: false,

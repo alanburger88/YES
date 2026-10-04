@@ -27,7 +27,7 @@ const SOURCES = [
   'Accessibility service',
   'Preferences'
 ];
-const BASE_TYPES = ['string', 'string<date-time>', 'string<date>', 'string<currency>', 'integer<minor units>', 'number', 'boolean', 'object', 'array', 'string<uri>', 'string<masked>'];
+const BASE_TYPES = ['string', 'string<date-time>', 'string<date>', 'string<currency>', 'integer<minor units>', 'integer', 'number', 'boolean', 'object', 'array', 'string<uri>', 'string<masked>'];
 const ENUM = /^string<enum: ([a-z0-9_]+(?:\|[a-z0-9_]+)*)>$/;
 const SEGMENT = '[A-Za-z_][A-Za-z0-9_]*(?:\\[\\])?';
 const PATH = new RegExp('^\\$?' + SEGMENT + '(?:\\.' + SEGMENT + ')*$');
@@ -59,6 +59,7 @@ function exampleProblem(type, ex) {
     case 'string<currency>':
       return typeof ex === 'string' && CURRENCY.test(ex) ? '' : 'expected an upper-case currency or asset code';
     case 'integer<minor units>':
+    case 'integer':
       return Number.isSafeInteger(ex) ? '' : 'expected an integer';
     case 'number':
       return typeof ex === 'number' && Number.isFinite(ex) ? '' : 'expected a finite number';
@@ -175,8 +176,30 @@ export default async function run(ctx = {}) {
 
   // The SPEC's envelope is in $common.
   const common = new Set((req.$common.fields || []).map((f) => f.path));
-  for (const p of ['statement.id', 'statement.period.start', 'statement.period.end', 'statement.generatedAt', 'statement.language', 'customer.displayName', 'account.maskedId', 'asset.id']) {
+  for (const p of ['statement.id', 'statement.period.start', 'statement.period.end', 'statement.generatedAt', 'statement.language', 'customer.id', 'customer.firstName', 'account.maskedId', 'asset.id']) {
     if (!common.has(p)) fail(`$common is missing ${p}`);
+  }
+  // Data minimisation: the full name is only displayed in print and PDF, so
+  // only "download" asks for it (not every feature through $common).
+  const listing = (path) => ['$common', ...ids].filter((k) => req[k] && (req[k].fields || []).some((f) => f.path === path));
+  assert.deepEqual(listing('customer.displayName'), ['download'].filter((k) => req[k]), 'customer.displayName is needed only by download');
+
+  // The AI notes and inputs (SPEC section 7): the inputs name every transaction
+  // field the explanation describes, and the customer's question is covered.
+  const has = (k, path) => !!req[k] && (req[k].fields || []).some((f) => f.path === path);
+  if (aiInput) {
+    const inputs = JSON.parse(aiInput.def).example;
+    for (const p of ['transactions[].balanceAfter', 'transactions[].onchain.network', 'transactions[].onchain.hash']) if (!inputs.includes(p)) fail(`ai.inputFields is missing ${p}`);
+    for (const k of ['explain-ai', 'assistant']) {
+      if (!req[k]) continue;
+      for (const p of inputs.filter((x) => x.startsWith('transactions[]') || x.startsWith('statement.opening') || x.startsWith('statement.closing'))) if (!has(k, p)) fail(`${k} sends ${p} to the AI service but does not list it`);
+      if (!has(k, 'ai.retentionDays')) fail(`${k} is missing ai.retentionDays`);
+    }
+  }
+  if (req.assistant && !req.assistant.notes.some((n) => /customer’s own question/.test(n) && /ai\.retentionDays/.test(n))) fail('assistant: the notes must say the typed question is sent and retained');
+  for (const k of Object.keys(req)) for (const n of req[k].notes || []) if (/never sent/.test(n) && /memos/.test(n) && !/question/.test(n)) fail(`${k}: a note says data is never sent but ignores the typed question`);
+  for (const [k, p] of [['inquiry', 'transactions[].amount'], ['inquiry', 'transactions[].counterparty.en'], ['explorer', 'transactions[].balanceAfter'], ['integrity', 'integrity.alertEndpoint']]) {
+    if (req[k] && !has(k, p)) fail(`${k} is missing ${p}`);
   }
 
   if (problems.length) {

@@ -25,11 +25,11 @@
 :root[data-theme='dark'] {
   --chart-include: var(--c-green); /* 3.76:1 on Slate 2 */
   --chart-exclude: var(--c-slate-4); /* 4.04:1 */
-  --chart-high: var(--c-lime); /* 7.61:1 */
+  --chart-high: var(--c-white); /* 10.35:1: the strongest neutral, as Slate 1 is in light */
   --chart-medium: var(--c-acorn); /* 5.44:1 */
   --chart-low: var(--c-green); /* 3.76:1 */
   --chart-score: var(--c-green);
-  --chart-on-mark: var(--c-slate-1); /* >= 6.48:1 on every dark fill */
+  --chart-on-mark: var(--c-slate-1); /* >= 6.48:1 on every dark fill (Green, Acorn, White, Slate 4) */
   --chart-axis: var(--c-slate-4);
   --chart-grid: var(--c-slate-3);
 }
@@ -37,7 +37,7 @@
   :root:not([data-theme='light']) {
     --chart-include: var(--c-green);
     --chart-exclude: var(--c-slate-4);
-    --chart-high: var(--c-lime);
+    --chart-high: var(--c-white);
     --chart-medium: var(--c-acorn);
     --chart-low: var(--c-green);
     --chart-score: var(--c-green);
@@ -237,10 +237,10 @@
 }
 .wt-subnav__link[aria-current='page'] {
   color: var(--heading);
-  border-bottom-color: var(--highlight);
+  border-bottom-color: var(--current);
 }
 .wt-subnav__link[aria-current='page'] .wt-icon {
-  color: var(--highlight);
+  color: var(--current);
 }
 .wt-subnav__link:focus-visible {
   outline-offset: -3px;
@@ -1421,6 +1421,12 @@
   justify-content: flex-end;
   gap: 6px;
 }
+/* An Exclude vote's priority ("Low if included"): outlined and dashed, as it isn't counted. */
+.wt-badge--if {
+  background: transparent;
+  color: var(--heading);
+  border: 1px dashed var(--control-border);
+}
 .wt-resp__body {
   display: grid;
   gap: var(--sp-3);
@@ -1674,6 +1680,9 @@ td.wt-mx {
   font-weight: 800;
   letter-spacing: 0.02em;
 }
+.wt-mx__p--if {
+  font-weight: 650;
+}
 .wt-mx__letter {
   display: inline-grid;
   place-items: center;
@@ -1764,13 +1773,37 @@ td.wt-mx {
     background: CanvasText;
   }
   .wt-mark--exclude,
-  .wt-key--exclude,
-  .wt-mark--low,
-  .wt-key--low {
+  .wt-key--exclude {
     background: GrayText;
   }
   .wt-seg__lab {
     color: Canvas;
+  }
+  /* Priorities get three different fills, not two identical ones:
+     High solid, Medium hatched, Low outlined (labels also start H, M or L). */
+  .wt-mark--medium,
+  .wt-key--medium {
+    background: repeating-linear-gradient(135deg, CanvasText 0 2px, Canvas 2px 5px);
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+  .wt-mark--low,
+  .wt-key--low {
+    background: Canvas;
+    outline: 2px solid CanvasText;
+    outline-offset: -2px;
+  }
+  .wt-mark--medium .wt-seg__lab {
+    padding: 2px 4px;
+    border-radius: 3px;
+    background: Canvas;
+    color: CanvasText;
+  }
+  .wt-mark--low .wt-seg__lab {
+    color: CanvasText;
+  }
+  .wt-badge--if {
+    border-style: dashed;
   }
   .wt-sup__axis,
   .wt-score__grid {

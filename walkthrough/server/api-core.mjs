@@ -8,8 +8,15 @@
  * local server (server/dev.mjs). `store` is any store from server/stores.mjs.
  * `env.ADMIN_CODE` is read on every request.
  *
- * Every response is JSON (except the CSV export) with Cache-Control: no-store.
- * Errors are { error: { code, message } }. Secrets are never echoed or logged.
+ * Every response is JSON (except the CSV export) with Cache-Control: no-store
+ * and the API_HEADERS below (noindex, same-origin referrer, nosniff), errors and
+ * exports included. Errors are { error: { code, message } }. Secrets are never
+ * echoed or logged.
+ *
+ * Per-instance state (createApiState()) holds a short memo of the public
+ * results/exports and the admin-code throttle. Netlify keeps one state per
+ * function instance (netlify/functions/api.mjs); the dev server keeps one per
+ * process. Both are best-effort: another instance never sees this one's state.
  */
 
 export const MAX_BODY = 64 * 1024;
@@ -18,12 +25,31 @@ export const VOTES = Object.freeze(['include', 'exclude']);
 export const PRIORITIES = Object.freeze(['high', 'medium', 'low']);
 export const PREFIX = 'r/';
 export const ANONYMOUS = 'Anonymous reviewer';
+/** An ADMIN_CODE shorter than this is treated as not configured (503). */
+export const ADMIN_MIN_LENGTH = 16;
+/** Headers on every API response (JSON, CSV/JSON exports, 204s and errors). */
+export const API_HEADERS = Object.freeze({
+  'cache-control': 'no-store',
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'same-origin',
+  'x-robots-tag': 'noindex, nofollow'
+});
+/** Public results and exports are memoised this long per instance (any write in the instance clears it). */
+export const MEMO_MS = 3000;
+/** Wrong admin codes allowed per client IP within windowMs before a lockMs lock-out (429). */
+export const ADMIN_THROTTLE = Object.freeze({ max: 10, windowMs: 10 * 60 * 1000, lockMs: 10 * 60 * 1000 });
+/** Concurrent store reads/deletes when loading or resetting every record. */
+const READ_CONCURRENCY = 32;
 
 const SECRET_RE = /^[0-9a-f]{64}$/i;
 const RID_RE = /^[0-9a-f]{24}$/;
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:?\d{2})$/;
-// C0/C1 controls except \n, plus bidi overrides/isolates and the BOM.
+// C0/C1 controls except \n, plus bidi overrides/isolates and the BOM. Tabs are
+// turned into spaces before this runs (see cleanText).
 const CONTROL_RE = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069\uFEFF]/g;
+// Characters that render as nothing. Text made only of these (and whitespace)
+// counts as empty; inside other text they are kept (U+200D joins emoji).
+const INVISIBLE_RE = /[\u00AD\u034F\u115F\u1160\u180E\u200B-\u200F\u2060-\u2064\u3164\uFEFF\uFFA0]/g;
 const FIELD_LABEL = { name: 'Your name', reason: 'The reason', comment: 'The comment' };
 const CSV_COLUMNS = ['reviewer', 'feature_id', 'feature_title', 'vote', 'priority', 'reason', 'comment', 'updated_at'];
 
@@ -63,10 +89,15 @@ async function safeEqual(a, b) {
 function baseHeaders(extra) {
   return {
     'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-    'x-content-type-options': 'nosniff',
+    ...API_HEADERS,
     ...(extra || {})
   };
+}
+
+/** Puts API_HEADERS on any response (exports, 204s, errors) as the last step. */
+function withApiHeaders(res) {
+  for (const [k, v] of Object.entries(API_HEADERS)) res.headers.set(k, v);
+  return res;
 }
 
 function json(status, data, extra) {
@@ -134,15 +165,18 @@ function tooLarge() {
 }
 
 /**
- * Trims, normalises line breaks and strips control characters (keeping \n
- * when multiline). Over-long text is refused with 422.
+ * Trims, normalises line breaks, turns tabs into spaces and strips control
+ * characters (keeping \n when multiline). Text made only of invisible
+ * characters (zero-width spaces and joiners, U+2060, the BOM …) is empty.
+ * Over-long text is refused with 422.
  */
 export function cleanText(value, field, max, multiline) {
   if (value === undefined || value === null) return '';
   if (typeof value !== 'string') throw new HttpError(422, 'invalid', `${FIELD_LABEL[field] || field} must be text.`);
-  let s = value.replace(/\r\n?/g, '\n').replace(CONTROL_RE, '');
+  let s = value.replace(/\r\n?/g, '\n').replace(/\t/g, ' ').replace(CONTROL_RE, '');
   if (!multiline) s = s.replace(/\s*\n\s*/g, ' ').replace(/ {2,}/g, ' ');
   s = s.trim();
+  if (!s.replace(INVISIBLE_RE, '').trim()) s = '';
   if (s.length > max) {
     throw new HttpError(422, 'too_long', `${FIELD_LABEL[field] || field} is ${s.length} characters long. The maximum is ${max.toLocaleString('en-GB')}.`);
   }
@@ -151,11 +185,48 @@ export function cleanText(value, field, max, multiline) {
 
 const isEmptyAnswer = (a) => !a || (a.vote === null && a.priority === null && !a.reason && !a.comment);
 
+/**
+ * Per-instance state shared by every createApi() call that is given it:
+ * { gen, memo, attempts }. gen counts writes (the memo is only valid for the
+ * gen it was read in), memo holds the public records read, attempts holds the
+ * wrong admin codes per client IP.
+ */
+export function createApiState() {
+  return { gen: 0, memo: null, attempts: new Map() };
+}
+
+function clientIpFrom(request) {
+  const nf = request.headers.get('x-nf-client-connection-ip');
+  if (nf && nf.trim()) return nf.trim();
+  const xff = request.headers.get('x-forwarded-for');
+  const first = xff ? xff.split(',')[0].trim() : '';
+  return first || 'unknown';
+}
+
 /* ------------------------------------------------------------------ */
 /* The API                                                             */
 /* ------------------------------------------------------------------ */
 
-export function createApi({ store, env = {}, features, now = () => Date.now(), logger = console } = {}) {
+/**
+ * createApi({ store, env, features, now?, logger?, state?, memoMs?, throttle?, clientIp? })
+ *   state     createApiState(): pass the same object on every request to share
+ *             the results memo and the admin throttle (the Netlify function does).
+ *   memoMs    how long public results/exports are memoised (MEMO_MS; 0 = never).
+ *   throttle  { max, windowMs, lockMs } for wrong admin codes (ADMIN_THROTTLE).
+ *   clientIp  (request) => string; defaults to x-nf-client-connection-ip, then
+ *             the first x-forwarded-for entry, then 'unknown'.
+ */
+export function createApi({
+  store,
+  env = {},
+  features,
+  now = () => Date.now(),
+  logger = console,
+  state = createApiState(),
+  memoMs = MEMO_MS,
+  throttle = ADMIN_THROTTLE,
+  clientIp = null
+} = {}) {
   if (!store) throw new Error('createApi: store is required');
   if (!Array.isArray(features) || !features.length) throw new Error('createApi: features must be a non-empty array');
   const byId = new Map(features.map((f) => [f.id, f]));
@@ -163,6 +234,19 @@ export function createApi({ store, env = {}, features, now = () => Date.now(), l
   const readEnv = (name) => {
     const v = typeof env === 'function' ? env(name) : env && env[name];
     return typeof v === 'string' ? v.trim() : '';
+  };
+  const adminCode = () => {
+    const code = readEnv('ADMIN_CODE');
+    return code.length >= ADMIN_MIN_LENGTH ? code : '';
+  };
+  const ipOf = (request) => {
+    let ip = '';
+    try {
+      ip = clientIp ? clientIp(request) : '';
+    } catch {
+      ip = '';
+    }
+    return typeof ip === 'string' && ip ? ip : clientIpFrom(request);
   };
 
   /* ---------- identity ---------- */
@@ -174,11 +258,85 @@ export function createApi({ store, env = {}, features, now = () => Date.now(), l
     return ridFor(secret);
   }
 
+  /* ---------- admin code: configured, throttled, timing-safe ---------- */
+
+  function lockedFor(ip, t) {
+    const a = state.attempts.get(ip);
+    if (!a) return 0;
+    if (a.lockedUntil > t) return a.lockedUntil - t;
+    if (a.lockedUntil) state.attempts.delete(ip); // the lock-out is over: start afresh
+    return 0;
+  }
+
+  function recordFailure(ip, t) {
+    const a = state.attempts.get(ip) || { fails: [], lockedUntil: 0 };
+    a.fails = a.fails.filter((x) => t - x < throttle.windowMs);
+    a.fails.push(t);
+    if (a.fails.length >= throttle.max) a.lockedUntil = t + throttle.lockMs;
+    state.attempts.delete(ip); // re-insert so the Map stays in least-recently-used order
+    state.attempts.set(ip, a);
+    if (state.attempts.size > 10000) {
+      // Best effort: drop the stalest entries first.
+      for (const [k, v] of state.attempts) {
+        if (state.attempts.size <= 5000) break;
+        if (!(v.lockedUntil > t)) state.attempts.delete(k);
+      }
+    }
+  }
+
   async function requireAdmin(request) {
-    const code = readEnv('ADMIN_CODE');
-    if (!code) throw new HttpError(503, 'admin_not_configured', 'Admin is not configured. Set the ADMIN_CODE environment variable.');
+    const raw = readEnv('ADMIN_CODE');
+    if (!raw) throw new HttpError(503, 'admin_not_configured', 'Admin is not configured. Set the ADMIN_CODE environment variable.');
+    const code = adminCode();
+    if (!code) throw new HttpError(503, 'admin_not_configured', `Admin is not configured: ADMIN_CODE must be at least ${ADMIN_MIN_LENGTH} characters`);
+    const ip = ipOf(request);
+    const t = now();
+    const wait = lockedFor(ip, t);
+    if (wait > 0) {
+      const minutes = Math.max(1, Math.ceil(wait / 60000));
+      throw new HttpError(429, 'too_many_attempts', `Too many wrong admin codes. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`, {
+        'retry-after': String(Math.ceil(wait / 1000))
+      });
+    }
     const given = request.headers.get('x-admin-code') || '';
-    if (!given || !(await safeEqual(given, code))) throw new HttpError(401, 'bad_admin_code', 'That admin code is not correct.');
+    if (!given) throw new HttpError(401, 'bad_admin_code', 'That admin code is not correct.');
+    if (!(await safeEqual(given, code))) {
+      recordFailure(ip, t);
+      throw new HttpError(401, 'bad_admin_code', 'That admin code is not correct.');
+    }
+    state.attempts.delete(ip); // a right code clears this address's wrong attempts
+  }
+
+  /* ---------- writes and the public-results memo ---------- */
+
+  /** Runs a write, invalidating the memo before and after it, so a read that overlaps it is never memoised. */
+  async function writing(fn) {
+    state.gen++;
+    state.memo = null;
+    try {
+      return await fn();
+    } finally {
+      state.gen++;
+      state.memo = null;
+    }
+  }
+
+  /**
+   * Every record for the public results and exports, memoised for memoMs in
+   * this instance. Concurrent readers share one read. Admin views never use it.
+   */
+  function publicRecords() {
+    const t = now();
+    const m = state.memo;
+    if (memoMs > 0 && m && m.gen === state.gen && t - m.at < memoMs) return m.promise;
+    const entry = { gen: state.gen, at: t, promise: allRecords() };
+    if (memoMs > 0) {
+      state.memo = entry;
+      entry.promise.catch(() => {
+        if (state.memo === entry) state.memo = null;
+      });
+    }
+    return entry.promise;
   }
 
   /* ---------- validation ---------- */
@@ -232,8 +390,10 @@ export function createApi({ store, env = {}, features, now = () => Date.now(), l
 
   /** Pure merge used inside store.update (may run more than once). */
   function mergeMe(current, rid, patch, nowIso) {
-    const hasAnswers = patch.answers && Object.keys(patch.answers).length;
-    if (!current && !patch.name && !hasAnswers) return undefined; // nothing worth storing
+    // No record yet and no answer to store: create nothing. A name on its own
+    // is never stored; the client sends it again with its first answer.
+    const hasAnswers = Object.values(patch.answers || {}).some((a) => a && !isEmptyAnswer(a));
+    if (!current && !hasAnswers) return undefined;
     const rec = current
       ? { ...current, answers: { ...(current.answers || {}) }, hidden: { ...(current.hidden || {}) } }
       : { rid, name: '', createdAt: nowIso, updatedAt: nowIso, answers: {}, hidden: {} };
@@ -255,7 +415,7 @@ export function createApi({ store, env = {}, features, now = () => Date.now(), l
 
   async function allRecords() {
     const keys = await store.list(PREFIX);
-    const recs = await mapLimit(keys, 8, (k) => store.get(k));
+    const recs = await mapLimit(keys, READ_CONCURRENCY, (k) => store.get(k));
     return recs.filter((r) => r && typeof r === 'object' && typeof r.rid === 'string');
   }
 
@@ -287,7 +447,12 @@ export function createApi({ store, env = {}, features, now = () => Date.now(), l
         if (a.vote === 'include') f.include++;
         else if (a.vote === 'exclude') f.exclude++;
         else f.undecided++;
-        if (a.priority && f.priority[a.priority] !== undefined) f.priority[a.priority]++;
+        // Priority rule: features[id].priority (and so the score) counts only
+        // responses that did NOT vote "exclude" (an include or no vote yet). A
+        // priority given with an exclude is "priority if included", not support,
+        // so it stays in that response's own `priority` in responses[] (the UI
+        // shows it as "if included") but is left out of the counts.
+        if (a.priority && a.vote !== 'exclude' && f.priority[a.priority] !== undefined) f.priority[a.priority]++;
         const hid = (rec.hidden && rec.hidden[id]) || {};
         const hiddenReason = !!hid.reason;
         const hiddenComment = !!hid.comment;
@@ -362,8 +527,7 @@ export function createApi({ store, env = {}, features, now = () => Date.now(), l
 
   const handlers = {
     health: {
-      GET: async () =>
-        json(200, { ok: true, store: store.kind || 'memory', features: order.length, adminConfigured: !!readEnv('ADMIN_CODE') })
+      GET: async () => json(200, { ok: true, store: store.kind || 'memory', features: order.length, adminConfigured: !!adminCode() })
     },
 
     me: {
@@ -378,31 +542,35 @@ export function createApi({ store, env = {}, features, now = () => Date.now(), l
         const nowMs = now();
         const patch = cleanMeBody(body, nowMs);
         const nowIso = new Date(nowMs).toISOString();
-        const rec = await store.update(PREFIX + rid, (current) => mergeMe(current, rid, patch, nowIso));
-        return json(200, rec ? publicRecord(rec) : emptyMe(rid));
+        const rec = await writing(() => store.update(PREFIX + rid, (current) => mergeMe(current, rid, patch, nowIso)));
+        if (rec) return json(200, publicRecord(rec));
+        // Nothing stored (no record and no answers): the would-be record, without createdAt.
+        return json(200, { ...emptyMe(rid), name: typeof patch.name === 'string' ? patch.name : '' });
       },
       DELETE: async (req) => {
         const rid = await reviewerFrom(req);
-        const existed = !!(await store.get(PREFIX + rid));
-        if (existed) await store.delete(PREFIX + rid);
+        const existed = await writing(async () => {
+          const had = !!(await store.get(PREFIX + rid));
+          if (had) await store.delete(PREFIX + rid);
+          return had;
+        });
         return json(200, { ok: true, deleted: existed, rid });
       }
     },
 
     results: {
       GET: async (req, url) => {
-        let admin = false;
         if (url.searchParams.get('admin') === '1') {
           await requireAdmin(req);
-          admin = true;
+          return json(200, buildResults(await allRecords(), { admin: true })); // admin views are never memoised
         }
-        return json(200, buildResults(await allRecords(), { admin }));
+        return json(200, buildResults(await publicRecords(), { admin: false }));
       }
     },
 
     'export.json': {
       GET: async () => {
-        const rows = exportRows(await allRecords());
+        const rows = exportRows(await publicRecords());
         const body = { generatedAt: new Date(now()).toISOString(), columns: CSV_COLUMNS, rows };
         return new Response(JSON.stringify(body, null, 2), {
           status: 200,
@@ -413,14 +581,13 @@ export function createApi({ store, env = {}, features, now = () => Date.now(), l
 
     'export.csv': {
       GET: async () => {
-        const rows = exportRows(await allRecords());
+        const rows = exportRows(await publicRecords());
         const lines = [CSV_COLUMNS.join(',')].concat(rows.map((r) => CSV_COLUMNS.map((c) => csvCell(r[c])).join(',')));
         return new Response('\uFEFF' + lines.join('\r\n') + '\r\n', {
           status: 200,
           headers: {
             'content-type': 'text/csv; charset=utf-8',
-            'cache-control': 'no-store',
-            'x-content-type-options': 'nosniff',
+            ...API_HEADERS,
             'content-disposition': `attachment; filename="yes-statement-review-${stamp()}.csv"`
           }
         });
@@ -430,7 +597,7 @@ export function createApi({ store, env = {}, features, now = () => Date.now(), l
     'admin/check': {
       GET: async (req) => {
         await requireAdmin(req);
-        return new Response(null, { status: 204, headers: { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' } });
+        return new Response(null, { status: 204, headers: { ...API_HEADERS } });
       }
     },
 
@@ -444,17 +611,19 @@ export function createApi({ store, env = {}, features, now = () => Date.now(), l
         if (field !== 'reason' && field !== 'comment') throw new HttpError(422, 'invalid', 'field must be "reason" or "comment".');
         if (typeof hidden !== 'boolean') throw new HttpError(422, 'invalid', 'hidden must be true or false.');
         let found = false;
-        const rec = await store.update(PREFIX + rid, (current) => {
-          found = !!current;
-          if (!current) return undefined;
-          const all = { ...(current.hidden || {}) };
-          const one = { ...(all[featureId] || {}) };
-          if (hidden) one[field] = true;
-          else delete one[field];
-          if (Object.keys(one).length) all[featureId] = one;
-          else delete all[featureId];
-          return { ...current, hidden: all };
-        });
+        const rec = await writing(() =>
+          store.update(PREFIX + rid, (current) => {
+            found = !!current;
+            if (!current) return undefined;
+            const all = { ...(current.hidden || {}) };
+            const one = { ...(all[featureId] || {}) };
+            if (hidden) one[field] = true;
+            else delete one[field];
+            if (Object.keys(one).length) all[featureId] = one;
+            else delete all[featureId];
+            return { ...current, hidden: all };
+          })
+        );
         if (!found || !rec) throw new HttpError(404, 'not_found', 'There is no reviewer with that id.');
         const h = (rec.hidden && rec.hidden[featureId]) || {};
         return json(200, { ok: true, rid, featureId, hidden: { reason: !!h.reason, comment: !!h.comment } });
@@ -466,8 +635,10 @@ export function createApi({ store, env = {}, features, now = () => Date.now(), l
         await requireAdmin(req);
         const { rid } = await readJson(req);
         if (typeof rid !== 'string' || !RID_RE.test(rid)) throw new HttpError(422, 'invalid', 'rid must be a 24-character reviewer id.');
-        if (!(await store.get(PREFIX + rid))) throw new HttpError(404, 'not_found', 'There is no reviewer with that id.');
-        await store.delete(PREFIX + rid);
+        await writing(async () => {
+          if (!(await store.get(PREFIX + rid))) throw new HttpError(404, 'not_found', 'There is no reviewer with that id.');
+          await store.delete(PREFIX + rid);
+        });
         return json(200, { ok: true, rid });
       }
     },
@@ -477,9 +648,14 @@ export function createApi({ store, env = {}, features, now = () => Date.now(), l
         await requireAdmin(req);
         const { confirm } = await readJson(req);
         if (confirm !== 'RESET') throw new HttpError(422, 'confirm_required', 'Type RESET to confirm.');
-        const keys = await store.list(PREFIX);
-        await mapLimit(keys, 8, (k) => store.delete(k));
-        return json(200, { ok: true, deleted: keys.length });
+        const deleted = await writing(async () => {
+          // One bulk call when the store has it (Netlify Blobs deleteAll), else batched deletes.
+          if (typeof store.deleteAll === 'function') return store.deleteAll(PREFIX);
+          const keys = await store.list(PREFIX);
+          await mapLimit(keys, READ_CONCURRENCY, (k) => store.delete(k));
+          return keys.length;
+        });
+        return json(200, { ok: true, deleted });
       }
     }
   };
@@ -498,16 +674,16 @@ export function createApi({ store, env = {}, features, now = () => Date.now(), l
         throw new HttpError(405, 'method_not_allowed', `Use ${allow} for this endpoint.`, { allow });
       }
       const res = await fn(request, url);
-      return request.method === 'HEAD' ? new Response(null, { status: res.status, headers: res.headers }) : res;
+      return withApiHeaders(request.method === 'HEAD' ? new Response(null, { status: res.status, headers: res.headers }) : res);
     } catch (err) {
-      if (err instanceof HttpError) return errorResponse(err);
-      if (err && err.status === 409) return errorResponse(new HttpError(409, 'conflict', 'Your answers changed in another tab while saving. Please try again.'));
+      if (err instanceof HttpError) return withApiHeaders(errorResponse(err));
+      if (err && err.status === 409) return withApiHeaders(errorResponse(new HttpError(409, 'conflict', 'Your answers changed in another tab while saving. Please try again.')));
       try {
         logger.error('[api] unexpected error:', err && err.stack ? err.stack : err);
       } catch {
         /* ignore */
       }
-      return errorResponse(new HttpError(500, 'server_error', 'Something went wrong on our side. Please try again.'));
+      return withApiHeaders(errorResponse(new HttpError(500, 'server_error', 'Something went wrong on our side. Please try again.')));
     }
   };
 }

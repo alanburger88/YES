@@ -42,13 +42,48 @@
 
   var EMPTY = { include: 0, exclude: 0, undecided: 0, priority: { high: 0, medium: 0, low: 0 }, score: null, comments: 0, reasons: 0, responses: [] };
 
+  /**
+   * The one "wanted" rule, used by the KPI tile here and the Data requirements
+   * view: more include than exclude votes (a tie is not wanted). Takes any
+   * object with include and exclude counts, such as /api/results features[id].
+   */
+  function wanted(x) {
+    return (Number(x && x.include) || 0) > (Number(x && x.exclude) || 0);
+  }
+  var WANTED = { label: 'Features most reviewers want', rule: 'more include than exclude votes' };
+
+  /**
+   * Priority counts for one feature. A priority means "how important if it is
+   * included", so only responses whose vote is not Exclude count. Computed from
+   * responses[] when they are all there (so it holds whatever rule the server
+   * used for features[id].priority); otherwise the server's counts are used.
+   */
+  function priorityOf(x) {
+    var total = (x.include || 0) + (x.exclude || 0) + (x.undecided || 0);
+    var list = x.responses;
+    if (Array.isArray(list) && list.length && list.length >= total) {
+      var p = { high: 0, medium: 0, low: 0 };
+      list.forEach(function (r) {
+        if (r && r.vote !== 'exclude' && Object.prototype.hasOwnProperty.call(p, r.priority)) p[r.priority]++;
+      });
+      return p;
+    }
+    var q = x.priority || EMPTY.priority;
+    return { high: q.high || 0, medium: q.medium || 0, low: q.low || 0 };
+  }
+  /** (High×3 + Medium×2 + Low×1) ÷ priority responses, to 2 decimals; null without any. */
+  function scoreOf(p) {
+    var n = p.high + p.medium + p.low;
+    return n ? Math.round(((p.high * 3 + p.medium * 2 + p.low) / n) * 100) / 100 : null;
+  }
+
   /** One row per feature (tour order) with derived numbers. */
   function model(data) {
     return WT.features.map(function (f, i) {
       var x = (data && data.features && data.features[f.id]) || EMPTY;
-      var p = x.priority || EMPTY.priority;
+      var p = priorityOf(x);
       var votes = (x.include || 0) + (x.exclude || 0);
-      var pn = (p.high || 0) + (p.medium || 0) + (p.low || 0);
+      var pn = p.high + p.medium + p.low;
       return {
         id: f.id,
         title: f.title,
@@ -62,9 +97,9 @@
         answers: votes + (x.undecided || 0),
         share: votes ? (x.include || 0) / votes : null,
         net: (x.include || 0) - (x.exclude || 0),
-        priority: { high: p.high || 0, medium: p.medium || 0, low: p.low || 0 },
+        priority: p,
         pn: pn,
-        score: typeof x.score === 'number' ? x.score : null,
+        score: scoreOf(p),
         comments: x.comments || 0,
         reasons: x.reasons || 0,
         responses: x.responses || []
@@ -272,6 +307,15 @@
   function feat(id) {
     return WT.feature(id);
   }
+  /**
+   * A response's priority badge. An Exclude vote's priority is what it would be
+   * if the feature were included, so it says so and isn't counted in the charts.
+   */
+  function prioBadge(r) {
+    if (!r.priority || !WT.PRIORITY_LABEL[r.priority]) return WT.ui.badge('none', 'No priority');
+    if (r.vote !== 'exclude') return WT.ui.priorityBadge(r.priority);
+    return '<span class="wt-badge wt-badge--if" data-priority="' + WT.esc(r.priority) + '">' + WT.esc(WT.PRIORITY_LABEL[r.priority]) + '<span class="wt-sr-only"> priority</span> if included</span>';
+  }
 
   /* ------------------------------------------------------------------ */
   /* Shared frame: heading, status bar, admin bar, sub-navigation        */
@@ -411,7 +455,10 @@
 
   function errorBody() {
     var e = state.error || {};
-    var msg = e.status === 0 ? 'We couldn’t reach the server. Check your connection and try again.' : (e.message || 'Something went wrong.') + ' Please try again.';
+    var base = String(e.message || 'Something went wrong.').trim();
+    if (!/[.!?]$/.test(base)) base += '.';
+    // The server's message may already ask to try again: don't say it twice.
+    var msg = e.status === 0 ? 'We couldn’t reach the server. Check your connection and try again.' : /try again\.?$/i.test(base) ? base : base + ' Please try again.';
     return (
       '<div class="wt-results__error">' +
         WT.ui.notice({ kind: 'error', title: 'We couldn’t load the results.', text: msg }) +
@@ -436,9 +483,7 @@
 
   function kpis(rows) {
     var d = state.data;
-    var majority = rows.filter(function (r) {
-      return r.votes && r.include > r.exclude;
-    }).length;
+    var majority = rows.filter(wanted).length;
     var reasons = rows.reduce(function (s, r) {
       return s + r.reasons;
     }, 0);
@@ -447,7 +492,7 @@
       { key: 'reviewers', label: 'Reviewers', value: d.reviewers, sub: 'people who answered at least one feature', icon: 'users' },
       { key: 'answers', label: 'Answers', value: d.answers, sub: 'about ' + avg.toLocaleString('en-GB') + ' per reviewer, across ' + WT.features.length + ' features', icon: 'check-circle' },
       { key: 'comments', label: 'Comments', value: d.comments, sub: 'plus ' + WT.fmt.plural(reasons, 'reason') + ' given with votes', icon: 'comment' },
-      { key: 'majority', label: 'Majority support', value: majority, sub: 'of ' + WT.features.length + ' features have more include than exclude votes', icon: 'target' }
+      { key: 'majority', label: WANTED.label, value: majority, sub: 'of ' + WT.features.length + ', with ' + WANTED.rule, icon: 'target' }
     ];
     return (
       '<ul class="wt-kpis" role="list" aria-label="Key numbers">' +
@@ -506,7 +551,7 @@
             WT.charts.figure({
               id: 'mix',
               title: 'Priority mix',
-              desc: 'High, Medium and Low as a share of reviewers who set a priority. n is the number who did.',
+              desc: 'High, Medium and Low as a share of the reviewers who set a priority. Priorities come only from reviewers who didn’t vote Exclude. The number on the right is how many set a priority (Exclude votes not counted).',
               legend: mix.legend,
               chart: mix.chart,
               table: mix.table,
@@ -515,7 +560,7 @@
             WT.charts.figure({
               id: 'score',
               title: 'Priority score ranking',
-              desc: 'Average priority, where High is 3, Medium 2 and Low 1, for features with at least one include vote.',
+              desc: 'Average priority, where High is 3, Medium 2 and Low 1, for features with at least one include vote. Exclude votes are not counted.',
               legend: '',
               chart: sr.length ? sc.chart : '<p class="wt-chart__empty">No feature has an include vote with a priority yet.</p>',
               table: sr.length ? sc.table : '<p class="wt-chart__empty">No feature has an include vote with a priority yet.</p>',
@@ -627,7 +672,7 @@
             '<p class="wt-resp__time"><time datetime="' + WT.esc(r.updatedAt) + '">' + WT.esc(WT.fmt.relative(r.updatedAt)) + '</time>' +
               '<span aria-hidden="true"> · </span><span class="wt-resp__abs">' + WT.esc(WT.fmt.date(r.updatedAt)) + '</span></p>' +
           '</div>' +
-          '<div class="wt-resp__badges">' + WT.ui.voteBadge(r.vote) + (r.priority ? WT.ui.priorityBadge(r.priority) : WT.ui.badge('none', 'No priority')) + '</div>' +
+          '<div class="wt-resp__badges">' + WT.ui.voteBadge(r.vote) + prioBadge(r) + '</div>' +
         '</div>' +
         (parts ? '<div class="wt-resp__body">' + parts + '</div>' : '<p class="wt-resp__nothing">No reason or comment.</p>') +
         (isAdmin
@@ -739,12 +784,15 @@
       return '<td class="wt-mx wt-mx--na"><span class="wt-mx__chip" aria-hidden="true">–</span><span class="wt-sr-only">' + WT.esc(f.title) + ': not answered</span></td>';
     }
     var v = resp.vote;
-    var p = resp.priority;
+    var p = WT.PRIORITY_LABEL[resp.priority] ? resp.priority : null;
     var sym = v === 'include' ? '✓' : v === 'exclude' ? '✗' : '–';
-    var text = (v ? WT.VOTE_LABEL[v] : 'No vote') + (p ? ', ' + WT.PRIORITY_LABEL[p] + ' priority' : ', no priority') + ((resp.comment && String(resp.comment).trim()) || resp.hiddenComment ? ', with a comment' : '');
+    // An Exclude vote's priority only applies "if included": shown in brackets, never counted.
+    var cond = v === 'exclude' && p;
+    var letter = p ? p.charAt(0).toUpperCase() : '';
+    var text = (v ? WT.VOTE_LABEL[v] : 'No vote') + (p ? ', ' + WT.PRIORITY_LABEL[p] + ' priority' + (cond ? ' if included' : '') : ', no priority') + ((resp.comment && String(resp.comment).trim()) || resp.hiddenComment ? ', with a comment' : '');
     return (
       '<td class="wt-mx wt-mx--' + (v || 'none') + '" data-feature="' + WT.esc(f.id) + '">' +
-        '<span class="wt-mx__chip" aria-hidden="true"><span class="wt-mx__sym">' + sym + '</span>' + (p ? '<span class="wt-mx__p">' + p.charAt(0).toUpperCase() + '</span>' : '') + '</span>' +
+        '<span class="wt-mx__chip" aria-hidden="true"><span class="wt-mx__sym">' + sym + '</span>' + (p ? '<span class="wt-mx__p' + (cond ? ' wt-mx__p--if' : '') + '">' + (cond ? '(' + letter + ')' : letter) + '</span>' : '') + '</span>' +
         '<span class="wt-sr-only">' + WT.esc(f.title) + ': ' + WT.esc(text) + '</span>' +
       '</td>'
     );
@@ -793,6 +841,7 @@
         '<li><span class="wt-mx__chip wt-mx__chip--exclude" aria-hidden="true">✗</span>Exclude</li>' +
         '<li><span class="wt-mx__chip wt-mx__chip--none" aria-hidden="true">–</span>No vote or not answered</li>' +
         '<li><span class="wt-mx__letter" aria-hidden="true">H</span><span class="wt-mx__letter" aria-hidden="true">M</span><span class="wt-mx__letter" aria-hidden="true">L</span>High, Medium or Low priority</li>' +
+        '<li><span class="wt-mx__chip wt-mx__chip--exclude" aria-hidden="true"><span class="wt-mx__sym">✗</span><span class="wt-mx__p wt-mx__p--if">(H)</span></span>Exclude, with the priority if it were included (not counted)</li>' +
       '</ul>';
     return (
       '<div class="wt-people">' +
@@ -1037,7 +1086,13 @@
     },
     sentences: function () {
       return state.data ? sentences(model(state.data)) : [];
-    }
+    },
+    /** True when a feature's stats ({ include, exclude }) have more include than exclude votes. */
+    wanted: wanted,
+    /** How "wanted" is named everywhere: { label, rule }. */
+    WANTED: WANTED,
+    /** Priority counts that ignore Exclude votes, from a features[id] object. */
+    priorityOf: priorityOf
   };
 
   WT.register({
@@ -1079,8 +1134,21 @@
         state.loadedAt = 0;
         if (visible()) load({ force: true });
       });
+      // A save that lands while the results are on screen (say, the last answer
+      // of the walkthrough) shows up straight away instead of at the next poll.
+      var refreshAfterSave = WT.debounce(function () {
+        if (!visible() || doc.visibilityState === 'hidden') return;
+        var again = function () {
+          return load({ force: true }).then(schedule, schedule);
+        };
+        // A load already in flight may have started before the save landed.
+        if (state.loading) state.loading.then(again, again);
+        else again();
+      }, 300);
       WT.on('saved', function (s) {
-        if (s && s.ok) state.loadedAt = 0;
+        if (!s || !s.ok) return;
+        state.loadedAt = 0;
+        if (visible()) refreshAfterSave();
       });
       WT.on('reviewer', function () {
         WT.reviewer.rid().then(function (rid) {

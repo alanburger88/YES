@@ -1,6 +1,8 @@
 # InfoSlips · YES statement review — Netlify configuration (SPEC sections 9 and 11).
 # Deploy from walkthrough/:  node build.mjs && netlify deploy --prod --dir public --functions netlify/functions
-# The admin code is the ADMIN_CODE environment variable (functions scope).
+# The admin code is the ADMIN_CODE environment variable (functions scope), at least 16 characters.
+# The /api/* function sets its own headers (no-store, nosniff, same-origin referrer, noindex):
+# the [[headers]] rules below apply to static files.
 
 [build]
   command = "node build.mjs"

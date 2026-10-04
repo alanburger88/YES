@@ -16,7 +16,7 @@ import http from 'node:http';
 import { promises as fsp, readFileSync } from 'node:fs';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createApi } from './api-core.mjs';
+import { ADMIN_MIN_LENGTH, API_HEADERS, createApi } from './api-core.mjs';
 import { fileStore, memoryStore } from './stores.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -114,7 +114,8 @@ async function sendApi(api, req, res) {
   for await (const c of req) {
     size += c.length;
     if (size > 1024 * 1024) {
-      res.writeHead(413, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      // Answer now and close the connection: the rest of the body is never read.
+      res.writeHead(413, { ...API_HEADERS, 'Content-Type': 'application/json; charset=utf-8', Connection: 'close' });
       return res.end(JSON.stringify({ error: { code: 'too_large', message: 'The request is larger than 64 KB.' } }));
     }
     chunks.push(c);
@@ -123,6 +124,11 @@ async function sendApi(api, req, res) {
   for (const [k, v] of Object.entries(req.headers)) {
     if (Array.isArray(v)) v.forEach((x) => headers.append(k, x));
     else if (v !== undefined) headers.set(k, v);
+  }
+  // Like Netlify's edge: the client address for the admin-code throttle
+  // (a header sent by the client wins here, so tests can act as other addresses).
+  if (!headers.has('x-nf-client-connection-ip') && req.socket && req.socket.remoteAddress) {
+    headers.set('x-nf-client-connection-ip', req.socket.remoteAddress);
   }
   const hasBody = !['GET', 'HEAD'].includes(req.method) && chunks.length;
   const request = new Request(`http://${req.headers.host || 'localhost'}${req.url}`, {
@@ -209,7 +215,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     adminCode: typeof args['admin-code'] === 'string' ? args['admin-code'] : process.env.ADMIN_CODE || ''
   });
   console.log(`WT_LISTENING ${s.url}`);
-  console.error(`[dev] serving ${args.root || 'public'} · store: ${store} · admin: ${s.env.ADMIN_CODE ? 'configured' : 'not configured'}`);
+  const code = String(s.env.ADMIN_CODE || '').trim();
+  const admin = code.length >= ADMIN_MIN_LENGTH ? 'configured' : code ? `not configured (ADMIN_CODE must be at least ${ADMIN_MIN_LENGTH} characters)` : 'not configured';
+  console.error(`[dev] serving ${args.root || 'public'} · store: ${store} · admin: ${admin}`);
   const stop = () => s.close().then(() => process.exit(0));
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);

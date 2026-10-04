@@ -3,9 +3,9 @@
  * SPEC section 7. Owner: data view.
  *
  * A scope switch picks the features: "Features I included" (WT.answers),
- * "Features the group wants" (include share ≥ 50% with at least one vote, from
- * WT.api.results), "All features", or "Custom" (a checklist fine-tunes any of
- * them). The merged explorer (WT.json) shows their data, followed by a card per
+ * "Features most reviewers want" (more include than exclude votes, the same
+ * rule as the Results tile: WT.results.wanted, from WT.api.results), "All
+ * features", or "Custom" (a checklist fine-tunes any of them). The merged explorer (WT.json) shows their data, followed by a card per
  * feature. #/data/<featureId> preselects one feature. If the results API can't
  * be reached, the group option shows a notice and the others keep working.
  */
@@ -54,11 +54,19 @@
     var votes = inc + exc;
     return { include: inc, exclude: exc, votes: votes, share: votes ? inc / votes : 0 };
   }
+  /** The shared rule (50-results.js): more include than exclude votes. */
+  function wanted(g) {
+    if (WT.results && WT.results.wanted) return WT.results.wanted(g);
+    return !!g && g.include > g.exclude;
+  }
+  function wantedLabel() {
+    return (WT.results && WT.results.WANTED) || { label: 'Features most reviewers want', rule: 'more include than exclude votes' };
+  }
   function groupIds() {
     if (!res.data) return [];
     return allIds().filter(function (id) {
       var g = groupInfo(id);
-      return !!g && g.votes >= 1 && g.share >= 0.5;
+      return !!g && wanted(g);
     });
   }
   function selection() {
@@ -115,6 +123,7 @@
           '<h1 class="wt-title" tabindex="-1" data-fk="h1">Data requirements</h1>' +
           '<p class="wt-lead">These are the fields YES would supply to InfoSlips in production for the features you choose. Fields that several features share appear once. Explore them as a JSON structure, search for a field, or download a sample and a JSON Schema for your technical teams.</p>' +
           '<p class="wt-dv__fictional">' + WT.icon('info', { size: 18 }) + '<span>Every example value is fictional and matches the demo statement.</span></p>' +
+          (WT.brandNotice ? WT.brandNotice({ compact: true }) : '') +
         '</header>' +
         '<section class="wt-card wt-dv__scope" aria-labelledby="dv-scope-h">' +
           '<h2 class="wt-dv__h2 wt-dv__h2--card" id="dv-scope-h">Choose the features</h2>' +
@@ -162,17 +171,18 @@
     var group = groupIds().length;
     var custom = state.scope === 'custom' ? selection().length : null;
     var sel = selection();
+    var W = wantedLabel();
     var groupDesc =
       gs === 'ok'
         ? group
-          ? WT.fmt.plural(group, 'feature') + ' that at least half the voters included'
-          : 'No feature has majority support yet'
+          ? WT.fmt.plural(group, 'feature') + ' with ' + W.rule
+          : 'No feature has ' + W.rule + ' yet'
         : gs === 'error'
           ? 'Everyone’s votes couldn’t be loaded'
           : 'Loading everyone’s votes…';
     var options =
       optionHtml('mine', 'Features I included', mine ? WT.fmt.plural(mine, 'feature') + ' you voted to include' : 'You haven’t included any yet', mine) +
-      optionHtml('group', 'Features the group wants', groupDesc, gs === 'ok' ? group : null) +
+      optionHtml('group', W.label, groupDesc, gs === 'ok' ? group : null) +
       optionHtml('all', 'All features', 'Every feature in the statement', N) +
       optionHtml('custom', 'Custom', custom === null ? 'Pick features from the list below' : WT.fmt.plural(custom, 'feature') + ' you picked', custom);
 
@@ -245,8 +255,8 @@
     var text;
     var actions;
     if (state.scope === 'group') {
-      title = 'No feature has the group’s support yet';
-      text = 'A feature appears here once at least half of the people who voted on it chose <strong>Include</strong>. Add your own votes in the walkthrough, or see what everyone thinks so far.';
+      title = 'No feature has more include than exclude votes yet';
+      text = 'A feature appears here once more reviewers voted <strong>Include</strong> than <strong>Exclude</strong> on it. Add your own votes in the walkthrough, or see what everyone thinks so far.';
       actions = tour + '<a class="wt-btn wt-btn--secondary" href="#/results" data-fk="dv-empty-results">' + WT.icon('chart', { size: 18 }) + '<span>See the results</span></a>' + all;
     } else if (state.scope === 'custom') {
       title = 'No features selected';

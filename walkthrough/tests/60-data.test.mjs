@@ -139,6 +139,7 @@ const BASE = {
   'string<uri>': 'string',
   'string<masked>': 'string',
   'integer<minor units>': 'integer',
+  integer: 'integer',
   number: 'number',
   boolean: 'boolean',
   object: 'object',
@@ -592,14 +593,12 @@ export default async function (ctx) {
     await seedReviewer(api, { name: 'Sam', answers: { [B]: { vote: 'exclude' }, [C]: { vote: 'include' }, [D]: { vote: 'include' }, [E]: { vote: 'include' } } });
     await seedReviewer(api, { answers: { [C]: { vote: 'exclude' }, [E]: { vote: 'exclude' }, [F]: { vote: 'exclude' } } });
     await seedReviewer(api, { answers: { [E]: { vote: 'exclude' }, [G]: { priority: 'high' } } });
-    // Expected from the API itself: include share ≥ 50% with at least one vote.
+    // Expected from the API itself, by the one shared rule (WT.results.wanted,
+    // also the Results tile): more include than exclude votes. B is a 1–1 tie,
+    // so it is not wanted.
     const results = (await api('/api/results')).json;
-    const group = ALL.filter((x) => {
-      const r = results.features[x];
-      const votes = r.include + r.exclude;
-      return votes >= 1 && r.include / votes >= 0.5;
-    });
-    assert.deepEqual(group, [A, B, D], 'the seeded votes give the expected group');
+    const group = ALL.filter((x) => results.features[x].include > results.features[x].exclude);
+    assert.deepEqual(group, [A, D], 'the seeded votes give the expected group');
 
     const P = await openData('#/data', { storage });
     const { page } = P;
@@ -616,8 +615,16 @@ export default async function (ctx) {
       await chooseScope(page, 'group');
       await until(async () => (await cards(page)).join() === group.join(), 6000, 'group cards');
       assert.deepEqual(await explorerFeatures(page), group);
-      assert.match(await page.locator('#view-data input[value="group"] ~ .wt-dv__opt-body .wt-dv__opt-desc').innerText(), /3 features/);
-      assert.match(await page.locator(`[data-dv-card="${B}"] .wt-dv__votes`).innerText(), /Group:\s*50% include · 2 votes/);
+      assert.match(await page.locator('#view-data input[value="group"] ~ .wt-dv__opt-body .wt-dv__opt-title').innerText(), /^Features most reviewers want$/);
+      assert.match(await page.locator('#view-data input[value="group"] ~ .wt-dv__opt-body .wt-dv__opt-desc').innerText(), /^2 features with more include than exclude votes$/);
+      assert.match(await page.locator(`[data-dv-card="${A}"] .wt-dv__votes`).innerText(), /Group:\s*100% include · 1 vote/);
+      // The shared rule: a tie, no votes or a missing feature is not wanted.
+      assert.equal(
+        await page.evaluate(() => [{ include: 2, exclude: 1 }, { include: 1, exclude: 1 }, { include: 0, exclude: 0 }, null].map((x) => window.WT.results.wanted(x)).join()),
+        'true,false,false,false'
+      );
+      // The page shows statement screenshots, so it carries the compact branding notice under the intro.
+      assert.equal(await page.locator('#view-data .wt-dv__head [data-brand-notice="compact"]').count(), 1, 'branding notice');
 
       await chooseScope(page, 'all');
       await until(async () => (await cards(page)).length === ALL.length, 6000, 'all cards');
@@ -716,7 +723,7 @@ export default async function (ctx) {
       // The group's empty state when nobody has voted.
       await chooseScope(page, 'group');
       await until(async () => (await page.locator('#view-data .wt-dv__empty h2').count()) === 1, 6000, 'group empty');
-      assert.equal(await page.locator('#view-data .wt-dv__empty h2').innerText(), 'No feature has the group’s support yet');
+      assert.equal(await page.locator('#view-data .wt-dv__empty h2').innerText(), 'No feature has more include than exclude votes yet');
       assert.equal(await page.locator('#view-data .wt-dv__empty a[href="#/results"]').count(), 1);
       assertNoErrors(P.errors, assert, P.external);
     } finally {

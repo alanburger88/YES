@@ -105,7 +105,7 @@ html[data-view='tour'] .wt-mast__inner {
   bottom: 2px;
   height: 3px;
   border-radius: 2px;
-  background: var(--highlight);
+  background: var(--current);
 }
 
 /* Tools: reviewer chip + theme toggle */

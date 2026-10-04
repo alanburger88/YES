@@ -55,6 +55,7 @@
 
   function deleteReviewer(rid, name, trigger) {
     var who = name || WT.ANONYMOUS;
+    var next = nextControl(trigger);
     return WT.dialog
       .confirm({
         title: 'Delete these answers?',
@@ -69,9 +70,15 @@
         if (!yes) return false;
         return WT.api.admin.deleteReviewer(rid).then(
           function () {
-            done('Answers from ' + who + ' were deleted.');
-            focusAfterRemoval();
-            return true;
+            // Reload first, then move focus (the trigger disappears with the
+            // reload), then confirm: the toast is announced after the new focus.
+            var reload = WT.results && WT.results.load ? WT.results.load({ force: true }) : Promise.resolve();
+            WT.emit('moderated', true);
+            return Promise.resolve(reload).then(function () {
+              focusAfterRemoval(next);
+              WT.toast('Answers deleted for ' + who + '.', { kind: 'success' });
+              return true;
+            });
           },
           function (err) {
             WT.toast(failMessage(err, 'delete these answers'), { kind: 'error' });
@@ -82,15 +89,37 @@
       });
   }
 
-  /** The trigger is about to disappear: move focus to a stable heading. */
-  function focusAfterRemoval() {
-    setTimeout(function () {
-      var a = doc.activeElement;
-      if (a && a !== doc.body && a.isConnected) return;
-      var h = doc.getElementById('resp-h') || null;
-      if (h) h.focus();
-      else WT.focusView();
-    }, 0);
+  /**
+   * Where focus should go once a reviewer's row is gone: the same kind of
+   * control on the next row (or the previous one at the end), by its data-fk,
+   * which survives the re-render.
+   */
+  function nextControl(trigger) {
+    if (!trigger || !trigger.closest) return '';
+    var row = trigger.closest('tr[data-rid], li[data-rid]');
+    if (!row) return '';
+    var sib = function (dir) {
+      for (var el = row[dir]; el; el = el[dir]) {
+        var c = el.querySelector('[data-mod="delete"][data-fk]');
+        if (c) return c.getAttribute('data-fk');
+      }
+      return '';
+    };
+    return sib('nextElementSibling') || sib('previousElementSibling');
+  }
+
+  /**
+   * Called after the results have reloaded without the deleted reviewer: the
+   * next row's Delete control, else the Responses heading on a feature page,
+   * else the page h1. Focus that is still on a connected control stays put.
+   */
+  function focusAfterRemoval(fk) {
+    var a = doc.activeElement;
+    if (a && a !== doc.body && a.isConnected && !(a.closest && a.closest('dialog'))) return;
+    var el = fk ? doc.querySelector('[data-fk="' + WT.cssEscape(fk) + '"]') : null;
+    if (!el) el = doc.getElementById('resp-h');
+    if (el) el.focus();
+    else WT.focusView();
   }
 
   function reset(trigger) {

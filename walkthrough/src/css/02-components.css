@@ -1015,7 +1015,7 @@
 }
 .wt-tab[aria-selected='true'] {
   color: var(--heading);
-  border-bottom-color: var(--highlight);
+  border-bottom-color: var(--current);
 }
 .wt-tab:focus-visible {
   outline-offset: -3px;
