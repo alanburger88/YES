@@ -7,7 +7,7 @@
  * has the same type, example and description and the viewer can merge them.
  *
  * Names follow the statement's demo data model (../src/js/01-data.js) where it
- * makes sense. Examples are fictional and match the demo statement (Sam, EXUSD,
+ * makes sense. Examples are fictional and match the demo statement (Sam, USBC,
  * September 2026, YES-STM-202609-000184).
  *
  * Catalogue entry: path → [type, required, example, description, source].
@@ -45,7 +45,7 @@
     'statement.timezone': ['string', true, 'America/New_York', 'IANA time zone used to show every date and time on the statement.', S.profile],
     'statement.dateBasis': ['string<enum: posted|initiated>', true, 'posted', 'Which date places a transaction in the period. YES statements use the posted date.', S.ledger],
     'statement.language': ['string<enum: ' + LANGS + '>', true, 'en', 'Language the statement opens in: the customer’s preferred language.', S.prefs],
-    'statement.opening': ['integer<minor units>', true, 100000, 'Balance at the start of the period, in minor units of the statement asset (100000 = 1,000.00 EXUSD).', S.ledger],
+    'statement.opening': ['integer<minor units>', true, 100000, 'Balance at the start of the period, in minor units of the statement asset (100000 = 1,000.00 USBC).', S.ledger],
     'statement.closing': ['integer<minor units>', true, 114750, 'Balance at the cut-off. It must equal the opening balance plus every posted movement.', S.ledger],
     'statement.controlTotals.postedCount': ['integer', false, 15, 'Number of posted transactions YES counted for the period. InfoSlips checks its own count against it.', S.ledger],
     'statement.controlTotals.netMovement': ['integer<minor units>', false, 14750, 'Net posted movement YES calculated for the period. InfoSlips checks its own sum against it.', S.ledger],
@@ -62,15 +62,15 @@
 
     /* ---------------- Account and asset ---------------- */
     'account.maskedId': ['string<masked>', true, '•••• 7316', 'Account number with all but the last four digits masked by YES.', S.ledger],
-    'account.label.en': ['string', true, 'YES stablecoin account', 'Account product name in English.', S.content],
-    'account.label.es': ['string', false, 'Cuenta de stablecoin de YES', 'Account product name in Spanish. Required when Spanish is offered.', S.content],
+    'account.label.en': ['string', true, 'YES bank-issued digital dollar account', 'Account product name in English.', S.content],
+    'account.label.es': ['string', false, 'Cuenta YES de dólares digitales emitidos por un banco', 'Account product name in Spanish. Required when Spanish is offered.', S.content],
     'account.walletMasked': ['string<masked>', false, '0x5A…E19C', 'The customer’s YES wallet address, shortened and masked by YES.', S.chain],
     'account.liveBalance.amount': ['integer<minor units>', false, 111750, 'Balance right now, in minor units. Shown only in its own timestamped area, never mixed into statement figures.', S.ledger],
     'account.liveBalance.at': ['string<date-time>', false, '2026-10-04T18:40:00-04:00', 'When the live balance was read.', S.ledger],
     'account.liveBalance.appUri': ['string<uri>', false, 'https://app.example.com/yes/balance', 'Deep link to the live balance in the YES app.', S.content],
-    'asset.id': ['string<currency>', true, 'EXUSD', 'Code of the stablecoin the statement is in. Every balance and amount uses it.', S.ledger],
-    'asset.symbol': ['string', true, 'EXUSD', 'Symbol shown beside amounts.', S.ledger],
-    'asset.name.en': ['string', true, 'Example USD Stablecoin', 'Product name of the asset in English.', S.content],
+    'asset.id': ['string<currency>', true, 'USBC', 'Code of the bank-issued digital dollar the statement is in. Every balance and amount uses it.', S.ledger],
+    'asset.symbol': ['string', true, 'USBC', 'Symbol shown beside amounts.', S.ledger],
+    'asset.name.en': ['string', true, 'US Bank Coin', 'Product name of the asset in English.', S.content],
     'asset.precision': ['integer', true, 2, 'Decimal places of the asset. Amounts are integers in minor units at this precision.', S.ledger],
     'asset.unitLabel.en': ['string', false, 'token units', 'What one unit is called in English, for the explanations.', S.content],
     'asset.unitLabel.es': ['string', false, 'unidades de token', 'What one unit is called in Spanish.', S.content],
@@ -90,7 +90,7 @@
     'transactions[].initiatedAt': ['string<date-time>', true, '2026-09-09T10:21:00-04:00', 'When the customer or counterparty started the transaction.', S.ledger],
     'transactions[].postedAt': ['string<date-time>', true, '2026-09-09T10:34:00-04:00', 'When the transaction posted to the account. null while it is pending.', S.ledger],
     'transactions[].amount': ['integer<minor units>', true, -20000, 'Signed amount in minor units of the asset: positive in, negative out.', S.ledger],
-    'transactions[].asset': ['string<currency>', true, 'EXUSD', 'Asset of the amount. Only amounts in the statement asset enter the balance.', S.ledger],
+    'transactions[].asset': ['string<currency>', true, 'USBC', 'Asset of the amount. Only amounts in the statement asset enter the balance.', S.ledger],
     'transactions[].balanceAfter': ['integer<minor units>', true, 97500, 'Ledger balance right after the transaction posted; null while pending. InfoSlips recomputes it and withholds the statement if they differ.', S.ledger],
     'transactions[].description.en': ['string', true, 'Sent to an external wallet on a blockchain network', 'Plain-language description in English.', S.ledger],
     'transactions[].description.es': ['string', false, 'Envío a un monedero externo en una red blockchain', 'Plain-language description in Spanish. Required when Spanish is offered.', S.ledger],
@@ -101,7 +101,7 @@
     'transactions[].parentId': ['string', false, 'TX-260909-2051', 'On a fee line: the ID of the transaction the fee was charged for.', S.ledger],
     'transactions[].feeKind': ['string<enum: ' + FEE_KINDS + '>', false, 'network_transfer', 'On a fee line: what the fee was for.', S.ledger],
     'transactions[].fees[].amount': ['integer<minor units>', false, 100, 'A fee charged for this transaction, as a positive amount in minor units.', S.ledger],
-    'transactions[].fees[].asset': ['string<currency>', false, 'EXUSD', 'Asset the fee was charged in. Fees in another asset are listed separately, never bridged.', S.ledger],
+    'transactions[].fees[].asset': ['string<currency>', false, 'USBC', 'Asset the fee was charged in. Fees in another asset are listed separately, never bridged.', S.ledger],
     'transactions[].fees[].kind': ['string<enum: ' + FEE_KINDS + '>', false, 'network_transfer', 'What the fee was for.', S.ledger],
     'transactions[].fees[].feeTxId': ['string', false, 'TX-260909-2052', 'ID of the separate fee line that carries this fee, so the two link both ways.', S.ledger],
     'transactions[].notes[].en': ['string', false, 'The transfer fee is shown as its own line so each amount can be traced.', 'An explanatory note on this transaction, in English.', S.ledger],
@@ -113,17 +113,17 @@
     'transactions[].onchain.explorerUri': ['string<uri>', false, 'https://explorer.example.com/tx/0xDE40000000000000000000000000000000000000000000000000000000E19C', 'Approved block-explorer link for the transaction.', S.chain],
 
     /* ---------------- Approved content ---------------- */
-    'content.issuer.name': ['string', true, 'Example Trust Company', 'Legal name of the issuer or partner behind the stablecoin.', S.content],
-    'content.disclosures.en': ['string', true, 'EXUSD is issued by Example Trust Company. Holdings are not bank deposits and are not FDIC insured.', 'Approved legal disclosures in English, printed on the statement of record.', S.content],
-    'content.disclosures.es': ['string', false, 'EXUSD es emitido por Example Trust Company. Las tenencias no son depósitos bancarios y no están aseguradas por la FDIC.', 'Approved legal disclosures in Spanish. Required when Spanish is offered.', S.content],
+    'content.issuer.name': ['string', true, 'Example Bank, N.A.', 'Legal name of the issuing bank or partner behind the bank-issued digital dollar.', S.content],
+    'content.disclosures.en': ['string', true, 'USBC is a bank-issued digital dollar issued by Example Bank, N.A. See the approved terms for how it is backed and redeemed.', 'Approved legal disclosures in English, printed on the statement of record.', S.content],
+    'content.disclosures.es': ['string', false, 'USBC es un dólar digital emitido por Example Bank, N.A. Consulta los términos aprobados para saber cómo está respaldado y cómo se canjea.', 'Approved legal disclosures in Spanish. Required when Spanish is offered.', S.content],
     'content.feeSchedule.uri': ['string<uri>', false, 'https://www.example.com/yes/fees', 'Link to the current YES fee schedule.', S.content],
     'content.education[].id': ['string<enum: ' + EDU_TOPICS + '>', true, 'token_units', 'Which explanation this record holds.', S.content],
     'content.education[].copyId': ['string', true, 'EDU-001-TOKEN-UNITS', 'Approved-copy ID, so every published wording can be traced.', S.content],
     'content.education[].version': ['string', true, '1.2', 'Version of the approved copy.', S.content],
     'content.education[].title.en': ['string', true, 'Token units', 'Title of the explanation in English.', S.content],
     'content.education[].title.es': ['string', false, 'Unidades de token', 'Title in Spanish.', S.content],
-    'content.education[].body.en': ['string', true, 'Your balance is counted in token units of Example USD Stablecoin. One unit has two decimal places.', 'Approved explanation text in English. Figures are filled in from the statement by InfoSlips.', S.content],
-    'content.education[].body.es': ['string', false, 'Tu saldo se cuenta en unidades de token de Example USD Stablecoin. Una unidad tiene dos decimales.', 'Approved explanation text in Spanish.', S.content],
+    'content.education[].body.en': ['string', true, 'Your balance is held in US Bank Coin (USBC), a bank-issued digital dollar. This statement counts it to 2 decimal places, so every amount is exact.', 'Approved explanation text in English. Figures are filled in from the statement by InfoSlips.', S.content],
+    'content.education[].body.es': ['string', false, 'Tu saldo está en US Bank Coin (USBC), un dólar digital emitido por un banco. En este estado de cuenta se expresa con 2 decimales, así que cada importe es exacto.', 'Approved explanation text in Spanish.', S.content],
     'content.education[].responsibleEntity': ['string', true, 'YES Compliance', 'Team accountable for the wording.', S.content],
     'content.education[].approvedAt': ['string<date-time>', true, '2026-08-28T15:00:00-04:00', 'When the wording was approved.', S.content],
     'content.education[].validity.from': ['string<date-time>', true, '2026-09-01T00:00:00-04:00', 'First statement cut-off the wording may appear on.', S.content],
@@ -159,14 +159,14 @@
     'content.video.captions[].scriptFingerprint': ['string', false, '9f3c41a7', 'Fingerprint of the script the captions were made from. It must match the voiceover’s.', S.content],
 
     /* ---------------- Brand, theme and preferences ---------------- */
-    'brand.logo.uri': ['string<uri>', true, 'https://brand.example.com/yes/logo-on-light.svg', 'Approved YES logo for light backgrounds (SVG preferred).', S.content],
-    'brand.logo.darkUri': ['string<uri>', false, 'https://brand.example.com/yes/logo-on-dark.svg', 'Approved YES logo for dark backgrounds.', S.content],
+    'brand.logo.uri': ['string<uri>', true, 'https://brand.example.com/yes/yes-logo-black.svg', 'Approved YES logo for light backgrounds (SVG preferred).', S.content],
+    'brand.logo.darkUri': ['string<uri>', false, 'https://brand.example.com/yes/yes-logo-white.svg', 'Approved YES logo for dark backgrounds.', S.content],
     'brand.logo.alt': ['string', true, 'YES', 'Text alternative for the logo.', S.content],
-    'brand.colors.primary': ['string', true, '#0E5A8A', 'Primary brand colour (hex) for light mode. InfoSlips checks it for 4.5:1 contrast.', S.content],
-    'brand.colors.primaryDark': ['string', false, '#6CB4EE', 'Primary colour tuned for dark mode (hex).', S.content],
-    'brand.colors.accent': ['string', false, '#E8A33D', 'Accent colour (hex), used sparingly.', S.content],
-    'brand.font.family': ['string', false, 'YES Sans', 'Brand typeface name. A system font is used when it is missing.', S.content],
-    'brand.font.uri': ['string<uri>', false, 'https://brand.example.com/yes/fonts/yes-sans.woff2', 'Licensed web font file (WOFF2) for the brand typeface.', S.content],
+    'brand.colors.primary': ['string', true, '#000000', 'Primary brand colour (hex) for light mode. InfoSlips checks it for 4.5:1 contrast.', S.content],
+    'brand.colors.primaryDark': ['string', false, '#FFFFFF', 'Primary colour tuned for dark mode (hex).', S.content],
+    'brand.colors.accent': ['string', false, '#0004FF', 'Accent colour (hex), used sparingly.', S.content],
+    'brand.font.family': ['string', false, 'IBM Plex Sans', 'Brand typeface name. A system font is used when it is missing.', S.content],
+    'brand.font.uri': ['string<uri>', false, 'https://brand.example.com/yes/fonts/ibm-plex-sans.woff2', 'Licensed web font file (WOFF2) for the brand typeface.', S.content],
     'preferences.theme': ['string<enum: light|dark|system>', false, 'system', 'Theme the customer chose in the YES app. With system, the statement follows the device.', S.prefs],
     'preferences.paperSize': ['string<enum: letter|a4>', false, 'letter', 'Paper size for the PDF and print version. Defaults to Letter for English and A4 for Spanish.', S.prefs],
     'preferences.accessibility.alternateFormat': ['string<enum: none|large_print|braille|audio>', false, 'none', 'An alternative statement format the customer has asked YES for.', S.prefs],
@@ -448,7 +448,7 @@
       'The statement fields the assistant may use, the AI guardrails and disclaimer, approved starter questions and the human-help route.',
       [
         AI_QUESTION_NOTE,
-        'Questions outside the statement get an honest “I can’t answer that” and the support contacts.'
+        'Questions outside the statement get an honest “I can only answer questions about this statement” and the support contacts.'
       ],
       AI_CORE.concat(['ai.suggestedQuestions', 'ai.retentionDays'], BALANCES, AI_TX, ['support.phone', 'support.email'])
     ),

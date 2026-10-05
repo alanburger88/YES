@@ -53,7 +53,7 @@
   var DEVICE_KEY = 'infoslips.wt.device';
   var STEP_LANG_KEY = 'infoslips.wt.stepLang'; // written by 30-driver.js when a step sets the statement's language
   var FAIL_TEXT = 'We couldn’t highlight this part automatically.';
-  var BRAND_TEXT = 'YES branding is a placeholder. Judge the features, not the look.';
+  var BRAND_TEXT = 'YES brand applied. The design may change after the workshop.';
   var FINISH_GUARD_MS = 3000;
 
   /** The "View as" devices: logical width, height (0 = fill the stage) and how to say it. */

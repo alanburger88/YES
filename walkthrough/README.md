@@ -10,7 +10,7 @@ Every answer is saved as they go and shown to everyone with the link as **result
 
 The statement itself (`../dist/yes-statement.html`) is shown **unchanged** inside the tour, in a same-origin frame. Reviewers can switch the frame between **Mobile, Tablet and Desktop** ("View as") to see the statement as it lays out on each, and can **open the statement in a new tab** (from the tour bar, at the statement view the frame is showing, or from the start page) to explore it on its own. The app around it is InfoSlips-branded, works in light and dark mode, and targets WCAG 2.2 AA.
 
-> **Branding notice.** The YES branding in the statement (colours, logo and typography) is a placeholder. It will be updated once YES supplies its final brand assets. The app says so on the start page (full notice), and in a compact notice in the tour bar, the tour's All steps dialog, and on the results and data requirements pages. It asks reviewers to judge the features, not the look. Keep this notice until the statement carries YES's final branding.
+> **Branding notice.** The statement now carries the YES brand: the YES logo, colours and typography from the YES brand book. The overall design and layout are still a starting point and may change after reviewer feedback and the design workshop. The app says so on the start page (full notice), and in a compact notice in the tour bar, the tour's All steps dialog, and on the results and data requirements pages.
 
 The build contract is [`docs/SPEC.md`](docs/SPEC.md). [`docs/STATEMENT-MAP.md`](docs/STATEMENT-MAP.md) maps each of the 22 features to the statement's UI and APIs.
 

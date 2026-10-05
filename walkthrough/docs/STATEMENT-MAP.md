@@ -46,7 +46,7 @@ Conventions:
 | 11 | `explain-ai` | Ask YES drawer, transaction answer | route, `assistant.open({topic:'transaction', id:'TX-260909-2051'})` | `#assistant-drawer[open] .asst-turn:last-child .asst-ans__text` | same |
 | 12 | `inquiry` | Inquiry dialog | route, `inquiry.start('TX-260924-1327')` | `#inquiry-dialog[open]` | same (sheet) |
 | 13 | `assistant` | Ask YES drawer | route, `assistant.ask('fees_paid')` | `#assistant-drawer[open]` | same (sheet) |
-| 14 | `basics` | Understand › Stablecoin basics | `understand.openTopic('token_units')` | `#understand-root #und-basics` | `#understand-root #und-topic-token_units` |
+| 14 | `basics` | Understand › Bank-issued digital dollar basics | `understand.openTopic('token_units')` | `#understand-root #und-basics` | `#understand-root #und-topic-token_units` |
 | 15 | `live-balance` | Understand › Statement vs live | route `#/understand/live` | `#understand-root #und-live` | same |
 | 16 | `transparency` | Understand › Reserves and transparency | route `#/understand/transparency` | `#understand-root #und-transparency` | same |
 | 17 | `download` | Help › Download or print | `help.open('record')` | `#help-root #help-record .help-dl` | same |
@@ -320,12 +320,12 @@ Each feature lists:
 - **Verified sizes:** 782×282 / 316×579 / 1022×268 / 316×579 / 609×362.
 - **Reset and gotchas:** nothing to undo. If you want the masked identifiers in view, open *Statement details* with `{ "click": "#overview-root [data-fk=\"ov-details\"]" }`. That is a `<details>`; its state is kept in `YES.state.overview.details`. Reset it with `YES.set({ overview: { ...YES.state.overview, details: false } })` or by clicking it again.
 - **Data shown:**
-  - `YES.data.statement.closing` = `114750` → hero "1,147.50 EXUSD";
-  - `YES.calc.asset()`: `symbol` "EXUSD", `name.en` "Example USD Stablecoin", `unitLabel.en` "token units", `precision` 2;
+  - `YES.data.statement.closing` = `114750` → hero "1,147.50 USBC";
+  - `YES.calc.asset()`: `symbol` "USBC", `name.en` "US Bank Coin", `unitLabel.en` "token units", `precision` 2;
   - `YES.data.statement.asOf` = `2026-09-30T23:59:59-04:00` and `timezone` "America/New_York" → "As of Sep 30, 2026, 11:59 PM EDT (America/New_York)";
-  - `YES.calc.netChange()` = `14750` → "+147.50 EXUSD". With `YES.data.statement.opening` = `100000` and `periodStart` → "Since your opening balance of 1,000.00 EXUSD on September 1, 2026.";
+  - `YES.calc.netChange()` = `14750` → "+147.50 USBC". With `YES.data.statement.opening` = `100000` and `periodStart` → "Since your opening balance of 1,000.00 USBC on September 1, 2026.";
   - `YES.calc.fiatAvailable()` = `true` (demo mode plus an illustrative rate) and `YES.calc.fiat(114750)` = `114750` → "≈ USD 1,147.50 USD equivalent [Illustrative]";
-  - `YES.data.assets.EXUSD.fiat` = `{ currency:"USD", rate:"1.0000", rateMicros:1000000, source.en:"Illustrative demo rate — not a market quote", at:"2026-09-30T23:59:59-04:00", verified:false, illustrative:true }` → "Rate 1 EXUSD = 1.0000 USD · Source: … · Sep 30, 2026, 11:59 PM EDT (America/New_York). Shown for reference only; it is not a guarantee of value.";
+  - `YES.data.assets.USBC.fiat` = `{ currency:"USD", rate:"1.0000", rateMicros:1000000, source.en:"Illustrative demo rate — not a market quote", at:"2026-09-30T23:59:59-04:00", verified:false, illustrative:true }` → "Rate 1 USBC = 1.0000 USD · Source: … · Sep 30, 2026, 11:59 PM EDT (America/New_York). Shown for reference only; it is not a guarantee of value.";
   - greeting: `statement.customer.firstName` "Sam" and the period "September 1 – 30, 2026";
   - *Statement details* (collapsed): `statement.id` "YES-STM-202609-000184", `version` "1.0", `issueStatus` "original" → "Original", `account.label`, `account.maskedId` "•••• 7316" and `account.walletMasked` "0x5A…E19C" (each with a **Masked** tag), the period start and end, as-of, `generatedAt` "2026-10-01T06:15:00-04:00", the time zone, and the date basis "Posted date · Dates and totals use the posted date."
 - **Try it:** "Start at the top of the Overview. The statement balance is shown in tokens, with the exact time it was taken. Beside it are the change since your opening balance and an illustrative US-dollar equivalent. Open **Statement details** to see the statement ID and the masked account and wallet numbers."
@@ -344,7 +344,7 @@ Each feature lists:
 - **Data shown:**
   - `YES.overview.video.state()` at 20 s = `{ t:20, playing:false, started:true, ended:false, duration:60, cue:5, chapter:1, captions:true, muted:false, mode:"recorded", recording:"ready" }`;
   - `YES.overview.video.chapters()` = `greet@0` "Personal greeting", `balance@6.6` "Opening and closing balance", `largest@24.5` "Largest meaningful movement", `inspect@35` "How to inspect a transaction", `help@50.4` "Where to get help";
-  - `YES.overview.video.cues()` has 14 cues, e.g. "Hello, Sam.", "This is your YES statement for September 1 – 30, 2026.", "You started the period with 1,000.00 EXUSD." The caption at 20 s is "You closed the period with 1,147.50 EXUSD." (es: "Cerraste el período con 1.147,50 EXUSD.");
+  - `YES.overview.video.cues()` has 14 cues, e.g. "Hello, Sam.", "This is your YES statement for September 1 – 30, 2026.", "You started the period with 1,000.00 USBC." The caption at 20 s is "You closed the period with 1,147.50 USBC." (es: "Cerraste el período con 1.147,50 USBC.");
   - figures: `statement.customer.firstName`, `opening` 100000, `closing` 114750, `YES.calc.groups()` incoming 70000 / outgoing −55250, and `YES.calc.largest()` (+250.00 on Sep 1);
   - `YES.config.slots.VIDEO_VOICEOVER` = `{ en: { src:"data:audio/mpeg;base64,…" (~626 KB), scriptHash:"20e64774", voice:"Sarah" }, es: { …, scriptHash:"9e36f329", voice:"Sarah" } }`. A recording plays only when its `scriptHash` matches `YES.overview.video.scriptHash()`.
 - **Try it:** "Press **Play** for a one-minute narrated tour of this statement, built from its own figures. Captions are on, and you can jump to a chapter or open the **Transcript**. Switch to **Español** in the header to hear the recorded Spanish voiceover."
@@ -374,9 +374,9 @@ Each feature lists:
     Each step carries `start`/`end` levels.
   - `YES.calc.groups()` = `{ incoming: { total:70000, count:6 }, outgoing: { total:-55250, count:9 } }`.
   - `YES.calc.category('transfers_out')` = `{ total:-45000, count:5, txIds:["TX-260903-1127","TX-260909-2051","TX-260918-2011","TX-260924-1327","TX-260929-1952"] }`.
-  - Panel rows (posted date, type label, counterparty, amount): e.g. "Sep 24, 2026 · Sent · Northside Market · −45.50 EXUSD". The sum line reads "−450.00 EXUSD … matches Outgoing transfers".
+  - Panel rows (posted date, type label, counterparty, amount): e.g. "Sep 24, 2026 · Sent · Northside Market · −45.50 USBC". The sum line reads "−450.00 USBC … matches Outgoing transfers".
   - Labels: Opening balance, Deposits, Incoming transfers, Outgoing transfers, Redemptions, Fees, Closing balance; Incoming activity; Outgoing activity and fees.
-  - Equation: "1,000.00 + 500.00 + 200.00 − 450.00 − 100.00 − 2.50 = 1,147.50 EXUSD".
+  - Equation: "1,000.00 + 500.00 + 200.00 − 450.00 − 100.00 − 2.50 = 1,147.50 USBC".
 - **Try it:** "Select any step in the journey, such as **Outgoing transfers**. You'll see exactly which transactions make it up, and a sum that proves they add up. **Show in Transactions** opens the same rows in the full list. Select the step again, or **Clear selection**, to go back."
 
 ### 5.4 `why`: Why it changed (overview → Ask YES)
@@ -391,12 +391,12 @@ Each feature lists:
   - The drawer is **modal** at 880 (the page is inert), docked at ≥ 1100 (G7), and a sheet on phones.
   - Focus moves to the answer heading (`#asst-a1-h`).
 - **Data shown:**
-  - `statement.opening` 100000 → "1,000.00 EXUSD" and `statement.closing` 114750 → "1,147.50 EXUSD";
+  - `statement.opening` 100000 → "1,000.00 USBC" and `statement.closing` 114750 → "1,147.50 USBC";
   - `periodStart` and `periodEnd` → "between September 1, 2026 and September 30, 2026";
-  - `YES.calc.netChange()` → "+147.50 EXUSD";
-  - `YES.calc.groups().incoming` = `{ total:70000, count:6, categories:["deposits","transfers_in"] }` → "Incoming activity added 700.00 EXUSD across 6 transactions: deposits 500.00 EXUSD and incoming transfers 200.00 EXUSD.";
-  - `YES.calc.groups().outgoing` = `{ total:-55250, count:9 }` → "… outgoing transfers 450.00 EXUSD, redemptions 100.00 EXUSD, and fees 2.50 EXUSD.";
-  - `YES.calc.notInBalance()` = `[{ id:"TX-260930-2247", amount:-3000, status:"pending" }]` → "1 transaction of 30.00 EXUSD was still pending at the statement cut-off…";
+  - `YES.calc.netChange()` → "+147.50 USBC";
+  - `YES.calc.groups().incoming` = `{ total:70000, count:6, categories:["deposits","transfers_in"] }` → "Incoming activity added 700.00 USBC across 6 transactions: deposits 500.00 USBC and incoming transfers 200.00 USBC.";
+  - `YES.calc.groups().outgoing` = `{ total:-55250, count:9 }` → "… outgoing transfers 450.00 USBC, redemptions 100.00 USBC, and fees 2.50 USBC.";
+  - `YES.calc.notInBalance()` = `[{ id:"TX-260930-2247", amount:-3000, status:"pending" }]` → "1 transaction of 30.00 USBC was still pending at the statement cut-off…";
   - a *Figures used* table (the `YES.calc.categories()` totals), and the source line "as of".
 - **Try it:** "Select **Explain this balance** on the balance card. The statement explains, in plain words, what added to your balance, what took away from it, and what is still pending, and lists the figures it used. Further down the Overview, **Why it changed** shows the same story as a chart, your fees and your largest movement."
 
@@ -411,7 +411,7 @@ Each feature lists:
   - The plot draws at its own width through a ResizeObserver. It was verified drawn (`#ov-chart-plot svg`, 15 points) even when the frame booted on another view.
 - **Data shown:**
   - `YES.calc.running()` gives 15 points `{ txId, at, delta, balance, stated }`, plus the opening point (`statement.opening` 100000 on `periodStart`). The first point is `{ txId:"TX-260901-0418", at:"2026-09-01T09:02:00-04:00", delta:25000, balance:125000, stated:125000 }`; the last is `{ txId:"TX-260929-1952", delta:-2450, balance:114750 }`.
-  - The minimum is 97400 and the maximum 125000. The summary reads "Your balance was highest at 1,250.00 EXUSD on September 1, 2026 and lowest at 974.00 EXUSD on September 9, 2026. It closed the period at 1,147.50 EXUSD."
+  - The minimum is 97400 and the maximum 125000. The summary reads "Your balance was highest at 1,250.00 USBC on September 1, 2026 and lowest at 974.00 USBC on September 9, 2026. It closed the period at 1,147.50 USBC."
   - The tooltip and table show the date and time (EDT), the type label and the masked counterparty, the change, and the balance after.
 - **Try it:** "Move along the chart, or tab to its points, to see each movement and the balance after it. Select a point to open that transaction. **Show the chart data as a table** lists the same figures."
 
@@ -423,7 +423,7 @@ Each feature lists:
 - **Verified sizes:** 434×569 / 358×552 / 563×480 / 358×552 / 651×464.
 - **Reset and gotchas:** nothing to undo. *Show fees in the journey* calls `selectStep('fees')`, so G1 applies if the user clicks it.
 - **Data shown:**
-  - `YES.calc.category('fees')` = `{ total:-250, count:3, txIds:["TX-260909-2052","TX-260912-0806","TX-260920-0901"] }` → "Total fees −2.50 EXUSD · 3 fees". `YES.calc.feesTotal()` = −250.
+  - `YES.calc.category('fees')` = `{ total:-250, count:3, txIds:["TX-260909-2052","TX-260912-0806","TX-260920-0901"] }` → "Total fees −2.50 USBC · 3 fees". `YES.calc.feesTotal()` = −250.
   - The fee rows, `YES.calc.tx(id)`:
     - `{ amount:-100, feeKind:"network_transfer", parentId:"TX-260909-2051", postedAt:"2026-09-09T10:34", description.en:"Fee for sending to an external wallet" }`;
     - `{ -50, "card_deposit", parent "TX-260912-0805", "Fee for depositing by debit card" }`;
@@ -438,7 +438,7 @@ Each feature lists:
 - **Targets:** desktop `["#overview-root .ov-insight"]`; phone the same.
 - **Verified sizes:** 378×295 / 358×311 / 489×243 / 358×311 / 651×211.
 - **Reset and gotchas:** nothing to undo. *View this transaction* opens the detail over the Overview, which pushes no history. *What are token units?* calls `understand.openTopic('token_units')`.
-- **Data shown:** `YES.calc.largest()` = `{ id:"TX-260901-0418", type:"deposit", amount:25000, postedAt:"2026-09-01T09:02:00-04:00", description.en:"Deposit from linked bank account", counterparty.en:"Linked bank account •••• 4821" }` → "The largest single movement this period was +250.00 EXUSD on September 1, 2026: Deposit from linked bank account."
+- **Data shown:** `YES.calc.largest()` = `{ id:"TX-260901-0418", type:"deposit", amount:25000, postedAt:"2026-09-01T09:02:00-04:00", description.en:"Deposit from linked bank account", counterparty.en:"Linked bank account •••• 4821" }` → "The largest single movement this period was +250.00 USBC on September 1, 2026: Deposit from linked bank account."
 - **Try it:** "The statement picks out your biggest movement of the period. Select **View this transaction** to see its details."
 
 ### 5.8 `explorer`: Transaction search and filters (transactions)
@@ -467,7 +467,7 @@ Each feature lists:
   - `YES.explorer.filtered()` → `["TX-260929-1952","TX-260903-1127"]`; "Showing 2 of 16 transactions"; chip "Search: “Daniel”".
   - `YES.calc.all().length` = 16.
   - Per row: `postedAt` (or "Initiated …" when not posted), `description`, `type` label, `counterparty` (masked), `memo`, `status`, `amount`, `balanceAfter`.
-  - The caption: "Order: Posted date, newest first · Dates: posted date · Amounts in EXUSD · Times in EDT (America/New_York)".
+  - The caption: "Order: Posted date, newest first · Dates: posted date · Amounts in USBC · Times in EDT (America/New_York)".
 - **Try it:** "Type a name, amount or reference into **Search transactions**; try *Daniel*. Open **Filters** to narrow by date, direction, type, status, rail or amount, and use **Sort by** to order by posted date, initiated date or amount. Each filter appears as a chip you can remove."
 
 ### 5.9 `detail`: Transaction details (transactions)
@@ -499,10 +499,10 @@ Each feature lists:
   - `rail:"other"` and `method:"bank_payout"`;
   - `counterparty.en:"Linked bank account •••• 4821"`;
   - `description.en:"Redeemed tokens for US dollars paid to your bank"`;
-  - `amount:-10000` → "−100.00 EXUSD";
-  - `balanceAfter:99350` → "993.50 EXUSD";
+  - `amount:-10000` → "−100.00 USBC";
+  - `balanceAfter:99350` → "993.50 USBC";
   - `reference:"REF-X1R7-5GN2"`;
-  - `fees:[{ asset:"EXUSD", amount:100, kind:"redemption", feeTxId:"TX-260920-0901" }]`, with `YES.calc.feesFor("TX-260920-0900")` = `[{ id:"TX-260920-0901", amount:-100 }]`;
+  - `fees:[{ asset:"USBC", amount:100, kind:"redemption", feeTxId:"TX-260920-0901" }]`, with `YES.calc.feesFor("TX-260920-0900")` = `[{ id:"TX-260920-0901", amount:-100 }]`;
   - `notes[0].en:"Requested on 19 September and posted on 20 September."`;
   - the sections "Details", "Fees" and "Notes".
 
@@ -511,7 +511,7 @@ Each feature lists:
 
 ### 5.10 `pending`: Pending transactions (transactions)
 - **What it is.** Movements that started but had not posted at the cut-off. They are listed, but never counted in the balance, the journey or the chart, and they are labelled explicitly.
-  - On the Overview, a notice in the balance card: "1 pending transaction (−30.00 EXUSD) is not included in this balance." It has *View transaction* and *Explain with AI*.
+  - On the Overview, a notice in the balance card: "1 pending transaction (−30.00 USBC) is not included in this balance." It has *View transaction* and *Explain with AI*.
   - In Transactions, the row is marked "Not included in statement balance", has no balance after ("—"), and a note sits above the list.
   - A pending redemption reads "Redemption requested", never "Redeemed".
 - **Where.** View `overview`, `#overview-root .ov-notin`. In Transactions, `[data-tx-row="TX-260930-2247"]` and `.tx-pending-note`.
@@ -535,11 +535,11 @@ Each feature lists:
 - **Verified sizes:** 365×268 / 316×331 / 325×331 / 316×331 / 609×184.
 - **Reset and gotchas:** as for `why`: close, then `YES.set({assistant:null})`. The `[data-explain]` hand-over from the detail uses `{how:'back'}` internally. That is safe inside a step (the newest entry is the frame's own), but don't script it after the tour has pushed.
 - **Data shown:**
-  - `YES.calc.tx("TX-260909-2051")`: `amount:-20000` → "−200.00 EXUSD", and `postedAt` → "posted on September 9, 2026 at 10:34 AM EDT";
-  - the balance before 117500 and after 97500, from `YES.calc.running()` / `balanceAfter` → "taking your statement balance from 1,175.00 EXUSD to 975.00 EXUSD";
+  - `YES.calc.tx("TX-260909-2051")`: `amount:-20000` → "−200.00 USBC", and `postedAt` → "posted on September 9, 2026 at 10:34 AM EDT";
+  - the balance before 117500 and after 97500, from `YES.calc.running()` / `balanceAfter` → "taking your statement balance from 1,175.00 USBC to 975.00 USBC";
   - `rail:"onchain"` and `method:"network_send"`;
   - `onchain` `{ network:"Example Network (illustrative)", hashDisplay:"0xDE40…E19C", confirmations:64, verified:false }` → "marked ‘Illustrative reference — no live blockchain verification’";
-  - the linked fee `YES.calc.feesFor` → TX-260909-2052 −100 → "A separate network transfer fee of 1.00 EXUSD (TX-260909-2052) was charged for it.";
+  - the linked fee `YES.calc.feesFor` → TX-260909-2052 −100 → "A separate network transfer fee of 1.00 USBC (TX-260909-2052) was charged for it.";
   - `counterparty` "External wallet 0x9C1D…44B7" and `reference` "REF-N8C4-2VB9";
   - the thread `YES.state.assistant.thread[0]` = `{ topic:"transaction", tid:"TX-260909-2051", via:"context", id:"a1" }`.
 - **Try it:** "Open any transaction and select **Explain with AI**. You get a short explanation built from that transaction's own figures, with the rows it used and a way to ask about the transaction. In this demo it is worked out in your browser, and nothing is sent anywhere."
@@ -561,7 +561,7 @@ Each feature lists:
 - **Reset and gotchas:** there is **no close API**. Use `YES.ui.closeDialog(document.getElementById('inquiry-dialog'), {returnFocus:false})`, wait one tick, then `YES.set({ inquiry: null })` (G16). The dialog has no language switch; its language is fixed when it opens. Focus moves to `#inquiry-dialog-title`.
 - **Data shown:**
   - `YES.state.inquiry` = `{ txId:"TX-260924-1327", step:"transaction", reason:"", description:"", channel:"", status:"draft", ref:null, attempt:1, seq:1, errors:null, notice:null, prior:null, others:{} }`.
-  - The transaction card: type "Sent", `description` "Payment to a YES merchant", `amount` −4550 → "−45.50 EXUSD", `counterparty` "Northside Market", posted "Sep 24, 2026, 1:27 PM", status, `reference` "REF-M8Q2-4DK9" and `id`.
+  - The transaction card: type "Sent", `description` "Payment to a YES merchant", `amount` −4550 → "−45.50 USBC", `counterparty` "Northside Market", posted "Sep 24, 2026, 1:27 PM", status, `reference` "REF-M8Q2-4DK9" and `id`.
   - Reasons for this transaction: `unrecognized` ("I don't recognize this transaction"), `amount` ("The amount looks wrong") and `other` ("Something else"). A pending transaction adds `pending`.
   - Channels: `in_app`, `email` and `phone`.
   - `YES.inquiry.draftFor(txId)` → `null` until the user touches the draft.
@@ -582,13 +582,13 @@ Each feature lists:
 - **Verified sizes:** 440×900 (modal) / 390×844 (sheet) / 400×900 (**docked**) / 390×440 / 683×836.
 - **Reset and gotchas:** close, then `YES.set({assistant:null})`. G7 applies: when docked the page reflows, and when modal the page is inert. Escape closes a docked drawer.
 - **Data shown:**
-  - `YES.assistant.questions()` = `["why_balance","fees_paid","largest","pending","statement_vs_live","peg","onchain_sent"]` → "Why did my balance change?", "What did I pay in fees?", "What was my largest movement?", "What is pending?", "Is my statement balance my live balance?", "Is one token always worth one US dollar?", "Where did I send money on-chain?".
+  - `YES.assistant.questions()` = `["why_balance","fees_paid","largest","pending","statement_vs_live","peg","onchain_sent"]` → "Why did my balance change?", "What did I pay in fees?", "What was my largest movement?", "What is pending?", "Is my statement balance my live balance?", "Is each USBC always worth one US dollar?", "Where did I send money on-chain?".
   - The `fees_paid` answer is titled "What you paid in fees", from `YES.calc.category('fees')` and the fee rows.
   - `YES.assistant.mode()` returns "modal" at 880 and "docked" at 1280.
   - `YES.state.assistant` = `{ open, seq, thread[], helpful{}, expanded{}, privacyOpen, draft }`.
 - **Try it:** "Select **Ask YES** at the top of the statement. Pick a suggested question or type your own, such as *What did I pay in fees?* Each answer shows the figures and transactions it used, and you can always choose **Talk to a person**."
 
-### 5.14 `basics`: Stablecoin basics (understand)
+### 5.14 `basics`: Bank-issued digital dollar basics (understand)
 - **What it is.** Short, plain-language explanations of seven terms used in the statement. It acts as the statement's **glossary**. Each topic has an *In your statement* example built from the customer's own figures, an *Explain with AI* button, and its content record: copy ID, version, source, owner, validity and visibility rule, the way approved copy would be governed.
 - **Where.** View `understand`, `#understand-root section#und-basics`. The accordion is `.und-acc`, an item is `#und-topic-<id>` and a panel is `#und-panel-<id>`.
 - **Setup:** `[{ "call": "understand.openTopic", "args": ["token_units"] }]`. This navigates to `#/understand/token_units`, expands the topic and smooth-scrolls to it.
@@ -598,7 +598,7 @@ Each feature lists:
 - **Data shown:**
   - `YES.understand.topics` = `["token_units","usd_equivalent","onchain_vs_internal","tx_status","fees","redemption","statement_vs_live"]` → "Token units", "USD equivalent", "On-chain versus internal transfers", "Transaction status", "Fees", "Redemption", "Statement balance versus live balance";
   - `YES.understand.contentState(id)` = "visible" for all seven;
-  - the token-units example: `statement.closing` → "1,147.50 EXUSD", `asset.precision` 2 → "Smallest unit: 0.01 EXUSD", and the smallest posted amount → "−0.50 EXUSD · Fee for depositing by debit card";
+  - the token-units example: `statement.closing` → "1,147.50 USBC", `asset.precision` 2 → "Smallest unit: 0.01 USBC", and the smallest posted amount → "−0.50 USBC · Fee for depositing by debit card";
   - the content record: "EDU-001-TOKEN-UNITS · Demo copy — pending YES approval", validity 2026-09-01 to 2027-03-31;
   - `YES.state.understand` = `{ expanded:["token_units"], fullHash:false, meta:{} }`.
 - **Try it:** "Open any topic, such as **Token units**, for a short explanation with an example from your own statement. **Expand all** opens every topic, and **Explain with AI** asks YES about it."
@@ -615,15 +615,15 @@ Each feature lists:
 - **Verified sizes:** 404×1079 (it pairs side by side with the on-chain panel at 880) / 358×1181 / 524×946 / 358×1181 / 651×844.
 - **Reset and gotchas:** nothing to undo. The route focuses `#und-live-title` and smooth-scrolls (~720 ms).
 - **Data shown:**
-  - `statement.closing` 114750 → "1,147.50 EXUSD";
+  - `statement.closing` 114750 → "1,147.50 USBC";
   - `statement.asOf` → "As of Sep 30, 2026, 11:59 PM EDT", and the period "September 1 – 30, 2026";
   - `YES.config.features.liveBalance` = `false` → "Live balance: Not available · Last updated: [Timestamp appears here when connected]";
-  - `YES.calc.notInBalance()` → "“Redemption request awaiting bank settlement” for −30.00 EXUSD was pending at the cut-off, so it is not in the statement balance…".
+  - `YES.calc.notInBalance()` → "“Redemption request awaiting bank settlement” for −30.00 USBC was pending at the cut-off, so it is not in the statement balance…".
 - **Try it:** "Compare the statement balance, a fixed record as of 30 September, with the separate live balance area (not connected in this demo). The panel lists what explains the difference, such as the pending redemption."
 
 ### 5.16 `transparency`: Reserves, transparency and on-chain reference (understand)
 - **What it is.**
-  - **Reserves and transparency:** where verified facts about the stablecoin would appear, each with its source, date and owner. The facts are the approved issuer, reserve report, attestation date, redemption terms and source link. Today they are placeholders, clearly labelled "Illustrative layout; no reserve assertion".
+  - **Reserves and transparency:** where verified facts about the bank-issued digital dollar would appear, each with its source, date and owner. The facts are the approved issuer, reserve report, attestation date, redemption terms and source link. Today they are placeholders, clearly labelled "Illustrative layout; no reserve assertion".
   - It also gives three production rules, and an example of what a customer sees when evidence is unavailable.
   - **On-chain reference** (a separate panel, `#und-onchain`): one sample network reference for an on-chain transfer. It shows the network, the hash (with Copy and *Show full hash*), the confirmations and "Not verified", says there is no explorer link, and has a button to open the transaction.
 - **Where.** View `understand`: `#understand-root section#und-transparency` and `section#und-onchain` (route `#/understand/onchain`).
@@ -742,7 +742,7 @@ Each feature lists:
 - **Data shown:**
   - `YES.theme.get()` "dark", `effective()` "dark", `device()` "light";
   - `<html data-theme="dark">`, `localStorage['yes.theme']` "dark", and every `[data-theme-toggle]` with `aria-pressed="true"`;
-  - the brand slots `YES.config.slots` `{ YES_PRIMARY:"#0e5a8a", YES_PRIMARY_DARK:"#6cb4ee", YES_ACCENT:"#e8a33d" }` (placeholders).
+  - the brand slots `YES.config.slots` `{ YES_PRIMARY:"#000000", YES_PRIMARY_DARK:"#ffffff", YES_ACCENT:"#0004ff" }` (the YES brand book palette).
 - **Try it:** "Select the moon button at the top (on a phone: **Menu**, then **Dark mode**) to switch between light and dark. Until the customer chooses, the statement follows their device's setting."
 
 ### 5.22 `accessibility`: Accessibility and mobile (everywhere)
@@ -779,7 +779,7 @@ No customer-facing capability falls outside the 22 ids. The ones below have no i
 | **Privacy of the AI and demo**: "Answers are computed in this browser… nothing is sent"; the footer says the statement sends nothing, while UserWay is third-party | Drawer `.asst__privacy`, footer | `assistant` (and `accessibility` for UserWay) |
 | **Fiat equivalent**: "≈ USD 1,147.50", the rate, source and time, labelled *Illustrative*, shown only when verified (or in demo mode) | Balance card `.ov-fiat`; Understand topic *USD equivalent* | `summary` |
 | **Time zone and date basis**: "As of … EDT (America/New_York)"; "Dates and totals use the posted date."; initiated versus posted; a "Previous period" tag; times in EDT whatever the device's time zone | Balance card, Statement details, Transactions lede and caption, detail dialog, Help record facts | `summary` (as-of), `explorer` (posted vs initiated sort, caption), `detail` (both dates, previous period) |
-| **Glossary**: seven plain-language term explanations with examples and governed content records | Understand › Stablecoin basics | `basics` |
+| **Glossary**: seven plain-language term explanations with examples and governed content records | Understand › Bank-issued digital dollar basics | `basics` |
 | **Statement details panel**: ID, version, issue status, account, asset, period, generated, time zone, date basis | `.ov-details` disclosure | `summary` |
 | **Corrected-statement handling**: `issueStatus` "original" or "corrected", shown as "Original" / "Corrected (new version)" in the details, the record facts, the CSV `Issue status` column and the PDF; the version "1.0" | Statement details, Help record facts, CSV and PDF | `help-record` (and `integrity`, whose datareq covers `statement.correction`) |
 | **Help contact and routes**: phone, email, hours and chat status (placeholders); inquiry versus formal dispute versus fraud | Help › Contact support | `help-record` |

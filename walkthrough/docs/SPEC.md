@@ -6,7 +6,7 @@ This is the build contract for the walkthrough app. Every module builds against 
 
 InfoSlips is showing YES stakeholders what a new YES statement could do. A person at YES opens one link, takes a guided tour of the interactive YES statement (the existing SPA, `dist/yes-statement.html`, **unchanged**), and gives their view on every feature. Their view has four parts: include or exclude, with an optional reason; a priority; and a comment. Everyone with the link can see everyone's answers as charts and text, with an image of the part of the statement each answer is about. For the features people want, they can also open the **data requirements** as an explorable JSON structure. YES will use the results to decide what goes into the production statement build.
 
-**Branding notice (must be visible).** The YES branding in the statement is a placeholder. It will be updated once YES supplies its final brand assets. Show it in full on the start page. Keep a compact version visible in the tour bar (and in the tour's All steps dialog), and show the compact version on the results and data requirements pages.
+**Branding notice (must be visible).** The YES brand (logo, colours and typography from the YES brand book) is now applied to the statement, but the overall design and layout may still change after reviewer feedback and the design workshop. Show the notice in full on the start page. Keep a compact version visible in the tour bar (and in the tour's All steps dialog), and show the compact version on the results and data requirements pages.
 
 **Decisions already made by the client.**
 - **Language:** the app is English only. The statement inside keeps its own English/Spanish switch.
@@ -136,9 +136,9 @@ walkthrough/
   When the dialog was opened from the phone Menu, closing it returns focus to the Menu button.
 - **`WT.brandNotice({ compact })`.** Returns the branding-notice HTML. Full text:
 
-  > **YES branding is not final.** The colours, logo and typography in the YES statement are placeholders. They will be updated once YES supplies its final brand assets. Please judge the features, not the look.
+  > **The YES brand is now applied.** The statement uses the YES logo, colours and typography from the YES brand book. The overall design and layout are still a starting point and may change based on your feedback and our design workshop.
   
-  Compact text: "YES branding is a placeholder and will be updated." (used on the results and data requirements pages). The tour bar and its All steps dialog show their own compact line, "YES branding is a placeholder. Judge the features, not the look." (also marked `data-brand-notice="compact"`).
+  Compact text: "YES brand applied. The design may still change after the workshop." (used on the results and data requirements pages). The tour bar and its All steps dialog show their own compact line, "YES brand applied. The design may change after the workshop." (also marked `data-brand-notice="compact"`).
 
 ### 10-start.js (foundation): `#/start`
 - **Hero:** "Help shape the new YES statement", with an intro paragraph: "InfoSlips built this interactive statement for YES to show the art of the possible. Walk through it and, for each feature, tell us whether it belongs in the production statement, how important it is, and why. YES will use everyone's answers to choose the features for the first release."
@@ -234,7 +234,7 @@ In dark mode, Lime is kept only for `--focus`, `--spot` (the tour outline and ta
 - "Interactive statement" label, the phone-only Statement / Panel toggles, and **View as**.
 - **New tab:** a link that opens the statement in a new tab (`target="_blank" rel="noopener"`, named "Open the statement in a new tab"). Its `href` tracks the frame: `statement/index.html` plus the frame's current hash. It is updated when the frame loads or changes its hash, after each step, and just before use (hover, focus, pointer down and click), since the statement can change its address with `history.replaceState`.
 - **Dim the rest** (a switch, on by default; stored in localStorage `infoslips.wt.tour.dim`).
-- An info line: the hint "Click around freely. It doesn't change your answers." and the compact branding notice "YES branding is a placeholder. Judge the features, not the look." On narrower bars the hint is hidden and the branding notice takes its place.
+- An info line: the hint "Click around freely. It doesn't change your answers." and the compact branding notice "YES brand applied. The design may change after the workshop." On narrower bars the hint is hidden and the branding notice takes its place.
 
 **Panel, per step** (in this order):
 1. **Header:** the section label (Overview / Transactions / Understand / Help / Throughout the statement), "Step k of N" with a native `<progress>` labelled by it, and the title (`h1`, focused on step change, described by "Step k of N"). A visually hidden line follows: "In the statement, this part is highlighted: k · Title."

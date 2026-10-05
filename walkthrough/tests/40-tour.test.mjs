@@ -17,7 +17,7 @@ export const meta = { timeout: 900000 };
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 };
 const TABLET = { width: 900, height: 1100, isMobile: true, hasTouch: true };
-const BRAND_COMPACT = 'YES branding is a placeholder. Judge the features, not the look.';
+const BRAND_COMPACT = 'YES brand applied. The design may change after the workshop.';
 
 /**
  * In the page: where the overlay drew the outline, and where it should be,

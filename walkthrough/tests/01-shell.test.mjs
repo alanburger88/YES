@@ -23,7 +23,7 @@ export const meta = { timeout: 300000 };
 
 const TITLE_SUFFIX = ' · YES statement review · InfoSlips';
 const BRAND_FULL =
-  'YES branding is not final. The colours, logo and typography in the YES statement are placeholders. They will be updated once YES supplies its final brand assets. Please judge the features, not the look.';
+  'The YES brand is now applied. The statement uses the YES logo, colours and typography from the YES brand book. The overall design and layout are still a starting point and may change based on your feedback and our design workshop.';
 
 export default async function (ctx) {
   const { base, api, assert, step, features } = ctx;
@@ -152,7 +152,7 @@ export default async function (ctx) {
         d.innerHTML = window.WT.brandNotice({ compact: true });
         return d.textContent.trim();
       });
-      assert.equal(compact, 'YES branding is a placeholder and will be updated.');
+      assert.equal(compact, 'YES brand applied. The design may still change after the workshop.');
       assertNoErrors(P.errors, assert, P.external);
     } finally {
       await P.close();

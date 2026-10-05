@@ -752,7 +752,7 @@
                 WT.charts.shotBox({ id: f.id, alt: f.title + ' in the YES statement', eager: true }) +
                 '<span class="wt-detail__zoom">' + WT.icon('expand', { size: 16 }) + '<span>Enlarge</span></span>' +
               '</button>' +
-              '<figcaption class="wt-caption">This part of the interactive YES statement. YES branding is a placeholder.</figcaption>' +
+              '<figcaption class="wt-caption">This part of the interactive YES statement. YES brand applied. The design may still change after the workshop.</figcaption>' +
             '</figure>' +
             '<div class="wt-detail__links">' +
               '<a class="wt-btn wt-btn--primary" href="#/tour/' + encodeURIComponent(f.id) + '" data-fk="detail-tour">' + WT.icon('play', { size: 18 }) + '<span>See it in the walkthrough</span></a>' +
@@ -1018,7 +1018,7 @@
       body:
         '<figure class="wt-shotdlg">' +
           WT.charts.shotBox({ id: f.id, alt: f.title + ' in the YES statement', eager: true, cls: 'wt-shotdlg__box' }) +
-          '<figcaption class="wt-caption">' + WT.esc(f.short) + ' YES branding is a placeholder.</figcaption>' +
+          '<figcaption class="wt-caption">' + WT.esc(f.short) + ' YES brand applied. The design may still change after the workshop.</figcaption>' +
         '</figure>',
       foot:
         (state.sub !== 'feature' || state.param !== f.id

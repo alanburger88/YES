@@ -13,10 +13,10 @@
   /* Branding notice                                                     */
   /* ------------------------------------------------------------------ */
 
-  var BRAND_TITLE = 'YES branding is not final.';
+  var BRAND_TITLE = 'The YES brand is now applied.';
   var BRAND_TEXT =
-    'The colours, logo and typography in the YES statement are placeholders. They will be updated once YES supplies its final brand assets. Please judge the features, not the look.';
-  var BRAND_COMPACT = 'YES branding is a placeholder and will be updated.';
+    'The statement uses the YES logo, colours and typography from the YES brand book. The overall design and layout are still a starting point and may change based on your feedback and our design workshop.';
+  var BRAND_COMPACT = 'YES brand applied. The design may still change after the workshop.';
 
   /** Branding-notice HTML. { compact: true } gives the one-line version. */
   WT.brandNotice = function (opts) {

@@ -12,7 +12,7 @@
   { "id": "explain-ai", "order": 11, "section": "transactions", "title": "Explain with AI", "short": "A plain-language explanation next to any figure or transaction." },
   { "id": "inquiry", "order": 12, "section": "transactions", "title": "Ask about a transaction", "short": "A guided way to ask YES a question about a specific transaction." },
   { "id": "assistant", "order": 13, "section": "everywhere", "title": "Ask YES assistant", "short": "A built-in assistant that answers questions about this statement." },
-  { "id": "basics", "order": 14, "section": "understand", "title": "Stablecoin basics", "short": "Short, plain-language explanations of key terms, with examples from the customer’s own figures." },
+  { "id": "basics", "order": 14, "section": "understand", "title": "Bank-issued digital dollar basics", "short": "Short, plain-language explanations of key terms, with examples from the customer’s own figures." },
   { "id": "live-balance", "order": 15, "section": "understand", "title": "Statement balance versus live balance", "short": "Why the statement balance can differ from the balance in the app today." },
   { "id": "transparency", "order": 16, "section": "understand", "title": "Reserves, transparency and on-chain reference", "short": "Where verified reserve and issuer facts would appear, and a sample on-chain reference." },
   { "id": "download", "order": 17, "section": "help", "title": "Print, PDF and CSV", "short": "Print the statement of record, or save it as a PDF or a spreadsheet." },

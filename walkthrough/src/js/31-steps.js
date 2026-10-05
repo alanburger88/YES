@@ -250,7 +250,7 @@
     {
       id: 'pending',
       what:
-        'Movements that started but had not posted by the cut-off are listed, but never counted in the balance, the journey or the chart, and the statement says so. On the Overview, a notice in the balance card reads “1 pending transaction (−30.00 EXUSD) is not included in this balance.” In Transactions the row is marked “Not included in statement balance”.',
+        'Movements that started but had not posted by the cut-off are listed, but never counted in the balance, the journey or the chart, and the statement says so. On the Overview, a notice in the balance card reads “1 pending transaction (−30.00 USBC) is not included in this balance.” In Transactions the row is marked “Not included in statement balance”.',
       valueYes: [
         'Explains a timing difference that would otherwise look like an error, before the customer calls.',
         'Fewer disputes about “missing” or double-counted money.',
@@ -319,7 +319,7 @@
         'Handles routine statement questions at any hour, taking load off support.',
         'Grounded in the statement and honest about its limits, so it builds trust instead of risk.',
         '“Was this helpful?” shows YES which answers work and where customers still struggle.',
-        'In this demo there is no AI model: typed questions are matched to the topics it can explain from this statement, and anything else gets an honest “I can’t answer that”. Production would use a governed AI service with a privacy notice, a retention policy and an audit trail.'
+        'In this demo there is no AI model: typed questions are matched to the topics it can explain from this statement, and anything else gets an honest “I can only answer questions about this statement”. Production would use a governed AI service with a privacy notice, a retention policy and an audit trail.'
       ],
       valueCustomer: [
         'Ask in your own words about your own statement.',
@@ -338,7 +338,7 @@
       what:
         'Short, plain-language explanations of the seven terms the statement uses: token units, the US-dollar equivalent, on-chain versus internal transfers, transaction status, fees, redemption, and statement versus live balance. Together they are the statement’s glossary. Each has an example from the customer’s own figures, an “Explain with AI” button and a content record (ID, version, source, owner and validity).',
       valueYes: [
-        'Explains new terms in context, which lowers the barrier to using stablecoins with YES.',
+        'Explains new terms in context, which lowers the barrier to using bank-issued digital dollars with YES.',
         'Fewer “what does this mean?” questions for support.',
         'Each explanation carries a content record, so YES can approve, own and expire the wording.',
         'Examples use the customer’s own figures, which makes the learning relevant.'
@@ -377,15 +377,15 @@
     {
       id: 'transparency',
       what:
-        'A panel for verified facts about the stablecoin: the issuer, the reserve report, the attestation date, the redemption terms and a source link, each with its source, date and owner. In this demo they are placeholders, clearly labelled “Illustrative layout; no reserve assertion”. Just above, “On-chain reference” shows a sample network reference with its confirmations, “Copy” and “Show full hash”, and no explorer link.',
+        'A panel for verified facts about the bank-issued digital dollar: the issuer, the reserve report, the attestation date, the redemption terms and a source link, each with its source, date and owner. In this demo they are placeholders, clearly labelled “Illustrative layout; no reserve assertion”. Just above, “On-chain reference” shows a sample network reference with its confirmations, “Copy” and “Show full hash”, and no explorer link.',
       valueYes: [
         'One governed place to publish reserve and issuer facts, with a source and date on each.',
         'Facts appear only when verified, so the statement never makes a claim YES can’t support.',
-        'Builds confidence in the stablecoin itself, which supports adoption.',
+        'Builds confidence in the bank-issued digital dollar itself, which supports adoption.',
         'On-chain references are shown with their verification status, never overstated.'
       ],
       valueCustomer: [
-        'Know where to check what backs your stablecoin.',
+        'Know where to check what backs your bank-issued digital dollars.',
         'See the source and date behind every fact.',
         'Find the network reference for an on-chain transfer when you need it.'
       ],
@@ -486,10 +486,10 @@
     {
       id: 'theme',
       what:
-        'A light and a dark version of the whole statement, which follows the device setting until the customer chooses and then remembers their choice on that device. Print and PDF are always light. Colours come from replaceable brand slots, so YES’s final palette will carry into both themes.',
+        'A light and a dark version of the whole statement, which follows the device setting until the customer chooses and then remembers their choice on that device. Print and PDF are always light. Colours come from replaceable brand slots, so the YES brand palette carries into both themes.',
       valueYes: [
         'Matches what customers expect from a modern finance app.',
-        'Brand colours sit in replaceable slots, so YES’s final palette applies to both themes without a redesign.',
+        'Brand colours sit in replaceable slots, so the YES palette applies to both themes, and any later change needs no redesign.',
         'Helps customers who find bright screens hard to read.'
       ],
       valueCustomer: [
