@@ -132,7 +132,7 @@
               }) +
             '</form>' +
             '<p class="wt-start__privacy">' + WT.icon('lock', { size: 18 }) +
-              '<span>Your answers are saved to a shared database as you go and are visible to everyone with this link. They’re linked to this browser, not to an account. When you’re online, the statement also loads the UserWay accessibility widget from a third party.</span></p>' +
+              '<span>Your answers are saved to a shared database as you go and are visible to everyone with this link. They’re linked to this browser, not to an account.</span></p>' +
           '</section>' +
         '</div>' +
 

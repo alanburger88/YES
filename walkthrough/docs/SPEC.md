@@ -152,7 +152,7 @@ walkthrough/
 - **"Try the statement on its own"**: a link to `statement/index.html` that opens in a new tab (`target="_blank" rel="noopener"`, with "(opens in a new tab)" for screen readers).
 - **What you'll review:** the N features grouped by section, each linking to its step and showing this reviewer's answer state.
 - **Links** to Results and Data requirements. The full branding notice.
-- **Privacy note:** "Your answers are saved to a shared database as you go and are visible to everyone with this link. They're linked to this browser, not to an account. When you're online, the statement also loads the UserWay accessibility widget from a third party."
+- **Privacy note:** "Your answers are saved to a shared database as you go and are visible to everyone with this link. They're linked to this browser, not to an account."
 
 ## 4. Visual design (InfoSlips brand, WCAG 2.2 AA)
 
