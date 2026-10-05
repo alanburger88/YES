@@ -417,7 +417,7 @@ border: 0 !important;
 position: absolute;
 left: var(--s4);
 top: var(--s3);
-transform: translateY(calc(-100% - var(--s3) - 24px));
+transform: translateY(calc(-100% - var(--s3) - 48px));
 z-index: 1000;
 background: var(--surface);
 color: var(--ink);
@@ -779,6 +779,11 @@ white-space: nowrap;
 background: var(--demo-bg);
 border-color: var(--demo-line);
 color: var(--demo-ink);
+}
+.tag--brand {
+background: var(--ink);
+border-color: var(--ink);
+color: var(--surface);
 }
 .tag--ai {
 background: var(--ai-wash);
@@ -22855,7 +22860,7 @@ en: {
 'assistant.q.largest': 'What was my largest movement?',
 'assistant.q.pending': 'What is pending?',
 'assistant.q.statement_vs_live': 'Is my statement balance my live balance?',
-'assistant.q.peg': 'Is one token always worth one US dollar?',
+'assistant.q.peg': 'Is my balance always worth one US dollar?',
 'assistant.q.onchain_sent': 'Where did I send money on-chain?',
 'assistant.subject.general': 'Your statement for {period}',
 'assistant.subject.chart': 'Running balance',
@@ -22976,7 +22981,7 @@ en: {
 'assistant.edu.usd_equivalent.name': 'USD equivalent',
 'assistant.edu.usd_equivalent.p1': 'A US dollar equivalent is shown only when a rate, its source and a timestamp are all available.',
 'assistant.edu.usd_equivalent.p2': 'This statement uses an illustrative demo rate of {rate} USD per token as of {at}, which is not a market quote. At that rate, your closing balance of {closing} is shown as {fiat}.',
-'assistant.edu.usd_equivalent.p3': 'It is for reference only and does not guarantee that a token is always worth one US dollar.',
+'assistant.edu.usd_equivalent.p3': 'It is for reference only and does not guarantee that your balance is always worth one US dollar per unit.',
 'assistant.edu.usd_equivalent.none': 'This statement has no rate with a source and timestamp, so no USD equivalent is shown.',
 'assistant.edu.onchain_vs_internal.name': 'On-chain versus internal transfers',
 'assistant.edu.onchain_vs_internal.p1': 'An internal transfer moves tokens between YES accounts without using a blockchain network.',
@@ -23112,7 +23117,7 @@ es: {
 'assistant.q.largest': '¿Cuál fue mi mayor movimiento?',
 'assistant.q.pending': '¿Qué está pendiente?',
 'assistant.q.statement_vs_live': '¿El saldo del estado de cuenta es mi saldo en vivo?',
-'assistant.q.peg': '¿Un token siempre vale un dólar estadounidense?',
+'assistant.q.peg': '¿Mi saldo siempre vale un dólar estadounidense por unidad?',
 'assistant.q.onchain_sent': '¿A dónde envié dinero en cadena?',
 'assistant.subject.general': 'Tu estado de cuenta de {period}',
 'assistant.subject.chart': 'Saldo acumulado',
@@ -23236,7 +23241,7 @@ es: {
 'assistant.edu.usd_equivalent.name': 'Equivalente en USD',
 'assistant.edu.usd_equivalent.p1': 'El equivalente en dólares estadounidenses solo se muestra cuando hay una tasa, su fuente y una marca de tiempo.',
 'assistant.edu.usd_equivalent.p2': 'Este estado de cuenta usa una tasa ilustrativa de demostración de {rate} USD por token al {at}, que no es una cotización de mercado. Con esa tasa, tu saldo final de {closing} se muestra como {fiat}.',
-'assistant.edu.usd_equivalent.p3': 'Es solo de referencia y no garantiza que un token valga siempre un dólar estadounidense.',
+'assistant.edu.usd_equivalent.p3': 'Es solo de referencia y no garantiza que tu saldo valga siempre un dólar estadounidense por unidad.',
 'assistant.edu.usd_equivalent.none': 'Este estado de cuenta no tiene una tasa con fuente y marca de tiempo, así que no se muestra ningún equivalente en USD.',
 'assistant.edu.onchain_vs_internal.name': 'Transferencias en cadena frente a internas',
 'assistant.edu.onchain_vs_internal.p1': 'Una transferencia interna mueve tokens entre cuentas de YES sin usar una red blockchain.',
@@ -25653,6 +25658,8 @@ return '<span class="help-swatch" aria-hidden="true" style="background-color:' +
 var logo = slots.YES_LOGO || {};
 var logoMini = ui.logoHtml({ cls: 'help-logo-mini', size: 24, decorative: true });
 var logoArt = logoMini.indexOf('yes-logo--art') !== -1;
+var symbolMini = ui.symbolHtml({ cls: 'help-logo-mini', size: 24 });
+var BRAND_ROWS = { YES_LOGO: logoArt, USBC_SYMBOL: !!symbolMini, YES_PRIMARY: true, YES_ACCENT: true, YES_FONT: true };
 var poster = slots.VIDEO_POSTER;
 var posterKey = poster == null || poster === '' ? 'help.slots.posterNone' : typeof poster === 'string' && /^data:image\//.test(poster) ? 'help.slots.posterSet' : 'help.slots.posterIgnored';
 var voice = slots.VIDEO_VOICEOVER || {};
@@ -25669,6 +25676,7 @@ return '<span data-voice-lang="' + lang + '">' + esc(t('help.slots.voiceLang', {
 var voiceNote = voiceUsable === 2 ? 'help.slots.voiceNoteAll' : voiceUsable ? 'help.slots.voiceNoteSome' : 'help.slots.voiceNoteNone';
 var slotRows = [
 ['YES_LOGO', logoMini + '<span>' + esc(logoArt ? t('help.slots.logoSvg') : t('help.slots.logoText', { text: logo.text || t('brand.logoAlt') })) + '</span>'],
+['USBC_SYMBOL', symbolMini + '<span>' + esc(t(symbolMini ? 'help.slots.symbolArt' : 'help.slots.symbolNone')) + '</span>'],
 ['YES_PRIMARY', swatch(slots.YES_PRIMARY)],
 ['YES_ACCENT', swatch(slots.YES_ACCENT)],
 ['YES_FONT', '<span class="mono help-slot__font">' + esc(slots.YES_FONT) + '</span>'],
@@ -25703,7 +25711,7 @@ esc(name) +
 '<span class="help-slot__value">' +
 r[1] +
 '</span> ' +
-ui.illustrativeTag('common.placeholder') +
+(BRAND_ROWS[r[0]] ? '<span class="tag tag--brand">' + esc(t('help.slots.brandTag')) + '</span>' : ui.illustrativeTag('common.placeholder')) +
 '</td></tr>'
 );
 })
@@ -26124,12 +26132,13 @@ doc.head.appendChild(style);
 style.textContent = pageFooterCss();
 }
 var PDF_PAGE_SIZE = { en: 'letter', es: 'a4' };
-var PDF_INK = '#111820';
-var PDF_INK_2 = '#3f4a57';
-var PDF_MUTED = '#5d6874';
-var PDF_RULE = '#8c96a2';
-var PDF_HAIR = '#cfd5dc';
+var PDF_INK = '#000000';
+var PDF_INK_2 = '#3d3d3d';
+var PDF_MUTED = '#5e5e5e';
+var PDF_RULE = '#8e949b';
+var PDF_HAIR = '#d1d6dc';
 var PDF_MARK = '#e3e3e3';
+var PDF_ACCENT = '#0004ff';
 var PDF_FS = { body: 7.5, sub: 6.5, head: 6.8, note: 7.5, h2: 11 };
 var PDF_PAD_X = 3;
 var PDF_PAD_Y = 3.2;
@@ -26385,7 +26394,7 @@ text(ln, R - demoW + 6, y + 5 + i * 8.6, { font: 'bold', size: 6.6 });
 headH = Math.max(headH, dH);
 }
 y += headH + 7;
-pdf.line(L, y, R, y, { width: 1.6, color: PDF_INK });
+pdf.line(L, y, R, y, { width: 1.6, color: PDF_ACCENT });
 y += 12;
 var leftW = CW * 0.42;
 var boxX = L + leftW + 16;
@@ -26889,11 +26898,14 @@ en: {
 'help.about.e.liveBalance.file': 'This statement is a period snapshot; no live balance is shown.',
 'help.about.e.liveBalance.prod': 'A separate, timestamped area, apart from the statement.',
 'help.slots.title': 'Brand and legal replacement slots',
-'help.slots.lede': 'YES replaces these placeholders with approved assets and wording before production. Current values in this file:',
+'help.slots.lede': 'The logo, the USBC symbol, the colours and the typeface follow the YES brand book. YES replaces the other placeholders with approved assets and wording before production. Current values in this file:',
 'help.slots.colSlot': 'Slot',
 'help.slots.colValue': 'Current value',
 'help.slots.logoText': 'Text “{text}” in a placeholder box',
-'help.slots.logoSvg': 'Logo artwork supplied',
+'help.slots.logoSvg': 'Approved YES logo, black and white versions',
+'help.slots.symbolArt': 'Approved USBC symbol, black and white versions',
+'help.slots.symbolNone': 'Not set',
+'help.slots.brandTag': 'YES brand',
 'help.slots.posterNone': 'Not set — the player shows its own opening frame',
 'help.slots.posterSet': 'Poster image supplied',
 'help.slots.posterIgnored': 'Not used — only an image packaged in this file (a data: URI) is shown, so the player shows its own opening frame',
@@ -27122,11 +27134,14 @@ es: {
 'help.about.e.liveBalance.file': 'Este estado de cuenta es una instantánea del período; no se muestra ningún saldo en vivo.',
 'help.about.e.liveBalance.prod': 'Un área separada y con fecha y hora, aparte del estado de cuenta.',
 'help.slots.title': 'Espacios reemplazables de marca y textos legales',
-'help.slots.lede': 'YES reemplaza estos marcadores de posición por recursos y textos aprobados antes de producción. Valores actuales en este archivo:',
+'help.slots.lede': 'El logotipo, el símbolo de USBC, los colores y la tipografía siguen el manual de marca de YES. YES reemplaza los demás marcadores de posición por recursos y textos aprobados antes de producción. Valores actuales en este archivo:',
 'help.slots.colSlot': 'Espacio',
 'help.slots.colValue': 'Valor actual',
 'help.slots.logoText': 'Texto «{text}» en un recuadro provisional',
-'help.slots.logoSvg': 'Logotipo proporcionado',
+'help.slots.logoSvg': 'Logotipo aprobado de YES, versiones en negro y en blanco',
+'help.slots.symbolArt': 'Símbolo aprobado de USBC, versiones en negro y en blanco',
+'help.slots.symbolNone': 'Sin definir',
+'help.slots.brandTag': 'Marca YES',
 'help.slots.posterNone': 'Sin definir: el reproductor muestra su propio fotograma inicial',
 'help.slots.posterSet': 'Imagen de portada proporcionada',
 'help.slots.posterIgnored': 'No se usa: solo se muestra una imagen incluida en este archivo (un URI data:), así que el reproductor muestra su propio fotograma inicial',
