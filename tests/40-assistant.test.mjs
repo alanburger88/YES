@@ -10,7 +10,7 @@ const QUESTIONS_EN = [
   'What was my largest movement?',
   'What is pending?',
   'Is my statement balance my live balance?',
-  'Is one token always worth one US dollar?',
+  'Is my balance always worth one US dollar?',
   'Where did I send money on-chain?'
 ];
 // Amounts may carry a no-break space; compare on plain spaces and plain apostrophes.
@@ -936,7 +936,7 @@ export default async function (t) {
   t.eq(await page.inputValue('#asst-input'), 'draft question', 'draft survives the switch');
   t.eq(await page.getAttribute(`[data-fk="asst-${fid2}-fb-no"]`, 'aria-pressed'), 'true', 'feedback survives the switch');
   const qsEs = await page.$$eval('#assistant-drawer .asst-sugg [data-asst-q]', (els) => els.map((e) => e.textContent.trim()));
-  t.eq(qsEs[5], '¿Un token siempre vale un dólar estadounidense?', 'suggestions translated');
+  t.eq(qsEs[5], '¿Mi saldo siempre vale un dólar estadounidense?', 'suggestions translated');
   t.assert(norm(await page.locator('#assistant-drawer [data-asst-ctx]').innerText()).includes('Sobre:'), 'context chip translated');
   await typeAsk('¿Debería comprar más?');
   t.eq(await latestTitle(), 'No puedo darte consejos de inversión', 'Spanish refusal');
