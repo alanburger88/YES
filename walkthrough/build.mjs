@@ -179,7 +179,9 @@ export async function build({ out = join(HERE, 'public'), quiet = false } = {}) 
   const counts = {
     brand: copyDir(join(SRC, 'brand'), join(outDir, 'assets', 'brand')),
     shots: copyDir(join(SRC, 'shots'), join(outDir, 'assets', 'shots')),
-    icons: copyDir(join(SRC, 'icons'), join(outDir, 'assets', 'icons'))
+    icons: copyDir(join(SRC, 'icons'), join(outDir, 'assets', 'icons')),
+    // Images for the introduction email to YES, hosted here so email clients can load them.
+    email: existsSync(join(SRC, 'email')) ? copyDir(join(SRC, 'email'), join(outDir, 'assets', 'email')) : 0
   };
   const font = interFont();
   mkdirSync(join(outDir, 'assets', 'fonts'), { recursive: true });
@@ -209,7 +211,7 @@ export async function build({ out = join(HERE, 'public'), quiet = false } = {}) 
   log(`  ${jsName} (${kb(js.code.length)}, ${js.files.length} modules: ${js.files.join(', ')})`);
   log(`  ${cssName} (${kb(css.code.length)}, ${css.files.length} files)`);
   log(`  statement/index.html (${kb(statementSrc.length)}, sha256 ${srcHash.slice(0, 16)}… identical to dist)`);
-  log(`  assets: ${counts.brand} brand, ${counts.shots} shots, ${counts.icons} icons, Inter woff2`);
+  log(`  assets: ${counts.brand} brand, ${counts.shots} shots, ${counts.icons} icons, ${counts.email} email, Inter woff2`);
   return { out: outDir, js: jsName, css: cssName, boot: bootName, statementSha256: srcHash, modules: js.files, styles: css.files };
 }
 
