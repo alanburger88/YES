@@ -221,7 +221,7 @@ export default async function (ctx) {
       assert.equal(await nt.getAttribute('target'), '_blank');
       assert.match(await nt.getAttribute('rel'), /noopener/);
       const frameHash = await page.evaluate(() => document.getElementById('wt-frame').contentWindow.location.hash);
-      assert.equal(await nt.getAttribute('href'), 'statement/index.html' + frameHash, 'href follows the frame');
+      assert.equal(await nt.getAttribute('href'), 'https://salesdemo.infoslipscloud.com/assets/_templates/Crypto/Yes/index.html' + frameHash, 'href follows the frame');
       // View as: real radios, Desktop by default at 1280px
       for (const name of ['Mobile', 'Tablet', 'Desktop']) assert.equal(await page.getByRole('radio', { name }).count(), 1, name + ' radio');
       assert.ok(await page.getByRole('radio', { name: 'Desktop' }).isChecked());

@@ -97,7 +97,7 @@
       : '';
     // The statement on its own, in a new tab, for reviewers who want to explore it freely.
     var tryIt =
-      '<a class="wt-btn wt-btn--link wt-start__try" data-fk="start-try" data-start="try" href="statement/index.html" target="_blank" rel="noopener">' +
+      '<a class="wt-btn wt-btn--link wt-start__try" data-fk="start-try" data-start="try" href="' + WT.esc(WT.STATEMENT_TAB_URL) + '" target="_blank" rel="noopener">' +
         '<span>Try the statement on its own</span><span class="wt-sr-only"> (opens in a new tab)</span>' +
         WT.icon('external', { size: 18 }) + '</a>';
     var progressBlock = progress

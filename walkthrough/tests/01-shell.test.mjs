@@ -492,7 +492,7 @@ export default async function (ctx) {
       assert.doesNotMatch(text, /UserWay accessibility widget from a third party/);
       // "Try the statement on its own" opens the bare statement in a new tab.
       const tryIt = P.page.locator('#view-start [data-start="try"]');
-      assert.equal(await tryIt.getAttribute('href'), 'statement/index.html');
+      assert.equal(await tryIt.getAttribute('href'), 'https://salesdemo.infoslipscloud.com/assets/_templates/Crypto/Yes/index.html');
       assert.equal(await tryIt.getAttribute('target'), '_blank');
       assert.match(await tryIt.getAttribute('rel'), /noopener/);
       assert.equal(await tryIt.locator('svg').count(), 1, 'visible new-tab icon');
@@ -1145,7 +1145,7 @@ export default async function (ctx) {
     try {
       await P.page.goto(base + '/');
       assert.match(await P.page.locator('main').innerText(), /This review needs JavaScript/);
-      assert.equal(await P.page.locator('main a[href="statement/index.html"]').count(), 1);
+      assert.equal(await P.page.locator('main a[href="https://salesdemo.infoslipscloud.com/assets/_templates/Crypto/Yes/index.html"]').count(), 1);
       assert.ok(!(await P.page.locator('#wt-menu').isVisible()), 'nav and tools hidden');
       assert.ok(!(await P.page.locator('#wt-menu-btn').isVisible()));
       assert.equal(await P.page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(15, 23, 42)');

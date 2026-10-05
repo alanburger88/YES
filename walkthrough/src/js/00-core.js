@@ -263,6 +263,9 @@
     return 'assets/shots/' + encodeURIComponent(id) + (thumb ? '-thumb' : '') + '.jpg';
   };
   WT.ANONYMOUS = 'Anonymous reviewer';
+
+  /** Where "open in a new tab" sends people: the hosted YES statement. */
+  WT.STATEMENT_TAB_URL = 'https://salesdemo.infoslipscloud.com/assets/_templates/Crypto/Yes/index.html';
   WT.LIMITS = { name: 60, reason: 500, comment: 2000 };
 
   /* ================================================================== */

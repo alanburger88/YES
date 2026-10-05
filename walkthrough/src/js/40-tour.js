@@ -249,7 +249,7 @@
               '<span class="wt-tour__views-label" id="tour-views-label">View as</span>' +
               '<span class="wt-tour__seg">' + deviceOptionsHtml() + '</span>' +
             '</div>' +
-            '<a class="wt-tour__newtab" data-tour="newtab" href="statement/index.html" target="_blank" rel="noopener" aria-label="Open the statement in a new tab" data-tip="Open in a new tab">' +
+            '<a class="wt-tour__newtab" data-tour="newtab" href="' + WT.esc(WT.STATEMENT_TAB_URL) + '" target="_blank" rel="noopener" aria-label="Open the statement in a new tab" data-tip="Open in a new tab">' +
               icon('external', 17) + '<span class="wt-tour__newtab-text">New tab</span></a>' +
             /* WT.ui.switch markup, with " the rest" in its own span so phones can show just "Dim". */
             '<div class="wt-tour__dim" data-tip="Dim the rest">' +
@@ -1154,7 +1154,7 @@
     } catch (e) {
       hash = '';
     }
-    var href = 'statement/index.html' + hash;
+    var href = WT.STATEMENT_TAB_URL + hash;
     if (els.newtab.getAttribute('href') !== href) els.newtab.setAttribute('href', href);
   }
 
