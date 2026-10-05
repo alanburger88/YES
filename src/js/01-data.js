@@ -38,7 +38,7 @@
         address: ['100 Sample Avenue, Apt 4', 'Anytown, ST 00000']
       },
       account: {
-        label: { en: 'YES stablecoin account', es: 'Cuenta de stablecoin de YES' },
+        label: { en: 'YES bank-issued digital dollar account', es: 'Cuenta YES de dólares digitales emitidos por un banco' },
         maskedId: '•••• 7316',
         walletMasked: '0x5A…E19C'
       },

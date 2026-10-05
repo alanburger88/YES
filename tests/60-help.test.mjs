@@ -797,7 +797,7 @@ export default async function (t) {
     t.eq((en.info.match(/^Title:\s+(.*)$/m) || [])[1], titleEn, 'document title');
     t.eq(nbsp(titleEn), 'YES statement of record, September 1 – 30, 2026 (YES-STM-202609-000184)', 'title names the period and statement');
     const tx = en.text;
-    for (const fact of ['Statement of record', 'US BANK COIN', 'Sam Ortega', '100 Sample Avenue, Apt 4', 'Anytown, ST 00000', 'YES stablecoin account •••• 7316', 'Wallet 0x5A…E19C', s.id, 'Issue status', 'Original', 'Oct 1, 2026, 6:15 AM EDT', 'Sep 30, 2026, 11:59 PM EDT', 'EDT (America/New_York)', 'Posted date', 'US Bank Coin (USBC)', 'Balance summary', 'Opening balance 1,000.00 + Deposits 500.00', 'Net change +147.50 USBC across 15 transactions.', 'Posted transactions', 'Initiated date', 'Previous period', 'Fee for REF-N8C4-2VB9', 'Fees summary', 'Total fees (3 transactions)', 'Disclosures', 'Interactive statement delivered via InfoSlips', 'ILLUSTRATIVE DEMO DATA — FICTIONAL']) {
+    for (const fact of ['Statement of record', 'US BANK COIN', 'Sam Ortega', '100 Sample Avenue, Apt 4', 'Anytown, ST 00000', 'YES bank-issued digital dollar account •••• 7316', 'Wallet 0x5A…E19C', s.id, 'Issue status', 'Original', 'Oct 1, 2026, 6:15 AM EDT', 'Sep 30, 2026, 11:59 PM EDT', 'EDT (America/New_York)', 'Posted date', 'US Bank Coin (USBC)', 'Balance summary', 'Opening balance 1,000.00 + Deposits 500.00', 'Net change +147.50 USBC across 15 transactions.', 'Posted transactions', 'Initiated date', 'Previous period', 'Fee for REF-N8C4-2VB9', 'Fees summary', 'Total fees (3 transactions)', 'Disclosures', 'Interactive statement delivered via InfoSlips', 'ILLUSTRATIVE DEMO DATA — FICTIONAL']) {
       t.assert(tx.includes(fact), `PDF text includes "${fact}"`);
     }
     t.assert(/Closing balance\s+1,147\.50 USBC/.test(tx), 'closing balance 1,147.50 USBC in the summary');
@@ -850,7 +850,7 @@ export default async function (t) {
     t.assert(/^Page size:\s+595\.28 x 841\.89 pts \(A4\)/m.test(es.info), 'Spanish: A4');
     t.eq(nbsp((es.info.match(/^Title:\s+(.*)$/m) || [])[1] || ''), 'Estado de cuenta oficial de YES del 1 al 30 de septiembre de 2026 (YES-STM-202609-000184)', 'Spanish title');
     const tx = es.text;
-    for (const fact of ['Estado de cuenta oficial', 'Cuenta de stablecoin de YES •••• 7316', 'Monedero 0x5A…E19C', 'Período del estado de cuenta', 'Resumen del saldo', 'Saldo inicial 1.000,00 + Depósitos 500,00', 'Movimientos registrados', 'Fecha de inicio', 'Período anterior', 'Comisión de REF-N8C4-2VB9', 'Resumen de comisiones', 'Divulgaciones', 'Página 1 de ' + es.pages, 'Datos ilustrativos de demostración — cliente, importes y referencias ficticios', 'DATOS ILUSTRATIVOS DE DEMOSTRACIÓN']) {
+    for (const fact of ['Estado de cuenta oficial', 'Cuenta YES de dólares digitales emitidos por un banco •••• 7316', 'Monedero 0x5A…E19C', 'Período del estado de cuenta', 'Resumen del saldo', 'Saldo inicial 1.000,00 + Depósitos 500,00', 'Movimientos registrados', 'Fecha de inicio', 'Período anterior', 'Comisión de REF-N8C4-2VB9', 'Resumen de comisiones', 'Divulgaciones', 'Página 1 de ' + es.pages, 'Datos ilustrativos de demostración — cliente, importes y referencias ficticios', 'DATOS ILUSTRATIVOS DE DEMOSTRACIÓN']) {
       t.assert(tx.includes(fact), `Spanish PDF text includes "${fact}"`);
     }
     t.assert(/Saldo final\s+1\.147,50 USBC/.test(tx), 'Spanish closing balance 1.147,50 USBC');

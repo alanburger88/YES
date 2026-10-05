@@ -387,7 +387,7 @@
      * also has an anchor (below). "What is the weather today?" or "network
      * password for wifi" then reach the honest fallback, not a curated answer.
      */
-    anchor: /\b(statement|statements|account|accounts|balance|balances|transaction|transactions|movement|movements|money|funds|token|tokens|usbc|us bank coin|stablecoin|stablecoins|transfer|transfers|transferred|payment|payments|deposit|deposits|redemption|redemptions|fee|fees|sent|send|received|paid|dollar|dollars|usd|month|period|estado de cuenta|cuenta|saldo|saldos|movimiento|movimientos|dinero|fondos|transferencia|transferencias|pago|pagos|deposito|depositos|canje|canjes|comision|comisiones|envie|enviado|recibi|recibido|pague|dolar|dolares|mes|periodo)\b/,
+    anchor: /\b(statement|statements|account|accounts|balance|balances|transaction|transactions|movement|movements|money|funds|token|tokens|usbc|us bank coin|stablecoin|stablecoins|digital dollar|digital dollars|dolar digital|dolares digitales|transfer|transfers|transferred|payment|payments|deposit|deposits|redemption|redemptions|fee|fees|sent|send|received|paid|dollar|dollars|usd|month|period|estado de cuenta|cuenta|saldo|saldos|movimiento|movimientos|dinero|fondos|transferencia|transferencias|pago|pagos|deposito|depositos|canje|canjes|comision|comisiones|envie|enviado|recibi|recibido|pague|dolar|dolares|mes|periodo)\b/,
     liveStrong: /\b(live (balance|balances|account|data|status|value|figures?)|real time|realtime|in the app|app balance|en vivo|tiempo real|en la app)\b/,
     liveNow: /\b(live|current|currently|right now|now|today|latest|up to date|actual|actualmente|ahora|hoy|al dia)\b/,
     liveWhat: /\b(balance|balances|account|holdings|saldo|saldos|cuenta)\b/,
@@ -2123,10 +2123,10 @@
         'assistant.largest.note': 'Size is compared without the sign. Fees are not counted as movements here, and pending transactions are excluded.',
         'assistant.largest.none': 'There are no posted movements in this period.',
 
-        'assistant.peg.p1': 'I can’t guarantee that a token will always be worth one US dollar, and I can’t give investment advice.',
+        'assistant.peg.p1': 'Your balance is held in a bank-issued digital dollar. I can’t give investment advice or make promises about its future value.',
         'assistant.peg.p2': 'The USD equivalent in this statement uses an illustrative demo rate of {rate} USD per token as of {at}. It is not a market quote and not a promise of future value.',
         'assistant.peg.noRate': 'This statement shows no USD rate, because no rate with a source and timestamp is available.',
-        'assistant.peg.p3': 'For how the stablecoin is designed to keep its value, including reserves and redemption terms, please see the approved issuer disclosures.',
+        'assistant.peg.p3': 'For how this bank-issued digital dollar is backed and redeemed, please see the approved disclosures from the issuing bank.',
 
         'assistant.onchain.title': 'Where you sent money on-chain',
         'assistant.onchain.p1': pl('In {period}, {count} went out over a blockchain network, for {amount} in total:', 'In {period}, {count} went out over a blockchain network, for {amount} in total:'),
@@ -2159,7 +2159,7 @@
         'assistant.example.in': '{amount} received on {date} ({id})',
 
         'assistant.edu.token_units.name': 'Token units',
-        'assistant.edu.token_units.p1': 'Your balance is counted in {product} ({symbol}), to {precision} decimal places. It is a quantity of tokens, not a bank balance in dollars.',
+        'assistant.edu.token_units.p1': 'Your balance is counted in {product} ({symbol}), a bank-issued digital dollar, to {precision} decimal places.',
         'assistant.edu.token_units.p2': 'For example, your closing balance of {closing} is {units} token units, and the smallest posted amount is {smallest} (“{description}”).',
         'assistant.edu.usd_equivalent.name': 'USD equivalent',
         'assistant.edu.usd_equivalent.p1': 'A US dollar equivalent is shown only when a rate, its source and a timestamp are all available.',
@@ -2402,10 +2402,10 @@
         'assistant.largest.note': 'El tamaño se compara sin tener en cuenta el signo. Aquí las comisiones no cuentan como movimientos y se excluyen los pendientes.',
         'assistant.largest.none': 'No hay movimientos registrados en este período.',
 
-        'assistant.peg.p1': 'No puedo garantizar que un token valga siempre un dólar estadounidense, y no puedo darte consejos de inversión.',
+        'assistant.peg.p1': 'Tu saldo está en un dólar digital emitido por un banco. No puedo darte consejos de inversión ni hacer promesas sobre su valor futuro.',
         'assistant.peg.p2': 'El equivalente en USD de este estado de cuenta usa una tasa ilustrativa de demostración de {rate} USD por token al {at}. No es una cotización de mercado ni una promesa de valor futuro.',
         'assistant.peg.noRate': 'Este estado de cuenta no muestra ninguna tasa en USD, porque no hay una tasa con fuente y marca de tiempo.',
-        'assistant.peg.p3': 'Para saber cómo está diseñada la stablecoin para mantener su valor, incluidas las reservas y las condiciones de canje, consulta las divulgaciones aprobadas del emisor.',
+        'assistant.peg.p3': 'Para saber cómo está respaldado y cómo se canjea este dólar digital emitido por un banco, consulta las divulgaciones aprobadas del banco emisor.',
 
         'assistant.onchain.title': 'A dónde enviaste dinero en cadena',
         'assistant.onchain.p1': pl('En {period}, {count} salió por una red blockchain, por un total de {amount}:', 'En {period}, {count} salieron por una red blockchain, por un total de {amount}:'),
@@ -2438,7 +2438,7 @@
         'assistant.example.in': '{amount} recibidos el {date} ({id})',
 
         'assistant.edu.token_units.name': 'Unidades de token',
-        'assistant.edu.token_units.p1': 'Tu saldo se cuenta en {product} ({symbol}), con {precision} decimales. Es una cantidad de tokens, no un saldo bancario en dólares.',
+        'assistant.edu.token_units.p1': 'Tu saldo se cuenta en {product} ({symbol}), un dólar digital emitido por un banco, con {precision} decimales.',
         'assistant.edu.token_units.p2': 'Por ejemplo, tu saldo final de {closing} son {units} unidades de token, y el importe registrado más pequeño es {smallest} («{description}»).',
         'assistant.edu.usd_equivalent.name': 'Equivalente en USD',
         'assistant.edu.usd_equivalent.p1': 'El equivalente en dólares estadounidenses solo se muestra cuando hay una tasa, su fuente y una marca de tiempo.',

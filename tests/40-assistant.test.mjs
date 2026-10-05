@@ -675,10 +675,10 @@ export default async function (t) {
   }
   await page.click('#assistant-drawer .asst-sugg [data-asst-q="peg"]');
   const peg = await latestText();
-  t.assert(peg.includes("I can't guarantee that a token will always be worth one US dollar"), 'peg: cannot guarantee');
-  t.assert(peg.includes("can't give investment advice"), 'peg: no investment advice');
+  t.assert(peg.includes('Your balance is held in a bank-issued digital dollar.'), 'peg: names the bank-issued digital dollar');
+  t.assert(peg.includes("can't give investment advice or make promises about its future value"), 'peg: no investment advice or promises');
   t.assert(peg.includes('illustrative demo rate of 1.0000 USD per token'), 'peg: rate is illustrative');
-  t.assert(peg.includes('approved issuer disclosures'), 'peg: points to approved disclosures');
+  t.assert(peg.includes('approved disclosures from the issuing bank'), 'peg: points to approved disclosures');
   await page.click('#assistant-drawer .asst-sugg [data-asst-q="onchain_sent"]');
   t.eq(await latestRows(), ['TX-260909-2051', 'TX-260909-2052'], 'on-chain send rows');
   await page.click('#assistant-drawer .asst-sugg [data-asst-q="largest"]');

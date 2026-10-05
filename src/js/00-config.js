@@ -1,5 +1,5 @@
 /*
- * YES Interactive Stablecoin Statement — configuration.
+ * YES Interactive Bank-Issued Digital Dollar Statement — configuration.
  *
  * Every brand, legal, support and integration value that YES must approve lives
  * here as a named replacement slot. The showcase ships with neutral placeholder

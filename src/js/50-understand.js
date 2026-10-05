@@ -1,5 +1,5 @@
 /*
- * Understand: stablecoin education, statement versus live balance, the sample
+ * Understand: bank-issued digital dollar education, statement versus live balance, the sample
  * on-chain reference and the illustrative reserve / transparency panel
  * (PRD 4 layer 4 "Trust and help", 5.6, 5.9, 6 "Education/evidence").
  *
@@ -1228,12 +1228,12 @@
         'understand.lede': 'Plain-language explanations of the terms in this statement, each with an example from your {period} figures. Open a topic, see the transactions behind it, or ask YES to explain it.',
         'understand.gov': 'These explanations are demo copy pending YES approval. Each one shows its content record — ID, source, owner, validity and visibility rule — the way approved content would be governed.',
         'understand.jump.label': 'On this page',
-        'understand.jump.basics': 'Stablecoin basics',
+        'understand.jump.basics': 'Bank-issued digital dollar basics',
         'understand.jump.live': 'Statement versus live balance',
         'understand.jump.onchain': 'On-chain reference',
         'understand.jump.transparency': 'Reserves and transparency',
 
-        'understand.basics.title': 'Stablecoin basics',
+        'understand.basics.title': 'Bank-issued digital dollar basics',
         'understand.basics.lede': 'Short explanations of the terms used in this statement. Each example uses your own figures.',
         'understand.expandAll': 'Expand all',
         'understand.collapseAll': 'Collapse all',
@@ -1244,7 +1244,7 @@
         'understand.topic.token_units.title': 'Token units',
         'understand.topic.token_units.teaser': 'How your balance is counted',
         'understand.topic.token_units.p1':
-          'Your balance is a quantity of {product} tokens ({symbol}), not a bank balance in dollars. This statement counts tokens to {precision} decimal places, so every amount is exact.',
+          'Your balance is held in {product} ({symbol}), a bank-issued digital dollar. This statement counts it to {precision} decimal places, so every amount is exact.',
         'understand.topic.token_units.p2': 'Amounts are never rounded to make totals add up: your opening balance plus every posted movement equals your closing balance exactly.',
 
         'understand.topic.usd_equivalent.title': 'USD equivalent',
@@ -1405,7 +1405,7 @@
 
         'understand.tp.title': 'Reserves and transparency',
         'understand.tp.label': 'Illustrative layout; no reserve assertion',
-        'understand.tp.labelBody': 'This panel shows where verified information about the stablecoin would appear. Nothing here states a fact about reserves, custody or the issuer.',
+        'understand.tp.labelBody': 'This panel shows where verified information about the bank-issued digital dollar would appear. Nothing here states a fact about reserves, custody or the issuing bank.',
         'understand.tp.slotsTitle': 'Where verified facts would appear',
         'understand.tp.slot.issuer': 'Approved issuer',
         'understand.tp.slot.reserve_report': 'Reserve report',
@@ -1441,7 +1441,7 @@
         'understand.jump.onchain': 'Referencia en cadena',
         'understand.jump.transparency': 'Reservas y transparencia',
 
-        'understand.basics.title': 'Conceptos básicos de las stablecoins',
+        'understand.basics.title': 'Conceptos básicos del dólar digital emitido por un banco',
         'understand.basics.lede': 'Explicaciones breves de los términos de este estado de cuenta. Cada ejemplo usa tus propias cifras.',
         'understand.expandAll': 'Desplegar todo',
         'understand.collapseAll': 'Contraer todo',
@@ -1452,7 +1452,7 @@
         'understand.topic.token_units.title': 'Unidades de token',
         'understand.topic.token_units.teaser': 'Cómo se cuenta tu saldo',
         'understand.topic.token_units.p1':
-          'Tu saldo es una cantidad de tokens de {product} ({symbol}), no un saldo bancario en dólares. En este estado de cuenta, los tokens se expresan con {precision} decimales, así que cada importe es exacto.',
+          'Tu saldo está en {product} ({symbol}), un dólar digital emitido por un banco. En este estado de cuenta se expresa con {precision} decimales, así que cada importe es exacto.',
         'understand.topic.token_units.p2': 'Los importes nunca se redondean para que los totales cuadren: tu saldo inicial más cada movimiento registrado es exactamente igual a tu saldo final.',
 
         'understand.topic.usd_equivalent.title': 'Equivalente en USD',
@@ -1618,7 +1618,7 @@
 
         'understand.tp.title': 'Reservas y transparencia',
         'understand.tp.label': 'Diseño ilustrativo; sin afirmación sobre reservas',
-        'understand.tp.labelBody': 'Este panel muestra dónde aparecería la información verificada sobre la stablecoin. Nada de lo que hay aquí afirma un hecho sobre reservas, custodia o el emisor.',
+        'understand.tp.labelBody': 'Este panel muestra dónde aparecería la información verificada sobre el dólar digital emitido por un banco. Nada de lo que hay aquí afirma un hecho sobre reservas, custodia o el banco emisor.',
         'understand.tp.slotsTitle': 'Dónde aparecerían los hechos verificados',
         'understand.tp.slot.issuer': 'Emisor aprobado',
         'understand.tp.slot.reserve_report': 'Informe de reservas',
