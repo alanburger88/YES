@@ -160,9 +160,9 @@ export default async function (t) {
   t.assert(s1.includes('Sent') && s1.includes('Sent to an external wallet on a blockchain network'), 'transaction label carried in');
   t.assert(s1.includes('External wallet 0x9C1D…44B7'), 'counterparty carried in');
   t.assert(s1.includes('Sep 9, 2026'), 'posted date carried in');
-  t.assert(s1.includes('−200.00 EXUSD'), 'signed amount carried in');
+  t.assert(s1.includes('−200.00 USBC'), 'signed amount carried in');
   t.assert(s1.includes('REF-N8C4-2VB9'), 'reference carried in');
-  t.assert(s1.includes('Linked fee') && s1.includes('−1.00 EXUSD'), 'linked fee shown from calc.feesFor');
+  t.assert(s1.includes('Linked fee') && s1.includes('−1.00 USBC'), 'linked fee shown from calc.feesFor');
   t.assert(s1.includes('not a formal dispute') || s1.includes('isn’t a formal dispute'), 'inquiry distinguished from a dispute or fraud report');
   t.assert(await page.locator('#inquiry-dialog .inq-head .tag--illustrative').isVisible(), 'visible demo tag in the header');
   t.assert(await page.locator('[data-inq-backtx]').isVisible(), 'Back to transaction is available');
@@ -437,7 +437,7 @@ export default async function (t) {
   t.assert(rv.includes('The amount looks wrong'), 'reason shown');
   t.assert(rv.includes('The amount is higher than I expected.') && rv.includes('Please check it.'), 'description shown');
   t.assert(rv.includes('Email on file'), 'channel shown');
-  t.assert(rv.includes('REF-N8C4-2VB9') && rv.includes('−200.00 EXUSD'), 'transaction shown');
+  t.assert(rv.includes('REF-N8C4-2VB9') && rv.includes('−200.00 USBC'), 'transaction shown');
   t.eq(await page.$$eval('[data-inq-edit]', (bs) => bs.map((b) => b.getAttribute('data-inq-edit'))), ['transaction', 'reason', 'description', 'channel'], 'an edit link per entry');
   t.assert((await text('[data-inq-edit="channel"]')).includes('Reply by'), 'edit links have specific accessible names');
   await page.click('[data-inq-edit="description"]');

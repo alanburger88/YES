@@ -369,7 +369,7 @@ export default async function (t) {
   const tu = await panel('token_units');
   t.assert(tu.includes(expect.closing) && tu.includes(expect.smallest) && tu.includes(expect.product), 'token units: closing balance, smallest amount, product name');
   const usd = await panel('usd_equivalent');
-  t.assert(usd.includes('1 EXUSD = 1.0000 USD'), 'USD equivalent: illustrative rate');
+  t.assert(usd.includes('1 USBC = 1.0000 USD'), 'USD equivalent: illustrative rate');
   t.assert(usd.includes(expect.rateSource) && usd.includes(expect.asOf) && usd.includes('≈ ' + expect.fiat), 'USD equivalent: source, timestamp and converted closing balance');
   t.eq(await page.locator('#und-panel-usd_equivalent .tag--illustrative').count(), 1, 'USD rate tagged illustrative');
   const oc = await panel('onchain_vs_internal');

@@ -292,7 +292,7 @@ export default async function (t) {
     };
     YES.config.demo = false;
     out.prodUnverified = YES.calc.fiat(100, copy);
-    copy.assets.EXUSD.fiat.verified = true;
+    copy.assets.USBC.fiat.verified = true;
     out.prodVerified = YES.calc.fiat(100, copy);
     YES.config.demo = demo;
     return out;

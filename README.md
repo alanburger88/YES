@@ -40,7 +40,7 @@ To see the reconciliation guard at work, open `dist/yes-statement.html#/overview
 
 ### Illustrative figures
 
-1,000.00 opening + 500.00 deposits + 200.00 incoming transfers − 450.00 outgoing transfers − 100.00 redemptions − 2.50 fees = **1,147.50 closing token units (EXUSD)**.
+1,000.00 opening + 500.00 deposits + 200.00 incoming transfers − 450.00 outgoing transfers − 100.00 redemptions − 2.50 fees = **1,147.50 closing token units (USBC)**.
 
 - There are 15 posted transactions and 1 pending redemption. The pending one is listed, but it never counts toward the balance.
 - One deposit was started in the previous period and posted in this one. It shows how the posted-date basis works.

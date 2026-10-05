@@ -165,7 +165,7 @@
   function period() {
     return fmt.date(st().periodEnd, 'monthYear');
   }
-  /** Unsigned amount for prose ("reduced by 450.00 EXUSD"). */
+  /** Unsigned amount for prose ("reduced by 450.00 USBC"). */
   function amt(minor) {
     return '<span class="asst-num">' + esc(fmt.amount(Math.abs(minor), { sign: 'never' })) + '</span>';
   }
@@ -387,7 +387,7 @@
      * also has an anchor (below). "What is the weather today?" or "network
      * password for wifi" then reach the honest fallback, not a curated answer.
      */
-    anchor: /\b(statement|statements|account|accounts|balance|balances|transaction|transactions|movement|movements|money|funds|token|tokens|exusd|stablecoin|stablecoins|transfer|transfers|transferred|payment|payments|deposit|deposits|redemption|redemptions|fee|fees|sent|send|received|paid|dollar|dollars|usd|month|period|estado de cuenta|cuenta|saldo|saldos|movimiento|movimientos|dinero|fondos|transferencia|transferencias|pago|pagos|deposito|depositos|canje|canjes|comision|comisiones|envie|enviado|recibi|recibido|pague|dolar|dolares|mes|periodo)\b/,
+    anchor: /\b(statement|statements|account|accounts|balance|balances|transaction|transactions|movement|movements|money|funds|token|tokens|usbc|us bank coin|stablecoin|stablecoins|transfer|transfers|transferred|payment|payments|deposit|deposits|redemption|redemptions|fee|fees|sent|send|received|paid|dollar|dollars|usd|month|period|estado de cuenta|cuenta|saldo|saldos|movimiento|movimientos|dinero|fondos|transferencia|transferencias|pago|pagos|deposito|depositos|canje|canjes|comision|comisiones|envie|enviado|recibi|recibido|pague|dolar|dolares|mes|periodo)\b/,
     liveStrong: /\b(live (balance|balances|account|data|status|value|figures?)|real time|realtime|in the app|app balance|en vivo|tiempo real|en la app)\b/,
     liveNow: /\b(live|current|currently|right now|now|today|latest|up to date|actual|actualmente|ahora|hoy|al dia)\b/,
     liveWhat: /\b(balance|balances|account|holdings|saldo|saldos|cuenta)\b/,
@@ -420,7 +420,7 @@
     sent: /\b(sent|send|paid|payment|payments|transfers out|transfer out|transfer to|envie|enviado|enviados|enviadas|pague|pagado|pago|pagos)\b/,
     received: /\b(received|receive|transfers in|transfer in|transfer from|recibi|recibido|recibidos|recibidas|me enviaron|me pagaron)\b/,
     receivedWeak: /\b(got|get)\b/,
-    token: /\b(token unit|token units|token|tokens|exusd|unidad de token|unidades de token)\b/,
+    token: /\b(token unit|token units|token|tokens|usbc|us bank coin|unidad de token|unidades de token)\b/,
     tokenWeak: /\b(unit|units|decimal|decimals|unidad|unidades|decimales)\b/,
     status: /\b(posted|settled|registrado|registrados|registrada|liquidado|transaction status)\b/,
     statusWeak: /\b(status|failed|fail|fails|failure|fallido|fallidos|fallo)\b|\bestado\b(?! de cuenta)/,
@@ -2159,7 +2159,7 @@
         'assistant.example.in': '{amount} received on {date} ({id})',
 
         'assistant.edu.token_units.name': 'Token units',
-        'assistant.edu.token_units.p1': 'Your balance is counted in token units of {product} ({symbol}), to {precision} decimal places. It is a quantity of tokens, not a bank balance in dollars.',
+        'assistant.edu.token_units.p1': 'Your balance is counted in {product} ({symbol}), to {precision} decimal places. It is a quantity of tokens, not a bank balance in dollars.',
         'assistant.edu.token_units.p2': 'For example, your closing balance of {closing} is {units} token units, and the smallest posted amount is {smallest} (“{description}”).',
         'assistant.edu.usd_equivalent.name': 'USD equivalent',
         'assistant.edu.usd_equivalent.p1': 'A US dollar equivalent is shown only when a rate, its source and a timestamp are all available.',
@@ -2438,7 +2438,7 @@
         'assistant.example.in': '{amount} recibidos el {date} ({id})',
 
         'assistant.edu.token_units.name': 'Unidades de token',
-        'assistant.edu.token_units.p1': 'Tu saldo se cuenta en unidades de token de {product} ({symbol}), con {precision} decimales. Es una cantidad de tokens, no un saldo bancario en dólares.',
+        'assistant.edu.token_units.p1': 'Tu saldo se cuenta en {product} ({symbol}), con {precision} decimales. Es una cantidad de tokens, no un saldo bancario en dólares.',
         'assistant.edu.token_units.p2': 'Por ejemplo, tu saldo final de {closing} son {units} unidades de token, y el importe registrado más pequeño es {smallest} («{description}»).',
         'assistant.edu.usd_equivalent.name': 'Equivalente en USD',
         'assistant.edu.usd_equivalent.p1': 'El equivalente en dólares estadounidenses solo se muestra cuando hay una tasa, su fuente y una marca de tiempo.',

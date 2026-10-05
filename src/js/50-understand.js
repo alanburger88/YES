@@ -443,7 +443,7 @@
         if (!smallest || Math.abs(x.amount) < Math.abs(smallest.amount)) smallest = x;
       });
       var list = [
-        fact(esc(t('understand.ex.closing')), balance(st().closing), esc(t('understand.ex.closingNote', { product: product() }))),
+        fact(esc(t('understand.ex.closing')), balance(st().closing), esc(t('understand.ex.closingNote', { product: product(), symbol: a.symbol }))),
         fact(esc(t('understand.ex.precision')), esc(YES.fmt.count(a.precision)), esc(t('understand.ex.precisionNote', { unit: amountText(1) })))
       ];
       if (smallest) list.push(fact(esc(t('understand.ex.smallest')), signed(smallest.amount), esc(YES.L(smallest.description))));
@@ -1283,7 +1283,7 @@
           'Your live balance — what your account holds now — can differ because of activity after the cut-off, including pending transactions that complete later.',
 
         'understand.ex.closing': 'Closing balance',
-        'understand.ex.closingNote': 'Token units of {product}',
+        'understand.ex.closingNote': '{product} ({symbol})',
         'understand.ex.precision': 'Decimal places',
         'understand.ex.precisionNote': 'Smallest unit: {unit}',
         'understand.ex.smallest': 'Smallest posted amount',
@@ -1494,7 +1494,7 @@
           'Tu saldo en vivo (lo que tiene tu cuenta ahora) puede ser distinto por la actividad posterior al cierre, incluidos los movimientos pendientes que se completen más tarde.',
 
         'understand.ex.closing': 'Saldo final',
-        'understand.ex.closingNote': 'Unidades de token de {product}',
+        'understand.ex.closingNote': '{product} ({symbol})',
         'understand.ex.precision': 'Decimales',
         'understand.ex.precisionNote': 'Unidad mínima: {unit}',
         'understand.ex.smallest': 'Importe registrado más pequeño',

@@ -440,18 +440,18 @@ export default async function (t) {
   /* ------------------------------------------------------------------ */
   t.step('step: outgoing transfers');
   await openCtx('step', 'transfers_out');
-  t.eq(await latestTitle(), 'Outgoing transfers: −450.00 EXUSD', 'answer title names the selected fact');
+  t.eq(await latestTitle(), 'Outgoing transfers: −450.00 USBC', 'answer title names the selected fact');
   const stepText = await latestText();
   t.assert(stepText.includes('450.00'), 'shows 450.00');
-  t.assert(stepText.includes('5 transactions in this category reduced your balance by 450.00 EXUSD'), 'concise explanation with count');
-  t.assert(stepText.includes('A linked fee of 1.00 EXUSD is counted separately under Fees'), 'linked fee explained separately');
+  t.assert(stepText.includes('5 transactions in this category reduced your balance by 450.00 USBC'), 'concise explanation with count');
+  t.assert(stepText.includes('A linked fee of 1.00 USBC is counted separately under Fees'), 'linked fee explained separately');
   t.eq(await latestRows(), TRANSFERS_OUT, 'five supporting rows, the exact transactions');
-  t.assert(norm(await page.locator(LATEST + ' .asst-sum').textContent()).includes('−120.00 − 200.00 − 60.00 − 45.50 − 24.50 = −450.00 EXUSD'), 'arithmetic adds up from the rows');
+  t.assert(norm(await page.locator(LATEST + ' .asst-sum').textContent()).includes('−120.00 − 200.00 − 60.00 − 45.50 − 24.50 = −450.00 USBC'), 'arithmetic adds up from the rows');
   const figs = norm(await page.locator(LATEST + ' .asst-figs').innerText());
   t.assert(figs.includes('Figures used') || (await page.locator(LATEST + ' .asst-sec__h').first().innerText()).match(/Figures used/i), 'figures used section');
-  t.assert(figs.includes('−450.00 EXUSD') && figs.includes('5 transactions') && figs.includes('TX-260909-2051'), 'figures list total, count and largest');
+  t.assert(figs.includes('−450.00 USBC') && figs.includes('5 transactions') && figs.includes('TX-260909-2051'), 'figures list total, count and largest');
   const ctx = await ctxText();
-  t.assert(ctx.includes('About:') && ctx.includes('Outgoing transfers') && ctx.includes('−450.00 EXUSD'), 'context chip: About: Outgoing transfers · −450.00 EXUSD');
+  t.assert(ctx.includes('About:') && ctx.includes('Outgoing transfers') && ctx.includes('−450.00 USBC'), 'context chip: About: Outgoing transfers · −450.00 USBC');
   t.assert((await latestText()).includes('Demo explanation'), 'answer carries the Demo explanation label');
   t.assert(stepText.includes('as of Sep 30, 2026') && stepText.includes('not your live account'), 'answer distinguishes statement data from live data');
   t.eq(await page.locator(LATEST + ' [data-asst-inquiry]').count(), 0, 'no inquiry action on a step answer');
@@ -491,11 +491,11 @@ export default async function (t) {
   let tx = await latestText();
   t.assert(tx.includes('Illustrative reference — no live blockchain verification'), 'mentions the illustrative reference label');
   t.assert(tx.includes('no explorer link'), 'no explorer link');
-  t.assert(tx.includes('posted on September 9, 2026 at 10:34 AM EDT, taking your statement balance from 1,175.00 EXUSD to 975.00 EXUSD'), 'posted time and balance before/after from the running balance');
+  t.assert(tx.includes('posted on September 9, 2026 at 10:34 AM EDT, taking your statement balance from 1,175.00 USBC to 975.00 USBC'), 'posted time and balance before/after from the running balance');
   t.assert(tx.includes('TX-260909-2052'), 'links its separate fee line');
   t.eq(await latestRows(), ['TX-260909-2051', 'TX-260909-2052'], 'rows: the transfer and its fee');
   t.assert(await page.locator(LATEST + ' .tag--illustrative').isVisible(), 'illustrative tag on on-chain details');
-  t.assert((await ctxText()).includes('Sent to an external wallet on a blockchain network · Sep 9 · −200.00 EXUSD'), 'context chip names the transaction, date and amount');
+  t.assert((await ctxText()).includes('Sent to an external wallet on a blockchain network · Sep 9 · −200.00 USBC'), 'context chip names the transaction, date and amount');
   await calls();
   await page.click(LATEST + ' [data-asst-tx="TX-260909-2052"]');
   t.eq((await calls()).map((x) => x.list), [['TX-260909-2051', 'TX-260909-2052']], 'the fee row opens with the transfer and its fee as the list');
@@ -548,7 +548,7 @@ export default async function (t) {
   await openCtx('transaction', 'TX-260930-2247');
   tx = await latestText();
   t.assert(tx.includes('still pending at the statement cut-off'), 'pending at cut-off');
-  t.assert(tx.includes('not included in the statement balance of 1,147.50 EXUSD'), 'not in balance');
+  t.assert(tx.includes('not included in the statement balance of 1,147.50 USBC'), 'not in balance');
   t.assert(tx.includes('Pending, not included in statement balance'), 'row states pending explicitly');
   const pmeta = norm(await page.locator(LATEST + ' [data-asst-tx="TX-260930-2247"] .asst-row__meta').innerText());
   t.assert(pmeta.includes('Redemption requested') && !pmeta.includes('Redeemed'), `a pending redemption is "Redemption requested", not "Redeemed" (${pmeta})`);
@@ -580,11 +580,11 @@ export default async function (t) {
   await openCtx('balance');
   const bal = await latestText();
   t.eq(await latestTitle(), 'Why your balance changed', 'balance title');
-  t.assert(bal.includes('went from 1,000.00 EXUSD to 1,147.50 EXUSD'), 'opening → closing');
-  t.assert(bal.includes('Incoming activity added 700.00 EXUSD across 6 transactions'), 'incoming with count');
-  t.assert(bal.includes('Outgoing activity and fees took away 552.50 EXUSD across 9 transactions'), 'outgoing with count');
-  t.assert(bal.includes('1 transaction of 30.00 EXUSD was still pending'), 'pending excluded');
-  t.assert(norm(await page.locator(LATEST + ' .asst-sum').textContent()).includes('1,000.00 + 500.00 + 200.00 − 450.00 − 100.00 − 2.50 = 1,147.50 EXUSD'), 'bridge arithmetic');
+  t.assert(bal.includes('went from 1,000.00 USBC to 1,147.50 USBC'), 'opening → closing');
+  t.assert(bal.includes('Incoming activity added 700.00 USBC across 6 transactions'), 'incoming with count');
+  t.assert(bal.includes('Outgoing activity and fees took away 552.50 USBC across 9 transactions'), 'outgoing with count');
+  t.assert(bal.includes('1 transaction of 30.00 USBC was still pending'), 'pending excluded');
+  t.assert(norm(await page.locator(LATEST + ' .asst-sum').textContent()).includes('1,000.00 + 500.00 + 200.00 − 450.00 − 100.00 − 2.50 = 1,147.50 USBC'), 'bridge arithmetic');
   t.eq((await latestRows()).length, 6, 'first six of the posted rows shown');
   const posted = await page.evaluate(() => YES.calc.posted().map((x) => x.id));
   const sixth = (await latestRows())[5];
@@ -600,7 +600,7 @@ export default async function (t) {
   t.step('fees');
   await openCtx('fees');
   const fees = await latestText();
-  t.assert(fees.includes('You paid 2.50 EXUSD in fees in September 2026, across 3 transactions'), 'fee total and count');
+  t.assert(fees.includes('You paid 2.50 USBC in fees in September 2026, across 3 transactions'), 'fee total and count');
   t.assert(fees.includes('for TX-260909-2051') && fees.includes('for TX-260912-0805') && fees.includes('for TX-260920-0900'), 'each fee line names its parent');
   t.assert(fees.includes('No fees were charged in any other asset'), 'no other-asset fees');
   t.eq(await latestRows(), ['TX-260909-2052', 'TX-260912-0806', 'TX-260920-0901'], 'fee rows');
@@ -608,8 +608,8 @@ export default async function (t) {
   t.step('chart');
   await openCtx('chart');
   const chart = await latestText();
-  t.assert(chart.includes('highest at 1,250.00 EXUSD on September 1, 2026'), 'highest running balance and date');
-  t.assert(chart.includes('lowest at 974.00 EXUSD on September 9, 2026'), 'lowest running balance and date');
+  t.assert(chart.includes('highest at 1,250.00 USBC on September 1, 2026'), 'highest running balance and date');
+  t.assert(chart.includes('lowest at 974.00 USBC on September 9, 2026'), 'lowest running balance and date');
 
   t.step('pending topic');
   await openCtx('pending');
@@ -635,7 +635,7 @@ export default async function (t) {
   await openCtx('step', 'deposits');
   t.assert((await latestText()).includes('TX-260901-0418 was initiated on August 31, 2026, in the previous period'), 'deposits explain the prior-period posting');
   await openCtx('step', 'redemptions');
-  t.assert((await latestText()).includes('A further 30.00 EXUSD (1 transaction) was pending'), 'redemptions mention the pending one');
+  t.assert((await latestText()).includes('A further 30.00 USBC (1 transaction) was pending'), 'redemptions mention the pending one');
   t.assert(norm(await page.locator(LATEST + ' [data-asst-tx="TX-260920-0900"] .asst-row__meta').innerText()).includes('Redeemed'), 'a posted redemption is "Redeemed"');
   const thread = await spokenText('#assistant-drawer .asst-thread');
   t.assert(!thread.includes('•') && thread.includes('ending in 4821'), 'no masked identifier anywhere in the thread is read out as bullets');
@@ -648,7 +648,7 @@ export default async function (t) {
     onchain_vs_internal: ['On-chain versus internal transfers', 'Illustrative reference — no live blockchain verification'],
     tx_status: ['Transaction status', 'never counted'],
     fees: ['Fees', 'There are none in this statement'],
-    redemption: ['Redemption', 'A further 30.00 EXUSD'],
+    redemption: ['Redemption', 'A further 30.00 USBC'],
     statement_vs_live: ['Statement balance versus live balance', 'snapshot as of Sep 30, 2026'],
     transparency: ['Reserves and transparency', 'Illustrative layout; no reserve assertion']
   };
@@ -734,7 +734,7 @@ export default async function (t) {
   const matched = await page.evaluate(() =>
     [
       'Will the price go up next month?',
-      'Is EXUSD a good investment?',
+      'Is USBC a good investment?',
       'Can you transfer 20 to Sofia?',
       'cancel my pending redemption',
       'Is one token always worth one dollar?',
@@ -776,10 +776,10 @@ export default async function (t) {
       'what is my actual balance',
       'how much is in my wallet',
       'which network did my transfer use',
-      'What is the price of EXUSD?',
+      'What is the price of USBC?',
       'how much did the redemption cost',
       'did any transaction fail',
-      'who audits EXUSD',
+      'who audits USBC',
       '¿Cuándo retiré dinero?',
       '¿Cuál es el saldo final?'
     ].map((q) => {
@@ -871,7 +871,7 @@ export default async function (t) {
   await typeAsk('¿Cuánto pagué en comisiones?');
   const esId = await lastId();
   t.eq(await latestTitle(), 'Lo que pagaste en comisiones', 'a Spanish question is answered in Spanish');
-  t.assert((await latestText()).includes('Pagaste 2,50 EXUSD en comisiones'), 'Spanish figures and wording');
+  t.assert((await latestText()).includes('Pagaste 2,50 USBC en comisiones'), 'Spanish figures and wording');
   t.eq(await page.getAttribute(LATEST, 'lang'), 'es', 'the answer is marked lang="es"');
   t.eq(await page.evaluate(() => document.documentElement.lang), 'en', 'the page stays in English');
   t.eq(norm(await page.locator('#asst-title').innerText()).trim(), 'Ask YES', 'drawer chrome stays in English');
@@ -928,7 +928,7 @@ export default async function (t) {
   t.eq(norm(await page.locator('#asst-title').innerText()).trim(), 'Pregunta a YES', 'heading translated');
   t.assert(norm(await page.locator('#assistant-drawer .asst__head').innerText()).includes('Explicación de demostración'), 'demo label translated');
   const all = norm(await page.locator('#assistant-drawer .asst-thread').innerText());
-  t.assert(all.includes('Transferencias enviadas: −450,00 EXUSD'), 'earlier step answer re-rendered with 450,00');
+  t.assert(all.includes('Transferencias enviadas: −450,00 USBC'), 'earlier step answer re-rendered with 450,00');
   t.assert(all.includes('No puedo mover dinero ni iniciar movimientos'), 'refusal re-rendered in Spanish');
   t.assert(all.includes('send 50 to Daniel'), "visitor's own words kept verbatim");
   t.eq(norm(await page.locator('#assistant-drawer .asst-thread .asst-ans__text [lang="en"]').first().innerText()), 'Rent share', 'in Spanish, the customer\'s English note is marked lang="en"');
@@ -946,7 +946,7 @@ export default async function (t) {
   await axeOk('Spanish');
   await shot('es');
   await headerLang('en');
-  t.assert(norm(await page.locator('#assistant-drawer .asst-thread').innerText()).includes('Outgoing transfers: −450.00 EXUSD'), 'back to English');
+  t.assert(norm(await page.locator('#assistant-drawer .asst-thread').innerText()).includes('Outgoing transfers: −450.00 USBC'), 'back to English');
 
   /* ------------------------------------------------------------------ */
   t.step('layout');

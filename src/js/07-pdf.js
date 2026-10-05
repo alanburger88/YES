@@ -20,7 +20,7 @@
  *
  *   var doc = YES.pdf.create({ size: 'letter', margin: 54, title: 'Statement', lang: 'en-US' });
  *   doc.text('Closing balance', doc.margin.left, 120, { font: 'bold', size: 12 });
- *   doc.text('1,147.50 EXUSD', doc.width - doc.margin.right, 120, { align: 'right' });
+ *   doc.text('1,147.50 USBC', doc.width - doc.margin.right, 120, { align: 'right' });
  *   doc.watermark('ILLUSTRATIVE DEMO DATA');
  *   YES.ui.download('statement.pdf', doc.save(), 'application/pdf');
  */
@@ -153,7 +153,7 @@
 
   /**
    * Lines of `str` that fit `maxWidth` points. Breaks at ordinary spaces and at
-   * "\n" (never at a no-break space, so "1,147.50 EXUSD" stays together); a word
+   * "\n" (never at a no-break space, so "1,147.50 USBC" stays together); a word
    * longer than the line is split between characters.
    */
   function wrap(str, font, size, maxWidth) {

@@ -468,8 +468,9 @@
       esc(t('term.statementBalance')) +
       '</h2>' +
       hero +
+      // Asset name and symbol ("US Bank Coin (USBC)"), the same in every language.
       '<p class="ov-hero__unit">' +
-      esc(t('overview.balance.unitLine', { unit: YES.L(a.unitLabel), asset: YES.L(a.name) })) +
+      esc(YES.L(a.name) + ' (' + a.symbol + ')') +
       '</p>' +
       '<p class="ov-asof">' +
       ui.icon('clock', { size: 16 }) +
@@ -751,7 +752,7 @@
     );
   }
 
-  /** "−120.00 − 200.00 − 60.00 = −380.00 EXUSD": the rows, added up in the open. */
+  /** "−120.00 − 200.00 − 60.00 = −380.00 USBC": the rows, added up in the open. */
   function rowsEquation(rows, sum) {
     var s = '';
     rows.forEach(function (tx, i) {
@@ -3766,7 +3767,6 @@
           'Hello, {name}. Here is your YES activity for {period}. Start with the highlights, then explore any movement you would like to understand. If something does not look right, we are here to help.',
         'overview.help': 'Get help',
 
-        'overview.balance.unitLine': '{unit} of {asset}',
         'overview.balance.changeLabel': 'Net change this period',
         'overview.balance.change': 'Since your opening balance of {opening} on {date}.',
         'overview.fiat.label': '{currency} equivalent',
@@ -3947,7 +3947,7 @@
         'overview.video.cue.actions': 'From there, use Explain with AI or Ask about this transaction.',
         'overview.video.cue.help': 'Questions? Ask YES, or open Help to contact us.',
         'overview.video.cue.bye': 'If something does not look right, we are here to help.',
-        /* What the voice says where a caption would read badly aloud ("EXUSD", grouped decimals). */
+        /* What the voice says where a caption would read badly aloud ("USBC", grouped decimals). */
         'overview.video.say.period': 'This is your YES statement for {month}.',
         'overview.video.say.opening': 'You started the period with {openingSay} tokens.',
         'overview.video.say.incoming': 'Incoming activity added {incomingSay}.',
@@ -3962,7 +3962,6 @@
           'Hola, {name}. Aquí tienes tu actividad de YES del {period}. Empieza por lo esencial y explora cualquier movimiento que quieras entender mejor. Si algo no te cuadra, estamos aquí para ayudarte.',
         'overview.help': 'Obtener ayuda',
 
-        'overview.balance.unitLine': '{unit} de {asset}',
         'overview.balance.changeLabel': 'Cambio neto del período',
         'overview.balance.change': 'Desde tu saldo inicial de {opening} el {date}.',
         'overview.fiat.label': 'Equivalente en {currency}',

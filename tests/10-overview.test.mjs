@@ -285,7 +285,7 @@ export default async function (t) {
 
   t.step('balance card');
   t.eq(norm(await page.locator('.ov-hero__num').innerText()).trim(), '1,147.50', 'hero shows the closing balance');
-  t.eq(norm(await page.locator('.ov-hero__sym').innerText()).trim(), 'EXUSD', 'asset symbol next to the hero');
+  t.eq(norm(await page.locator('.ov-hero__sym').innerText()).trim(), 'USBC', 'asset symbol next to the hero');
   const heroStyle = await page.locator('.ov-hero__num').evaluate((el) => {
     const cs = getComputedStyle(el);
     return { size: parseFloat(cs.fontSize), nums: cs.fontVariantNumeric };
@@ -294,14 +294,14 @@ export default async function (t) {
   t.assert(!/tabular/.test(heroStyle.nums), 'hero uses proportional figures');
   t.assert(norm(await page.locator('.ov-hero .sr-only').innerText()).includes('token units'), 'hero spoken text names token units');
   t.assert(norm(await page.locator('#ov-balance-title').innerText()).includes('Statement balance'), 'labelled "Statement balance"');
-  t.assert(norm(await page.locator('.ov-hero__unit').innerText()).includes('token units'), 'unit label shown');
+  t.eq(norm(await page.locator('.ov-hero__unit').innerText()).trim(), 'US Bank Coin (USBC)', 'asset name and symbol shown under the balance');
   const asOf = norm(await page.locator('.ov-asof').innerText());
   t.assert(/As of Sep 30, 2026, 11:59\sPM EDT \(America\/New_York\)/.test(asOf), 'as-of date, time and timezone: ' + asOf);
   const fiat = norm(await page.locator('.ov-fiat').innerText());
   t.assert(fiat.includes('USD 1,147.50') && fiat.includes('Illustrative') && fiat.includes('1.0000') && fiat.includes('Illustrative demo rate') && /not a guarantee of value/.test(fiat), 'USD equivalent with rate, source, time and no-guarantee wording');
   t.assert(norm(await page.locator('.ov-fiat__meta').innerText()).includes('Sep 30, 2026'), 'fiat timestamp shown');
   const change = norm(await page.locator('.ov-change').innerText());
-  t.assert(change.includes('+147.50 EXUSD') && change.includes('1,000.00 EXUSD'), 'signed net change since opening: ' + change);
+  t.assert(change.includes('+147.50 USBC') && change.includes('1,000.00 USBC'), 'signed net change since opening: ' + change);
   t.eq(await page.locator('.ov-change__value .dir--in').count(), 1, 'direction icon on the net change');
   // A positive change takes the upward trend glyph, never the downward "received" tray arrow.
   const netIcon = await page.evaluate(() => {
@@ -338,7 +338,7 @@ export default async function (t) {
 
   t.step('not-in-balance notice');
   const notin = norm(await page.locator('.ov-notin').innerText());
-  t.assert(notin.includes('1 pending transaction (−30.00 EXUSD) is not included in this balance.'), 'pending notice: ' + notin);
+  t.assert(notin.includes('1 pending transaction (−30.00 USBC) is not included in this balance.'), 'pending notice: ' + notin);
   t.assert(notin.includes('Pending'), 'status chip with label');
   t.assert(notin.includes('Redemption request awaiting bank settlement · initiated Sep 30, 2026'), 'detail names the date with the "Initiated" field name used elsewhere: ' + notin);
   await spy(page);
@@ -354,7 +354,7 @@ export default async function (t) {
     YES.data = copy;
     YES.renderAll();
   });
-  t.assert(norm(await page.locator('.ov-notin').innerText()).includes('2 transactions that are not posted (−60.00 EXUSD in total)'), 'notice counts both');
+  t.assert(norm(await page.locator('.ov-notin').innerText()).includes('2 transactions that are not posted (−60.00 USBC in total)'), 'notice counts both');
   await spy(page);
   await page.click('[data-fk="ov-notin-all"]');
   t.eq(
@@ -419,11 +419,11 @@ export default async function (t) {
   t.assert(groups[0].text.includes('Incoming activity') && groups[0].text.includes('+700.00'), 'incoming group label/value');
   t.assert(groups[1].text.includes('Outgoing activity and fees') && groups[1].text.includes('−552.50'), 'outgoing group label/value');
   t.eq(await page.locator('.jr-step--in .jr-dir, .jr-step--out .jr-dir').count(), 5, 'icons accompany direction (not colour alone)');
-  t.assert(norm(await page.locator('[data-ov-step="transfers_out"] .sr-only').first().innerText()).includes('minus 450.00 EXUSD'), 'spoken amount says minus');
+  t.assert(norm(await page.locator('[data-ov-step="transfers_out"] .sr-only').first().innerText()).includes('minus 450.00 USBC'), 'spoken amount says minus');
   // Steps are grouped by type: the levels between them are subtotals, not balances
   // the account held (the ledger never went above 1,250.00).
   const stepText = norm(await page.locator('[data-ov-step="transfers_in"]').innerText());
-  t.assert(stepText.includes('Running subtotal after this step: 1,700.00 EXUSD') && !/balance after/i.test(stepText), 'intermediate level is a running subtotal: ' + stepText);
+  t.assert(stepText.includes('Running subtotal after this step: 1,700.00 USBC') && !/balance after/i.test(stepText), 'intermediate level is a running subtotal: ' + stepText);
   t.eq(
     await page.$$eval('#view-overview', (els) => (els[0].textContent.match(/Balance after this step|Balance after step/g) || []).length),
     0,
@@ -467,9 +467,9 @@ export default async function (t) {
   t.assert(rowTexts[0].includes('Sep 3, 2026') && rowTexts[0].includes('Sent') && rowTexts[0].includes('Daniel K.') && rowTexts[0].includes('−120.00'), 'row shows posted date, type label, counterparty and signed amount: ' + rowTexts[0]);
   t.eq(await page.getAttribute('.ov-sum', 'data-sum'), '-45000', 'sum of rows equals the step value');
   const sumText = norm(await page.locator('.ov-sum').innerText());
-  t.assert(sumText.includes('−450.00 EXUSD') && sumText.includes('Matches Outgoing transfers in the journey'), 'sum line proves the rows add up: ' + sumText);
+  t.assert(sumText.includes('−450.00 USBC') && sumText.includes('Matches Outgoing transfers in the journey'), 'sum line proves the rows add up: ' + sumText);
   t.eq(await page.locator('.ov-sum--ok').count(), 1, 'sum marked as matching');
-  t.eq(norm(await page.locator('.ov-sum__math').innerText()).trim(), '−120.00 − 200.00 − 60.00 − 45.50 − 24.50 = −450.00 EXUSD', 'row arithmetic shown');
+  t.eq(norm(await page.locator('.ov-sum__math').innerText()).trim(), '−120.00 − 200.00 − 60.00 − 45.50 − 24.50 = −450.00 USBC', 'row arithmetic shown');
   t.assert(norm(await page.locator('#live-polite').innerText()).length >= 0, 'live region exists');
   await page.waitForFunction(() => document.getElementById('live-polite').textContent.includes('Outgoing transfers selected'));
   t.assert(norm(await page.locator('#live-polite').innerText()).includes('5 transactions'), 'selection announced with result count');
@@ -563,7 +563,7 @@ export default async function (t) {
     'Hola, Sam. Aquí tienes tu actividad de YES del 1 al 30 de septiembre de 2026. Empieza por lo esencial y explora cualquier movimiento que quieras entender mejor. Si algo no te cuadra, estamos aquí para ayudarte.',
     'Spanish handshake reads naturally ("del 1 al 30 de septiembre")'
   );
-  t.assert(norm(await page.locator('[data-ov-step="transfers_in"]').innerText()).includes('Subtotal acumulado tras este paso: 1.700,00 EXUSD'), 'Spanish subtotal wording');
+  t.assert(norm(await page.locator('[data-ov-step="transfers_in"]').innerText()).includes('Subtotal acumulado tras este paso: 1.700,00 USBC'), 'Spanish subtotal wording');
   t.assert(norm(await page.locator('.ov-hero__num').innerText()).includes('147,50'), 'hero in Spanish format');
   t.eq(await page.evaluate(() => YES.state.overview.details), true, 'details disclosure state survives');
   t.eq(await page.locator('.ov-details').evaluate((d) => d.open), true, 'details still open');
@@ -593,9 +593,9 @@ export default async function (t) {
   t.eq(await page.getAttribute('[data-ov-step="transfers_out"]', 'aria-pressed'), 'true', 'still selected after switching back');
 
   t.step('equation and table view');
-  t.eq(await page.getAttribute('.jr-eq', 'data-equation'), '1,000.00 + 500.00 + 200.00 − 450.00 − 100.00 − 2.50 = 1,147.50 EXUSD', 'equation text built from data');
+  t.eq(await page.getAttribute('.jr-eq', 'data-equation'), '1,000.00 + 500.00 + 200.00 − 450.00 − 100.00 − 2.50 = 1,147.50 USBC', 'equation text built from data');
   const spoken = norm(await page.locator('.jr-eq .sr-only').innerText());
-  t.assert(spoken.includes('Opening balance 1,000.00 EXUSD') && spoken.includes('minus Outgoing transfers 450.00 EXUSD') && spoken.includes('equals Closing balance 1,147.50 EXUSD'), 'spoken equation: ' + spoken);
+  t.assert(spoken.includes('Opening balance 1,000.00 USBC') && spoken.includes('minus Outgoing transfers 450.00 USBC') && spoken.includes('equals Closing balance 1,147.50 USBC'), 'spoken equation: ' + spoken);
   await page.click('[data-fk="ov-jtable"]');
   const table = await page.$$eval('.ov-jtable tbody tr', (rows) => rows.map((r) => Array.from(r.children).map((c) => (c.querySelector('.ov-table__label, [aria-hidden="true"]') || c).textContent.trim())));
   t.eq(
@@ -620,7 +620,7 @@ export default async function (t) {
   t.eq(await page.locator('.ov-chart__svg').getAttribute('aria-hidden'), 'true', 'SVG decorative; text alternative carries meaning');
   t.eq(await page.locator('[data-ov-pt]').count(), 15, 'one keyboard point per posted transaction');
   const summary = norm(await page.locator('#ov-chart-summary').innerText());
-  t.assert(summary.includes('highest at 1,250.00 EXUSD on September 1, 2026') && summary.includes('lowest at 974.00 EXUSD on September 9, 2026') && summary.includes('1,147.50 EXUSD'), 'summary sentence: ' + summary);
+  t.assert(summary.includes('highest at 1,250.00 USBC on September 1, 2026') && summary.includes('lowest at 974.00 USBC on September 9, 2026') && summary.includes('1,147.50 USBC'), 'summary sentence: ' + summary);
   t.eq(await page.locator('[data-ov-pt][tabindex="0"]').count(), 1, 'roving tabindex: one tab stop');
   const svgBox = await page.locator('.ov-chart__svg').boundingBox();
   const plotBox = await page.locator('#ov-chart-plot').boundingBox();
@@ -629,8 +629,8 @@ export default async function (t) {
   t.assert(await page.locator('.ov-tip').isVisible(), 'tooltip on focus');
   await page.keyboard.press('ArrowRight');
   t.eq(await page.evaluate(() => document.activeElement.getAttribute('data-ov-pt')), '1', 'arrow key moves to the next point');
-  t.assert(norm(await page.locator('.ov-tip').innerText()).includes('1,130.00 EXUSD'), 'tooltip shows balance after the second transaction');
-  t.assert(norm(await page.locator('[data-ov-pt="1"]').getAttribute('aria-label')).includes('Balance after: 1,130.00 EXUSD'), 'point has a full accessible name');
+  t.assert(norm(await page.locator('.ov-tip').innerText()).includes('1,130.00 USBC'), 'tooltip shows balance after the second transaction');
+  t.assert(norm(await page.locator('[data-ov-pt="1"]').getAttribute('aria-label')).includes('Balance after: 1,130.00 USBC'), 'point has a full accessible name');
   const ptLabels = await page.$$eval('[data-ov-pt]', (els) => els.map((e) => e.getAttribute('aria-label')));
   t.eq(ptLabels.filter((l) => /\.\.|•/.test(l)), [], 'point names: no doubled full stop ("Daniel K.."), masked ids spoken, not bullets');
   t.assert(norm(ptLabels[1]).includes('Daniel K. Balance after') && ptLabels.some((l) => /ending in 4821/.test(l)), 'abbreviated name ends the clause once; masked id read as "ending in"');
@@ -664,7 +664,7 @@ export default async function (t) {
     await page.mouse.move(pt.x + pt.width / 2 + 3, pt.y + 40);
     await page.waitForTimeout(50);
     t.assert(await page.locator('.ov-cross').isVisible(), 'crosshair on hover');
-    t.assert(norm(await page.locator('.ov-tip').innerText()).includes('975.00 EXUSD'), 'hover snaps to the nearest transaction (movement before its fee)');
+    t.assert(norm(await page.locator('.ov-tip').innerText()).includes('975.00 USBC'), 'hover snaps to the nearest transaction (movement before its fee)');
     t.assert(norm(await page.locator('.ov-tip').innerText()).includes('+1 more at the same time'), 'tooltip notes same-time transactions');
     await shot(t, 'chart-hover');
     await page.mouse.click(pt.x + pt.width / 2 + 3, pt.y + 40);
@@ -683,7 +683,7 @@ export default async function (t) {
 
   t.step('fees and insight');
   const fees = norm(await page.locator('.ov-fees').innerText());
-  t.assert(fees.includes('−2.50 EXUSD') && fees.includes('3 fees') && fees.includes('Fees in other assets: none'), 'fees summary: ' + fees);
+  t.assert(fees.includes('−2.50 USBC') && fees.includes('3 fees') && fees.includes('Fees in other assets: none'), 'fees summary: ' + fees);
   t.eq(await page.locator('.ov-fees [data-ov-tx]').count(), 3, 'three fee lines');
   const feeIds = await page.$$eval('.ov-fees [data-ov-tx]', (els) => els.map((e) => e.getAttribute('data-ov-tx')));
   await page.click(`.ov-fees [data-ov-tx="${feeIds[1]}"]`);
@@ -692,7 +692,7 @@ export default async function (t) {
   t.eq((await calls(page))[0], { fn: 'assistant', topic: 'fees', id: null }, 'fees Explain with AI');
   const insight = norm(await page.locator('.ov-insight').innerText());
   const largest = await page.evaluate(() => YES.calc.largest().id);
-  t.assert(insight.includes('+250.00 EXUSD') && insight.includes('September 1, 2026'), 'insight from calc.largest(): ' + insight);
+  t.assert(insight.includes('+250.00 USBC') && insight.includes('September 1, 2026'), 'insight from calc.largest(): ' + insight);
   t.eq(await page.locator('.ov-insight, .ov-education, [class*="promo"]').count(), 1, 'at most one insight card');
   await page.click('[data-fk="ov-insight-view"]');
   t.eq((await calls(page))[0], { fn: 'openTx', id: largest, fk: 'ov-insight-view', list: null }, 'insight opens the largest transaction (no list of its own)');
@@ -761,7 +761,7 @@ export default async function (t) {
   t.eq(await page.locator('.ov-lowlist li').count(), 2, 'simple list instead');
   t.assert(norm(await page.locator('.ov-lowdata').innerText()).includes('With only 2 transactions'), 'low-data explanation');
   t.eq(await page.locator('.jr [data-step]').count(), 7, 'journey still renders');
-  t.eq(await page.getAttribute('.jr-eq', 'data-equation'), '1,000.00 + 250.00 + 0.00 − 120.00 + 0.00 + 0.00 = 1,130.00 EXUSD', 'equation follows the data');
+  t.eq(await page.getAttribute('.jr-eq', 'data-equation'), '1,000.00 + 250.00 + 0.00 − 120.00 + 0.00 + 0.00 = 1,130.00 USBC', 'equation follows the data');
   await page.click('[data-ov-step="transfers_in"]');
   t.assert(norm(await page.locator('#ov-panel-section').innerText()).includes('No transactions contributed'), 'empty step explained');
   await shot(t, 'low-data');
@@ -1315,7 +1315,7 @@ async function videoSuite(t) {
   t.step('video: every caption window holds its sentence at about 2.5 words a second, in English and Spanish');
   const tight = (list) => list.filter((c) => spokenWords(c.say) / 2.5 > c.end - c.at + 1e-6).map((c) => c.id + ' ' + c.say);
   t.eq(tight(cues), [], 'English cues fit their windows');
-  t.eq(cues.filter((c) => /EXUSD/.test(c.say)).map((c) => c.id), [], 'the voice never spells the symbol');
+  t.eq(cues.filter((c) => /USBC/.test(c.say)).map((c) => c.id), [], 'the voice never spells the symbol');
   t.eq(
     cues.map((c) => c.end > c.at && c.end <= 60),
     cues.map(() => true),
@@ -1331,7 +1331,7 @@ async function videoSuite(t) {
     return { opening: a(sx.opening), closing: a(sx.closing), inc: a(Math.abs(g.incoming.total)), out: a(Math.abs(g.outgoing.total)), big: a(big.amount, 'always'), bigDate: YES.fmt.date(big.postedAt, 'long'), period: YES.fmt.range(sx.periodStart, sx.periodEnd) };
   });
   const byId = Object.fromEntries(cues.map((c) => [c.id, c]));
-  t.eq([norm(fig.opening), norm(fig.inc), norm(fig.out), norm(fig.closing), norm(fig.big)], ['1,000.00 EXUSD', '700.00 EXUSD', '552.50 EXUSD', '1,147.50 EXUSD', '+250.00 EXUSD'], 'YES.calc figures');
+  t.eq([norm(fig.opening), norm(fig.inc), norm(fig.out), norm(fig.closing), norm(fig.big)], ['1,000.00 USBC', '700.00 USBC', '552.50 USBC', '1,147.50 USBC', '+250.00 USBC'], 'YES.calc figures');
   t.eq(
     ['hello', 'period', 'opening', 'incoming', 'outgoing', 'closing', 'largest', 'what'].map((k) => norm(byId[k].text)),
     [
@@ -1359,7 +1359,7 @@ async function videoSuite(t) {
   );
   await page.evaluate(() => YES.overview.video.seek(23));
   const bal = norm(await page.locator('.vs-bal__card').innerText());
-  t.assert(['1,000.00', '+700.00', '−552.50', '1,147.50 EXUSD', '+147.50 EXUSD'].every((x) => bal.includes(x)), 'the balance chapter draws the same figures: ' + bal);
+  t.assert(['1,000.00', '+700.00', '−552.50', '1,147.50 USBC', '+147.50 USBC'].every((x) => bal.includes(x)), 'the balance chapter draws the same figures: ' + bal);
   await page.evaluate(() => YES.overview.video.seek(33.5));
   const big = norm(await page.locator('.vs-big__tx').innerText());
   t.assert(big.includes('+250.00') && big.includes('Deposit from linked bank account') && big.includes('Sep 1, 2026') && big.includes('REF-D7K2-9QW4'), 'the largest movement card: ' + big);
@@ -1371,7 +1371,7 @@ async function videoSuite(t) {
   t.eq([await panelOpacity(42), await panelOpacity(44.4)], [1, 0], 'the step’s list fades out under the transaction detail (no text shows through it)');
   await page.evaluate(() => YES.overview.video.seek(44.4));
   const sheet = norm(await page.locator('.vs-sheet').innerText());
-  t.assert(sheet.includes('Deposit by debit card') && sheet.includes('+100.00 EXUSD') && sheet.includes('REF-C6V3-1KE7') && sheet.includes('−0.50 EXUSD') && sheet.includes('Explain with AI') && sheet.includes('Ask about this transaction'), 'the walkthrough opens a real transaction with its fee: ' + sheet);
+  t.assert(sheet.includes('Deposit by debit card') && sheet.includes('+100.00 USBC') && sheet.includes('REF-C6V3-1KE7') && sheet.includes('−0.50 USBC') && sheet.includes('Explain with AI') && sheet.includes('Ask about this transaction'), 'the walkthrough opens a real transaction with its fee: ' + sheet);
   await page.evaluate(() => YES.overview.video.seek(0));
   t.eq(await said(page), [], 'seeking while paused speaks nothing');
 
@@ -1602,14 +1602,14 @@ async function videoSuite(t) {
   const es = await vstate(page);
   // (Playwright's clicks on the phone's Menu advance the held page clock by a frame or two before the switch.)
   t.assert(!es.playing && Math.abs(es.t - st.t) < 0.1 && (await cancels(page)) > c0, `paused at the same place (${st.t} → ${es.t}) and the voice stopped`);
-  t.eq(await caption(page), 'Cerraste el período con 1.147,50 EXUSD.', 'the caption is in Spanish, with Spanish figures');
-  t.eq(norm(await page.locator('[data-vp-cue="5"] .ov-vtr__text').textContent()), 'Cerraste el período con 1.147,50 EXUSD.', 'the transcript is in Spanish');
+  t.eq(await caption(page), 'Cerraste el período con 1.147,50 USBC.', 'the caption is in Spanish, with Spanish figures');
+  t.eq(norm(await page.locator('[data-vp-cue="5"] .ov-vtr__text').textContent()), 'Cerraste el período con 1.147,50 USBC.', 'the transcript is in Spanish');
   t.eq(await page.$$eval('[data-vp-ch] .ov-vchap__name', (els) => els.map((e) => e.textContent)), ['Saludo personal', 'Saldo inicial y final', 'El movimiento más relevante', 'Cómo revisar un movimiento', 'Dónde obtener ayuda'], 'chapters in Spanish');
   t.eq([await page.getAttribute('[data-fk="vp-toggle"]', 'aria-label'), await page.getAttribute('[data-vp-range]', 'aria-valuetext')], ['Reproducir', '0:19 de 1:00, capítulo 2: Saldo inicial y final'], 'controls in Spanish');
-  t.eq(norm(await page.locator('.vs-bal__card .vs-row--closing').innerText()).replace(/\s+/g, ' ').trim(), 'Saldo final 1.147,50 EXUSD', 'the picture is in Spanish');
+  t.eq(norm(await page.locator('.vs-bal__card .vs-row--closing').innerText()).replace(/\s+/g, ' ').trim(), 'Saldo final 1.147,50 USBC', 'the picture is in Spanish');
   const esCues = await page.evaluate(() => YES.overview.video.cues());
   t.eq(tight(esCues), [], 'Spanish cues fit their windows');
-  t.eq(esCues.filter((c) => /EXUSD/.test(c.say)).map((c) => c.id), [], 'the Spanish voice never spells the symbol');
+  t.eq(esCues.filter((c) => /USBC/.test(c.say)).map((c) => c.id), [], 'the Spanish voice never spells the symbol');
   n0 = (await said(page)).length;
   await page.click('[data-fk="vp-toggle"]');
   t.eq(await page.evaluate((n) => window.__tts.spoken.slice(n), n0), [{ text: 'Cerraste el período con 1147,5 unidades de token.', lang: 'es-ES', voice: 'Stub Español' }], 'Play resumes in a Spanish voice');

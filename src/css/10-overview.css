@@ -140,7 +140,7 @@
   align-items: center;
   gap: var(--s2);
   margin: 0 0 var(--s1);
-  /* Sized by its column so "+147.50 EXUSD" and its glyph share one line
+  /* Sized by its column so "+147.50 USBC" and its glyph share one line
      (glyph ≈ 44px, figures ≈ 9em), between 20px and the 32px of wide cards;
      a longer figure wraps its unit rather than overflow. */
   font-size: clamp(1.25rem, calc((100cqi - 44px) / 10), 2rem);
@@ -1054,7 +1054,7 @@ button.jr-step:hover {
   font-size: var(--fs-lg);
   margin: 0 0 var(--s1);
 }
-/* Inline lists with "·" separators ("5 transactions · −450.00 EXUSD · Listed
+/* Inline lists with "·" separators ("5 transactions · −450.00 USBC · Listed
    by posted date", "Sep 3, 2026 · Sent"). Each item draws its own leading
    separator in its left padding; the inner row is shifted left by one
    separator and the wrapper clips it, so a separator that would start a

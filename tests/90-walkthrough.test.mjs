@@ -104,7 +104,7 @@ export default async function (t) {
   t.step('2. understand the closing balance');
   t.eq((await text('.ov-hero__num')).trim(), CLOSING, 'hero shows the closing balance 1,147.50');
   t.assert((await text('#ov-balance-title')).includes('Statement balance'), 'hero is labelled "Statement balance"');
-  t.assert((await text('.ov-hero__sym')).includes('EXUSD'), 'hero names the asset');
+  t.assert((await text('.ov-hero__sym')).includes('USBC'), 'hero names the asset');
   t.assert((await text('.ov-asof')).includes('As of Sep 30, 2026'), 'statement as-of time shown');
   const hero = await page.locator('.ov-hero__num').boundingBox();
   t.assert(hero && hero.y + hero.height <= (mobile ? 844 : 900), 'closing balance is above the fold on load');
@@ -181,7 +181,7 @@ export default async function (t) {
   const panelIds = await page.$$eval('#ov-panel [data-ov-tx]', (els) => els.map((e) => e.getAttribute('data-ov-tx')));
   t.eq(panelIds, TRANSFERS_OUT, 'exactly the five outgoing transfers, in posted order');
   const panel = await text('#ov-panel');
-  t.assert(panel.includes('Outgoing transfers') && panel.includes('5 transactions') && panel.includes('−450.00 EXUSD'), 'panel names the step, count and total');
+  t.assert(panel.includes('Outgoing transfers') && panel.includes('5 transactions') && panel.includes('−450.00 USBC'), 'panel names the step, count and total');
   t.assert(panel.includes('Northside Market'), 'the Northside Market payment is one of the rows');
   t.assert(await page.locator(`#ov-panel [data-ov-tx="${NORTHSIDE}"]`).isVisible(), 'rows are visible');
   await waitFor(() => /Outgoing transfers selected: 5 transactions/.test(document.getElementById('live-polite').textContent));
@@ -194,7 +194,7 @@ export default async function (t) {
   t.eq(await state(() => YES.state.selectedTx), NORTHSIDE, 'selected transaction in state');
   t.eq((await text('#tx-dialog-title')).trim(), 'Payment to a YES merchant', 'detail title');
   const detail = await text('#tx-dialog');
-  for (const s of ['−45.50 EXUSD', 'Northside Market', 'REF-M8Q2-4DK9', 'TX-260924-1327', 'Posted', '1,097.00 EXUSD', 'EDT']) t.assert(detail.includes(s), 'detail shows ' + s);
+  for (const s of ['−45.50 USBC', 'Northside Market', 'REF-M8Q2-4DK9', 'TX-260924-1327', 'Posted', '1,097.00 USBC', 'EDT']) t.assert(detail.includes(s), 'detail shows ' + s);
   t.assert(await page.locator('#tx-dialog [data-txd-close]').isVisible(), 'visible close control');
 
   t.step('5b. dialogs keep the language chosen in the header (the only switch); the selection survives a switch');
@@ -209,7 +209,7 @@ export default async function (t) {
   await page.click(`#ov-panel [data-ov-tx="${NORTHSIDE}"]`);
   await waitFor(() => document.getElementById('tx-dialog').open);
   t.eq(await state(() => YES.state.selectedTx), NORTHSIDE, 'same transaction reopened');
-  t.assert(nb(await text('#tx-dialog')).includes('−45,50 EXUSD'), 'detail in Spanish, the language chosen in the header');
+  t.assert(nb(await text('#tx-dialog')).includes('−45,50 USBC'), 'detail in Spanish, the language chosen in the header');
   t.eq(await page.locator('#tx-dialog [data-lang]').count(), 0, 'still no language switch in the dialog');
   await page.click('#tx-dialog [data-txd-close]');
   await waitFor(() => !document.getElementById('tx-dialog').open);
@@ -226,10 +226,10 @@ export default async function (t) {
   t.assert(!(await dialogOpen('tx-dialog')), 'detail hands over to the assistant');
   t.assert(await page.locator('#assistant-root').getByText('Demo explanation').first().isVisible(), '"Demo explanation" label visible');
   const ctxChip = await text('#assistant-root [data-asst-ctx]');
-  t.assert(ctxChip.includes('Payment to a YES merchant') && ctxChip.includes('−45.50 EXUSD'), 'context chip names the selected fact: ' + ctxChip);
+  t.assert(ctxChip.includes('Payment to a YES merchant') && ctxChip.includes('−45.50 USBC'), 'context chip names the selected fact: ' + ctxChip);
   const answer = await text('#assistant-root .asst-ans');
   t.assert(answer.includes('Payment to a YES merchant'), 'answer names the selected transaction');
-  t.assert(answer.includes('1,142.50 EXUSD') && answer.includes('1,097.00 EXUSD'), 'answer states the balance before and after from the ledger');
+  t.assert(answer.includes('1,142.50 USBC') && answer.includes('1,097.00 USBC'), 'answer states the balance before and after from the ledger');
   t.assert(answer.includes('REF-M8Q2-4DK9') && answer.includes('Northside Market'), 'answer shows the figures used');
   const supporting = await page.$$eval('#assistant-root .asst-ans [data-asst-tx]', (els) => els.map((e) => e.getAttribute('data-asst-tx')));
   t.eq(supporting, [NORTHSIDE], 'answer points to the exact supporting row');
@@ -322,7 +322,7 @@ export default async function (t) {
   t.eq(await state(() => YES.state.assistant.thread.map((e) => e.id)), before.thread, 'explanation thread kept');
   t.eq(await page.$$eval('#ov-panel [data-ov-tx]', (els) => els.map((e) => e.getAttribute('data-ov-tx'))), TRANSFERS_OUT, 'same five rows listed');
   const esPanel = await text('#ov-panel');
-  t.assert(esPanel.includes('Transferencias enviadas') && esPanel.includes('−450,00 EXUSD'), 'rows re-rendered in Spanish with Spanish number format');
+  t.assert(esPanel.includes('Transferencias enviadas') && esPanel.includes('−450,00 USBC'), 'rows re-rendered in Spanish with Spanish number format');
   t.eq((await text('#h-overview')).trim(), 'Tu estado de cuenta de septiembre de 2026', 'Spanish heading');
   t.eq(await page.locator('#masthead .demo-badge').count(), 0, 'Spanish: no demo badge in the header');
   t.assert(!/ilustrativ/i.test(await page.locator('#masthead').innerText()), 'Spanish: nor a demo band above it');
@@ -332,7 +332,7 @@ export default async function (t) {
     await waitFor(() => YES.state.assistant.open && document.querySelector('#assistant-root .asst-ans'));
   }
   const esAnswer = await text('#assistant-root .asst-ans');
-  t.assert(esAnswer.includes('Pago a un comercio de YES') && esAnswer.includes('1.097,00 EXUSD'), 'explanation re-rendered in Spanish');
+  t.assert(esAnswer.includes('Pago a un comercio de YES') && esAnswer.includes('1.097,00 USBC'), 'explanation re-rendered in Spanish');
   t.assert((await text('#assistant-root')).includes('Explicación de demostración'), 'Spanish demo label');
   await axeDoc('Spanish, assistant open');
   await t.shot('09-spanish');
@@ -390,7 +390,7 @@ export default async function (t) {
   t.assert(!(await page.locator('#app').isVisible()), 'interactive UI hidden in print');
   const pr = nb(await page.locator('#print-root').innerText());
   t.assert(pr.includes('Statement of record') && pr.includes('YES-STM-202609-000184'), 'record title and statement ID');
-  t.assert(pr.includes('Closing balance') && pr.includes('1,147.50 EXUSD'), 'closing balance printed');
+  t.assert(pr.includes('Closing balance') && pr.includes('1,147.50 USBC'), 'closing balance printed');
   t.assert(/ILLUSTRATIVE DEMO DATA/i.test(pr), 'demo watermark/label printed');
   t.eq(await page.locator('#print-root [data-print-tx]').count(), 15, 'all 15 posted transactions printed');
   t.eq(await page.locator(`#print-root [data-print-pending="${PENDING}"]`).count(), 1, 'pending item printed separately');
@@ -415,7 +415,7 @@ export default async function (t) {
   t.assert(marks >= pages, `every page carries the demo watermark (${marks} on ${pages} pages)`);
   t.assert(/^Title:\s+\S/m.test(info.stdout || ''), 'the PDF has a title');
   const pdfText = nb(spawnSync('pdftotext', ['-layout', '-enc', 'UTF-8', pdfFile.pathname, '-'], { encoding: 'utf8' }).stdout || '');
-  t.assert(pdfText.includes('YES-STM-202609-000184') && pdfText.includes('1,147.50 EXUSD'), 'selectable text: statement ID and closing balance');
+  t.assert(pdfText.includes('YES-STM-202609-000184') && pdfText.includes('1,147.50 USBC'), 'selectable text: statement ID and closing balance');
   const refs = await state(() => YES.data.transactions.map((x) => x.reference));
   t.eq(refs.filter((r) => !pdfText.includes(r)), [], 'every transaction reference is in the PDF (posted and not in balance)');
   t.eq(t.external.filter((u) => !/cdn\.userway\.org/.test(u)), [], 'making the PDF requested nothing from the network');

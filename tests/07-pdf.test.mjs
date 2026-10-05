@@ -44,9 +44,9 @@ export default async function (t) {
       m1: P.measure('1,147.50', 'regular', 10),
       m2: P.measure('1,147.50', 'bold', 10),
       mMinus: [P.measure('\u22122.50', 'regular', 12), P.measure('-2.50', 'regular', 12)],
-      // The column holds "1,147.50 EXUSD" but not "Total 1,147.50 EXUSD" (and would
+      // The column holds "1,147.50 USBC" but not "Total 1,147.50 USBC" (and would
       // hold "Total 1,147.50" if the no-break space were a break opportunity).
-      nbsp: P.wrap('Total 1,147.50\u00a0EXUSD', 'regular', 10, P.measure('1,147.50 EXUSD', 'regular', 10) + 2),
+      nbsp: P.wrap('Total 1,147.50\u00a0USBC', 'regular', 10, P.measure('1,147.50 USBC', 'regular', 10) + 2),
       hard: P.wrap('one\ntwo three', 'regular', 10, 1000),
       long: P.wrap('Supercalifragilistic', 'bold', 10, 40),
       longFits: P.wrap('Supercalifragilistic', 'bold', 10, 40).every((l) => P.measure(l, 'bold', 10) <= 40)
@@ -63,7 +63,7 @@ export default async function (t) {
   t.eq(unit.m1, 38.92, 'Helvetica AFM widths: "1,147.50" at 10pt = (6×556 + 2×278)/100');
   t.eq(unit.m2, 38.92, 'Helvetica-Bold digits share the 556 advance');
   t.eq(unit.mMinus[0], unit.mMinus[1], 'the minus sign is measured as the "-" it is written as');
-  t.eq(unit.nbsp, ['Total', '1,147.50\u00a0EXUSD'], 'wrap never breaks at a no-break space (amount and unit stay together)');
+  t.eq(unit.nbsp, ['Total', '1,147.50\u00a0USBC'], 'wrap never breaks at a no-break space (amount and unit stay together)');
   t.eq(unit.hard, ['one', 'two three'], 'wrap honours line breaks');
   t.assert(unit.long.length > 1 && unit.longFits, 'a word wider than the column is split between characters: ' + JSON.stringify(unit.long));
 
@@ -85,9 +85,9 @@ export default async function (t) {
     doc.text('¿Qué tal? ¡Sí! Año, ñandú: á é í ó ú Á É Í Ó Ú ü — 20 € “comillas” …', L, 84, { size: 11 });
     doc.text('Escapes: (parentheses) and \\backslash', L, 104, { size: 11 });
     const rows = [
-      ['Depósito', '+500,00\u00a0EXUSD'],
-      ['Comisión', '\u22122,50\u00a0EXUSD'],
-      ['Saldo final ≈ → ✓', '1.147,50\u00a0EXUSD']
+      ['Depósito', '+500,00\u00a0USBC'],
+      ['Comisión', '\u22122,50\u00a0USBC'],
+      ['Saldo final ≈ → ✓', '1.147,50\u00a0USBC']
     ];
     let y = 136;
     doc.rect(L, y - 6, R - L, rows.length * 22 + 8, { fill: '#f0f2f5' });
@@ -99,7 +99,7 @@ export default async function (t) {
     });
     doc.text('Centrado', L, y + 10, { align: 'center', width: R - L, size: 9, color: '#5d6874' });
     y = doc.paragraph(
-      'Este párrafo es lo bastante largo como para partirse en varias líneas dentro de una columna de doscientos cincuenta puntos, y mantiene juntos 1.147,50\u00a0EXUSD.',
+      'Este párrafo es lo bastante largo como para partirse en varias líneas dentro de una columna de doscientos cincuenta puntos, y mantiene juntos 1.147,50\u00a0USBC.',
       L,
       y + 34,
       { width: 250, size: 10 }
@@ -125,7 +125,7 @@ export default async function (t) {
       a4: Array.from(a4),
       pages: doc.pageCount(),
       right: R - 8,
-      amountWidth: YES.pdf.measure('1.147,50\u00a0EXUSD', 'bold', 10)
+      amountWidth: YES.pdf.measure('1.147,50\u00a0USBC', 'bold', 10)
     };
   });
   t.eq(built.pages, 3, 'three pages');
@@ -171,7 +171,7 @@ export default async function (t) {
   t.assert(lengthsOk, 'every stream /Length is exact');
   t.assert(/\/CreationDate \(D:20261004120000\+00'00'\)/.test(raw), 'creation date');
   // Right alignment: the amount's start + its AFM width = the right edge.
-  const m = raw.match(/\/F2 10 Tf [\d. ]+ rg 1 0 0 1 ([\d.]+) [\d.]+ Tm \(1\.147,50 EXUSD\) Tj/);
+  const m = raw.match(/\/F2 10 Tf [\d. ]+ rg 1 0 0 1 ([\d.]+) [\d.]+ Tm \(1\.147,50 USBC\) Tj/);
   t.assert(!!m && Math.abs(+m[1] + built.amountWidth - built.right) < 0.011, 'right-aligned amount ends exactly at the right edge: ' + (m && m[1]));
   // The watermark comes first on every page, so it is drawn beneath the content.
   const streams = [...raw.matchAll(/stream\n([\s\S]*?)endstream/g)].map((x) => x[1]);
@@ -214,8 +214,8 @@ export default async function (t) {
   ]) {
     t.assert(text.includes(s), 'text layer has: ' + s);
   }
-  t.assert(/Comisión\s+-2,50 EXUSD/.test(text), 'the minus sign is written as "-" and the amount stays with its unit');
-  t.assert(/\+500,00 EXUSD/.test(text) && /1\.147,50 EXUSD/.test(text), 'amounts with their units');
+  t.assert(/Comisión\s+-2,50 USBC/.test(text), 'the minus sign is written as "-" and the amount stays with its unit');
+  t.assert(/\+500,00 USBC/.test(text) && /1\.147,50 USBC/.test(text), 'amounts with their units');
   // (The diagonal watermark is real text too; poppler extracts diagonal text one
   // letter per line, on lines of its own, so it never splits a content line.)
   t.eq(text.split('\f').filter((p) => p.trim()).length, 3, 'three pages of text');

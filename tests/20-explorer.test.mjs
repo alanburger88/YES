@@ -103,7 +103,7 @@ export default async function (t) {
   t.assert(/September/.test(lede), 'lede names the period');
   t.eq(await count(), 'Showing all 16 transactions', 'initial count');
   t.eq((await ids()).length, 16, '16 rows');
-  t.assert((await page.locator('#transactions-root [data-tx-total]').innerText().then(nbsp)).includes('+147.50 EXUSD'), 'net change from calc');
+  t.assert((await page.locator('#transactions-root [data-tx-total]').innerText().then(nbsp)).includes('+147.50 USBC'), 'net change from calc');
   if (mobile) {
     t.eq(await page.locator('.tx-table').count(), 0, 'no table on mobile');
     t.eq(await page.locator('.tx-cards > li.tx-card').count(), 16, '16 stacked cards');
@@ -209,7 +209,7 @@ export default async function (t) {
   await page.fill('#tx-max', '200');
   await waitCount('Showing 5 of 16 transactions');
   t.eq((await ids()).sort(), ['TX-260903-1127', 'TX-260909-2051', 'TX-260912-0805', 'TX-260920-0900', 'TX-260922-0901'], 'amounts between 100 and 200');
-  t.assert((await page.locator('[data-tx-chip="amount"]').innerText().then(nbsp)).includes('100.00 EXUSD to 200.00 EXUSD'), 'amount chip');
+  t.assert((await page.locator('[data-tx-chip="amount"]').innerText().then(nbsp)).includes('100.00 USBC to 200.00 USBC'), 'amount chip');
   await page.fill('#tx-min', '45,5');
   await page.fill('#tx-max', '45.50');
   await waitCount('Showing 1 of 16 transactions');
@@ -225,11 +225,11 @@ export default async function (t) {
   await openPanel();
   await page.fill('#tx-max', '1,000');
   await waitCount('Showing 16 of 16 transactions');
-  t.assert((await page.locator('[data-tx-chip="amount"]').innerText().then(nbsp)).includes('up to 1,000.00 EXUSD'), 'EN: 1,000 is one thousand');
+  t.assert((await page.locator('[data-tx-chip="amount"]').innerText().then(nbsp)).includes('up to 1,000.00 USBC'), 'EN: 1,000 is one thousand');
   await page.evaluate(() => YES.setLang('es'));
   t.eq(await count(), 'Mostrando 16 de 16 movimientos', 'ES: same rows');
   t.eq(await page.inputValue('#tx-max'), '1000', 'input rewritten without an ambiguous separator');
-  t.assert((await page.locator('[data-tx-chip="amount"]').innerText().then(nbsp)).includes('hasta 1.000,00 EXUSD'), 'ES chip: one thousand');
+  t.assert((await page.locator('[data-tx-chip="amount"]').innerText().then(nbsp)).includes('hasta 1.000,00 USBC'), 'ES chip: one thousand');
   await page.evaluate(() => YES.setLang('en'));
   await page.fill('#tx-max', '');
   await page.fill('#tx-min', '45.5');
@@ -327,7 +327,7 @@ export default async function (t) {
   await waitCount('Showing 5 of 16 transactions');
   t.eq((await ids()).sort(), TRANSFERS_OUT.slice().sort(), 'exactly the outgoing transfers');
   const total = await page.locator('[data-tx-total]').innerText().then(nbsp);
-  t.assert(total.includes('Filtered total') && total.includes('−450.00 EXUSD') && total.includes('5 posted transactions'), 'filtered total ' + total);
+  t.assert(total.includes('Filtered total') && total.includes('−450.00 USBC') && total.includes('5 posted transactions'), 'filtered total ' + total);
   t.eq((await page.locator('[data-tx-chip="step"]').innerText().then(nbsp)).trim(), 'Step: Outgoing transfers', 'step chip');
   t.eq(await page.evaluate(() => document.activeElement.id), 'tx-results-title', 'focus moved to the results');
   t.eq(await page.getAttribute('.tx-chips__back', 'href'), '#/overview', 'way back to the journey');
@@ -364,7 +364,7 @@ export default async function (t) {
   t.eq(await page.evaluate(() => location.hash), '#/transactions/TX-260903-1127', 'deep-link route');
   t.eq(await page.evaluate(() => YES.state.selectedTx), 'TX-260903-1127', 'selectedTx in state');
   const dtext = await page.locator('#tx-dialog').innerText().then(nbsp);
-  for (const s of ['−120.00 EXUSD', 'token units', 'Posted', 'Initiated', 'EDT', 'Event type', 'transfer_out', 'Internal (YES)', 'YES transfer', 'Daniel K.', '“Rent share”', '1,130.00 EXUSD', 'REF-T3M8-4LZ1', 'TX-260903-1127', 'No fees']) {
+  for (const s of ['−120.00 USBC', 'US Bank Coin (USBC)', 'Posted', 'Initiated', 'EDT', 'Event type', 'transfer_out', 'Internal (YES)', 'YES transfer', 'Daniel K.', '“Rent share”', '1,130.00 USBC', 'REF-T3M8-4LZ1', 'TX-260903-1127', 'No fees']) {
     t.assert(dtext.includes(s), 'detail shows ' + s);
   }
   t.eq(await page.locator('#tx-dialog .tx-onchain').count(), 0, 'no blockchain section for an internal transfer');
@@ -467,8 +467,8 @@ export default async function (t) {
   await page.click('[data-tx-row="TX-260909-2051"] [data-tx-open]', { force: true });
   await page.waitForFunction(() => document.getElementById('tx-dialog').open);
   const fees = await page.locator('#tx-dialog .tx-fees').innerText().then(nbsp);
-  t.assert(fees.includes('Network transfer fee') && fees.includes('−1.00 EXUSD') && fees.includes('TX-260909-2052'), 'parent lists its fee line');
-  t.assert((await page.locator('#tx-dialog .tx-fees__total').innerText().then(nbsp)).includes('−201.00 EXUSD'), 'total including fees');
+  t.assert(fees.includes('Network transfer fee') && fees.includes('−1.00 USBC') && fees.includes('TX-260909-2052'), 'parent lists its fee line');
+  t.assert((await page.locator('#tx-dialog .tx-fees__total').innerText().then(nbsp)).includes('−201.00 USBC'), 'total including fees');
   await page.click('[data-fk="txd-fee-TX-260909-2052"]');
   t.eq((await page.locator('#tx-dialog-title').innerText().then(nbsp)).trim(), 'Fee for sending to an external wallet', 'fee line opened');
   t.assert((await page.locator('#tx-dialog').innerText().then(nbsp)).includes('This fee belongs to'), 'fee links back');
@@ -623,7 +623,7 @@ export default async function (t) {
   await headerLang('es');
   t.eq(await page.evaluate(() => YES.state.filters.step), 'transfers_out', 'filters kept in state');
   t.eq(await count(), 'Mostrando 5 de 16 movimientos', 'Spanish count, same filter');
-  t.assert((await page.locator('[data-tx-total]').innerText().then(nbsp)).includes('−450,00 EXUSD'), 'Spanish filtered total 450,00');
+  t.assert((await page.locator('[data-tx-total]').innerText().then(nbsp)).includes('−450,00 USBC'), 'Spanish filtered total 450,00');
   t.eq((await page.locator('[data-tx-chip="step"]').innerText().then(nbsp)).trim(), 'Paso: Transferencias enviadas', 'Spanish chip');
   t.assert(await page.locator('[data-tx-row="TX-260903-1127"]').isVisible(), 'the same row is still in the list');
   await page.click('[data-tx-row="TX-260903-1127"] [data-tx-open]', { force: true });
@@ -631,7 +631,7 @@ export default async function (t) {
   t.eq(await page.evaluate(() => YES.state.selectedTx), 'TX-260903-1127', 'same transaction reopened');
   t.eq((await page.locator('#tx-dialog-title').innerText().then(nbsp)).trim(), 'Transferencia a otro cliente de YES', 'reopened in the language chosen in the masthead');
   const esDlg = await page.locator('#tx-dialog').innerText().then(nbsp);
-  t.assert(esDlg.includes('−120,00 EXUSD') && esDlg.includes('Preguntar por este movimiento'), 'Spanish amounts and actions');
+  t.assert(esDlg.includes('−120,00 USBC') && esDlg.includes('Preguntar por este movimiento'), 'Spanish amounts and actions');
   t.eq(await page.locator('#tx-dialog [data-lang]').count(), 0, 'still no language switch in the Spanish detail');
   t.eq(await page.evaluate(() => YES.i18n.audit()), {}, 'i18n parity after switch');
   // WCAG 3.1.2: the customer's own memo is not translated, so it keeps the statement's language.
@@ -876,7 +876,7 @@ export default async function (t) {
     await page.evaluate(() => YES.explorer.openTx('TX-260909-2051'));
     await page.waitForTimeout(350);
     t.eq((await page.locator('#tx-dialog-title').innerText().then(nbsp)).trim(), 'Envío a un monedero externo en una red blockchain', 'sheet reopened in Spanish');
-    t.assert(nbsp(await page.locator('#tx-dialog').innerText()).includes('−200,00 EXUSD'), 'Spanish amount on the sheet');
+    t.assert(nbsp(await page.locator('#tx-dialog').innerText()).includes('−200,00 USBC'), 'Spanish amount on the sheet');
     await t.shot('sheet-es');
     await page.click('#tx-dialog [data-txd-close]');
     await waitClosed();

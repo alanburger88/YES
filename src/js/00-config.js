@@ -26,7 +26,7 @@
       YES_PRIMARY_DARK: '#6cb4ee', // primary tuned for dark colour scheme
       YES_ACCENT: '#e8a33d',
       YES_FONT: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-      PRODUCT_NAME: { en: 'Example USD Stablecoin', es: 'Example USD Stablecoin' },
+      PRODUCT_NAME: { en: 'US Bank Coin', es: 'US Bank Coin' },
       ISSUER_OR_PARTNER: { en: '[Issuer or partner — pending YES approval]', es: '[Emisor o socio — pendiente de aprobación de YES]' },
       VIDEO_POSTER: null, // approved poster image (data URI); when null the player shows its own opening frame
       /* Approved recorded voiceover for "Your statement in 60 seconds", one per

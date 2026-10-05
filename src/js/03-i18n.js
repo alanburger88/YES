@@ -158,7 +158,7 @@
       return out;
     },
 
-    /** Words for screen readers, e.g. "minus 120.00 EXUSD" / "menos 120,00 EXUSD". */
+    /** Words for screen readers, e.g. "minus 120.00 USBC" / "menos 120,00 USBC". */
     amountSpoken: function (minor, opts) {
       var unsigned = fmt.amount(Math.abs(minor), { sign: 'never', unit: !(opts && opts.unit === false) });
       if (minor < 0) return YES.t('fmt.minus') + ' ' + unsigned;

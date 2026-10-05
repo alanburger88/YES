@@ -354,9 +354,9 @@ export default async function (t) {
   t.eq((await text('#help-integrity .help-check'))?.includes('Every transaction has a unique ID'), true, 'labels from foundation check strings');
   t.eq((await text('#help-integrity .help-badge')).trim(), '9 of 9 checks passed', 'summary badge');
   const eqVisual = await text('#help-integrity .help-eq__visual');
-  for (const v of ['1,000.00', '500.00', '200.00', '450.00', '100.00', '2.50', '1,147.50 EXUSD']) t.assert(eqVisual.includes(v), `equation shows ${v}`);
+  for (const v of ['1,000.00', '500.00', '200.00', '450.00', '100.00', '2.50', '1,147.50 USBC']) t.assert(eqVisual.includes(v), `equation shows ${v}`);
   const spoken = await page.locator('#help-integrity .help-eq .sr-only').textContent();
-  t.assert(nbsp(spoken).startsWith('Opening balance 1,000.00 EXUSD, plus deposits 500.00 EXUSD') && nbsp(spoken).includes('minus fees 2.50 EXUSD, equals closing balance 1,147.50 EXUSD.'), 'equation spoken text');
+  t.assert(nbsp(spoken).startsWith('Opening balance 1,000.00 USBC, plus deposits 500.00 USBC') && nbsp(spoken).includes('minus fees 2.50 USBC, equals closing balance 1,147.50 USBC.'), 'equation spoken text');
   const prev = page.locator('[data-help-preview]');
   t.eq(await prev.getAttribute('href'), '#/overview?simulate=mismatch', 'preview link loads the simulated mismatch');
   t.eq((await prev.innerText()).trim(), 'Preview the exception state', 'preview label');
@@ -567,7 +567,7 @@ export default async function (t) {
     return r.left >= 0 && r.right <= window.innerWidth;
   });
   t.assert(wm, 'watermark fits the page width');
-  t.eq(await text('[data-print-closing]'), '1,147.50 EXUSD', 'closing balance 1,147.50');
+  t.eq(await text('[data-print-closing]'), '1,147.50 USBC', 'closing balance 1,147.50');
   t.assert(pr.includes('Not included in the statement balance'), 'pending section heading');
   t.eq(await page.$$eval('#print-root [data-print-pending]', (els) => els.map((e) => e.getAttribute('data-print-pending'))), ['TX-260930-2247'], 'pending transaction listed separately');
   t.eq(await page.locator('#print-root [data-print-ledger] [data-print-pending]').count(), 0, 'pending not in the posted ledger');
@@ -575,7 +575,7 @@ export default async function (t) {
     t.assert(pr.toLowerCase().includes(fact.toLowerCase()), `print includes "${fact}"`);
   }
   t.eq(await page.$$eval('#print-root [data-print-cat]', (els) => els.map((e) => e.getAttribute('data-print-cat'))), ['deposits', 'transfers_in', 'transfers_out', 'redemptions', 'fees'], 'summary categories');
-  t.eq(await text('[data-print-eq]'), 'Opening balance 1,000.00 + Deposits 500.00 + Incoming transfers 200.00 − Outgoing transfers 450.00 − Redemptions 100.00 − Fees 2.50 = Closing balance 1,147.50 EXUSD', 'equation line');
+  t.eq(await text('[data-print-eq]'), 'Opening balance 1,000.00 + Deposits 500.00 + Incoming transfers 200.00 − Outgoing transfers 450.00 − Redemptions 100.00 − Fees 2.50 = Closing balance 1,147.50 USBC', 'equation line');
   t.eq(await page.locator('#print-root [data-print-fee]').count(), 3, 'three fee lines');
   t.assert((await text('[data-print-fees-total]')).includes('−2.50'), 'fees total');
   // Totals print once, at the true end of their table. A <tfoot> (display:
@@ -797,10 +797,10 @@ export default async function (t) {
     t.eq((en.info.match(/^Title:\s+(.*)$/m) || [])[1], titleEn, 'document title');
     t.eq(nbsp(titleEn), 'YES statement of record, September 1 – 30, 2026 (YES-STM-202609-000184)', 'title names the period and statement');
     const tx = en.text;
-    for (const fact of ['Statement of record', 'EXAMPLE USD STABLECOIN', 'Sam Ortega', '100 Sample Avenue, Apt 4', 'Anytown, ST 00000', 'YES stablecoin account •••• 7316', 'Wallet 0x5A…E19C', s.id, 'Issue status', 'Original', 'Oct 1, 2026, 6:15 AM EDT', 'Sep 30, 2026, 11:59 PM EDT', 'EDT (America/New_York)', 'Posted date', 'Example USD Stablecoin (EXUSD)', 'Balance summary', 'Opening balance 1,000.00 + Deposits 500.00', 'Net change +147.50 EXUSD across 15 transactions.', 'Posted transactions', 'Initiated date', 'Previous period', 'Fee for REF-N8C4-2VB9', 'Fees summary', 'Total fees (3 transactions)', 'Disclosures', 'Interactive statement delivered via InfoSlips', 'ILLUSTRATIVE DEMO DATA — FICTIONAL']) {
+    for (const fact of ['Statement of record', 'US BANK COIN', 'Sam Ortega', '100 Sample Avenue, Apt 4', 'Anytown, ST 00000', 'YES stablecoin account •••• 7316', 'Wallet 0x5A…E19C', s.id, 'Issue status', 'Original', 'Oct 1, 2026, 6:15 AM EDT', 'Sep 30, 2026, 11:59 PM EDT', 'EDT (America/New_York)', 'Posted date', 'US Bank Coin (USBC)', 'Balance summary', 'Opening balance 1,000.00 + Deposits 500.00', 'Net change +147.50 USBC across 15 transactions.', 'Posted transactions', 'Initiated date', 'Previous period', 'Fee for REF-N8C4-2VB9', 'Fees summary', 'Total fees (3 transactions)', 'Disclosures', 'Interactive statement delivered via InfoSlips', 'ILLUSTRATIVE DEMO DATA — FICTIONAL']) {
       t.assert(tx.includes(fact), `PDF text includes "${fact}"`);
     }
-    t.assert(/Closing balance\s+1,147\.50 EXUSD/.test(tx), 'closing balance 1,147.50 EXUSD in the summary');
+    t.assert(/Closing balance\s+1,147\.50 USBC/.test(tx), 'closing balance 1,147.50 USBC in the summary');
     t.assert(!/ending in/.test(tx) && !tx.includes('?'), 'masked identifiers print as bullets; nothing fell outside the PDF encoding');
     // The ledger: every posted reference, in chronological order, then the closing row.
     const ord = en.order;
@@ -853,7 +853,7 @@ export default async function (t) {
     for (const fact of ['Estado de cuenta oficial', 'Cuenta de stablecoin de YES •••• 7316', 'Monedero 0x5A…E19C', 'Período del estado de cuenta', 'Resumen del saldo', 'Saldo inicial 1.000,00 + Depósitos 500,00', 'Movimientos registrados', 'Fecha de inicio', 'Período anterior', 'Comisión de REF-N8C4-2VB9', 'Resumen de comisiones', 'Divulgaciones', 'Página 1 de ' + es.pages, 'Datos ilustrativos de demostración — cliente, importes y referencias ficticios', 'DATOS ILUSTRATIVOS DE DEMOSTRACIÓN']) {
       t.assert(tx.includes(fact), `Spanish PDF text includes "${fact}"`);
     }
-    t.assert(/Saldo final\s+1\.147,50 EXUSD/.test(tx), 'Spanish closing balance 1.147,50 EXUSD');
+    t.assert(/Saldo final\s+1\.147,50 USBC/.test(tx), 'Spanish closing balance 1.147,50 USBC');
     t.assert(!tx.includes('?') && !/ending in|que termina en/.test(tx), 'Spanish text fully encoded');
     const ord = es.order;
     const at = refs.posted.map((r) => ord.indexOf(r));

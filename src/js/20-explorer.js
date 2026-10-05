@@ -1894,7 +1894,7 @@
       (YES.config.demo ? '<span class="tx-dlg__demo">' + ui.illustrativeTag('demo.badge') + '</span>' : '') +
       '<span class="tx-dlg__break" aria-hidden="true"></span>' +
       '<p class="tx-dlg__unit">' +
-      esc(t('explorer.dlg.unit', { unit: YES.L(a.unitLabel), asset: YES.L(a.name), symbol: a.symbol })) +
+      esc(t('explorer.dlg.unit', { asset: YES.L(a.name), symbol: a.symbol })) +
       '</p>' +
       '</div>' +
       inquiryNote +
@@ -2628,7 +2628,7 @@
 
         'explorer.dlg.close': 'Close transaction details',
         'explorer.dlg.eyebrow': '{type} · {date}',
-        'explorer.dlg.unit': '{unit} of {asset} ({symbol})',
+        'explorer.dlg.unit': '{asset} ({symbol})',
         'explorer.dlg.details': 'Details',
         'explorer.dlg.status': 'Status',
         'explorer.dlg.posted': 'Posted',
@@ -2848,7 +2848,7 @@
 
         'explorer.dlg.close': 'Cerrar los detalles del movimiento',
         'explorer.dlg.eyebrow': '{type} · {date}',
-        'explorer.dlg.unit': '{unit} de {asset} ({symbol})',
+        'explorer.dlg.unit': '{asset} ({symbol})',
         'explorer.dlg.details': 'Detalles',
         'explorer.dlg.status': 'Estado',
         'explorer.dlg.posted': 'Registrado',
