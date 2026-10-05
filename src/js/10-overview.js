@@ -35,10 +35,11 @@
   /* Net change uses a trend glyph: the tray arrows (arrow-in / arrow-out) mean
      "received" / "sent" for a single transaction, and a downward "received"
      arrow next to a positive change reads as a decrease. */
+  /* Lucide icons (ISC License, Copyright (c) Lucide Icons and Contributors). */
   ui.registerIcons({
-    'trend-up': '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
-    'trend-down': '<path d="m3 7 6 6 4-4 8 8"/><path d="M15 17h6v-6"/>',
-    'trend-flat': '<path d="M3 12h18"/><path d="m16 7 5 5-5 5"/>'
+    'trend-up': '<path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/>', // Lucide trending-up
+    'trend-down': '<path d="M16 17h6v-6"/><path d="m22 17-8.5-8.5-5 5L2 7"/>', // Lucide trending-down
+    'trend-flat': '<path d="M18 8L22 12L18 16"/><path d="M2 12H22"/>' // Lucide move-right
   });
 
   /* Disclosure state survives re-renders and language switches. The selected
@@ -1758,14 +1759,15 @@
     return i + 1 < VID.chapters.length ? VID.chapters[i + 1].at : VID.end;
   }
 
+  /* Player controls: Lucide icons (ISC License, Copyright (c) Lucide Icons and Contributors). */
   ui.registerIcons({
-    'vp-pause': '<rect x="6.5" y="5" width="3.6" height="14" rx="1"/><rect x="13.9" y="5" width="3.6" height="14" rx="1"/>',
-    'vp-replay': '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v4.2h4.2"/>',
-    'vp-volume': '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6"/><path d="M18.2 6.6a7.6 7.6 0 0 1 0 10.8"/>',
-    'vp-muted': '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="m16 9.5 5 5"/><path d="m21 9.5-5 5"/>',
-    'vp-cc': '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M10.6 10.3a2.2 2.2 0 1 0 0 3.4"/><path d="M17 10.3a2.2 2.2 0 1 0 0 3.4"/>',
-    'vp-fs': '<path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/>',
-    'vp-fs-exit': '<path d="M9 4v5H4"/><path d="M15 4v5h5"/><path d="M9 20v-5H4"/><path d="M15 20v-5h5"/>'
+    'vp-pause': '<rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/>', // Lucide pause
+    'vp-replay': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>', // Lucide rotate-ccw
+    'vp-volume': '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/>', // Lucide volume-2
+    'vp-muted': '<path d="M11 4.702a.7.7 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.7.7 0 0 0 11 19.298z"/><path d="m16.5 14.5 5-5"/><path d="m16.5 9.5 5 5"/>', // Lucide volume-x
+    'vp-cc': '<rect width="18" height="14" x="3" y="5" rx="2" ry="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/>', // Lucide captions
+    'vp-fs': '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>', // Lucide maximize
+    'vp-fs-exit': '<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>' // Lucide minimize
   });
 
   /** m:ss, whole seconds. */
