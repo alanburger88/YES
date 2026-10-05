@@ -1732,6 +1732,21 @@ async function videoSuite(t) {
         ink: greet.classList.contains('yes-logo--art') ? getComputedStyle(greet).color === getComputedStyle(stage.querySelector('.vs-greet__hello')).color : null
       };
     });
+  const shipped = await logos();
+  t.eq([shipped.placeholders, shipped.art, shipped.hidden, shipped.kind, shipped.height, shipped.ratio], [0, 3, true, 'img', wide ? 4.8 : 1, 1], 'the approved YES logo in every place, square artwork kept');
+  t.assert(
+    await page.evaluate(() => [...document.querySelectorAll('.vp-stage .vs-logo img')].every((i) => i.getAttribute('src') === YES.config.slots.YES_LOGO.srcDark)),
+    'the stage is a dark field in both schemes: only the white artwork (srcDark)'
+  );
+  // Set the approved artwork aside to exercise the placeholder and other kinds.
+  await page.evaluate(() => {
+    const s = YES.config.slots.YES_LOGO;
+    window.__approvedLogo = { src: s.src, srcDark: s.srcDark };
+    delete s.src;
+    delete s.srcDark;
+    YES.renderAll();
+    YES.overview.video.seek(5);
+  });
   t.eq(await logos(), { placeholders: 3, art: 0, hidden: true, kind: null, height: null, ratio: null, ink: null }, 'without artwork: the text placeholder (greeting, corner, closing card)');
   const before = t.external.length;
   await page.evaluate(() => {
@@ -1755,7 +1770,7 @@ async function videoSuite(t) {
   });
   t.eq((await logos()).placeholders, 3, 'an image URL that would fetch is ignored: the placeholder stays');
   await page.evaluate(() => {
-    delete YES.config.slots.YES_LOGO.src;
+    Object.assign(YES.config.slots.YES_LOGO, window.__approvedLogo);
     YES.renderAll();
   });
   t.eq(t.external.slice(before).filter((u) => /example\.com/.test(u)), [], 'no request for a logo URL');

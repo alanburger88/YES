@@ -70,8 +70,9 @@ export default async function (t) {
       bg: getComputedStyle(document.body).backgroundColor,
       scheme: getComputedStyle(document.documentElement).colorScheme
     }));
-  const LIGHT_BG = 'rgb(245, 246, 248)';
-  const DARK_BG = 'rgb(14, 17, 22)';
+  // YES brand: a white page on light, a black page on dark.
+  const LIGHT_BG = 'rgb(255, 255, 255)';
+  const DARK_BG = 'rgb(0, 0, 0)';
   // The header carries no "Illustrative demo data" badge or band (product
   // owner, 2026-10-04). The fictional data stays marked by the footer notice,
   // the document title, the Illustrative tags and the print/PDF watermark.
@@ -308,6 +309,10 @@ export default async function (t) {
   t.step('logo slot helper: artwork, data-URI image or the named text placeholder');
   const logo = await state(() => {
     const slot = YES.config.slots.YES_LOGO;
+    // The approved artwork ships in the slot; set it aside to exercise every kind.
+    const approved = { src: slot.src, srcDark: slot.srcDark };
+    delete slot.src;
+    delete slot.srcDark;
     const read = (html) => {
       const tpl = document.createElement('template'); // inert: nothing loads
       tpl.innerHTML = html;
@@ -323,6 +328,7 @@ export default async function (t) {
         text: el.textContent,
         style: el.getAttribute('style'),
         img: img ? [img.getAttribute('src').slice(0, 18), img.getAttribute('alt')] : null,
+        imgs: [...el.querySelectorAll('img')].map((i) => [i.className, i.getAttribute('alt')]),
         svg: !!el.querySelector('svg')
       };
     };
@@ -341,12 +347,22 @@ export default async function (t) {
     slot.svg = '<svg viewBox="0 0 120 40" aria-hidden="true" focusable="false"><rect width="120" height="40" rx="8"/></svg>';
     out.svg = read(YES.ui.logoHtml({ cls: 'pr-logo' }));
     delete slot.svg;
+    Object.assign(slot, approved);
+    out.approved = approved;
+    out.pair = read(YES.ui.logoHtml({ cls: 'brand__logo' }));
+    out.onDark = read(YES.ui.logoHtml({ tone: 'dark' }));
+    out.symbol = (() => {
+      const tpl = document.createElement('template');
+      tpl.innerHTML = YES.ui.symbolHtml({ size: 32 });
+      const el = tpl.content.firstElementChild;
+      return { hidden: el.getAttribute('aria-hidden'), role: el.getAttribute('role'), style: el.getAttribute('style'), imgs: [...el.querySelectorAll('img')].map((i) => [i.className, i.getAttribute('alt')]) };
+    })();
     out.masthead = !!document.querySelector('#masthead .brand > .yes-logo.brand__logo[data-slot="YES_LOGO"][role="img"][aria-label="YES"]');
     return out;
   });
   t.eq(
     logo.placeholder,
-    { n: 1, cls: 'yes-logo yes-logo--placeholder brand__logo brand__logo--placeholder', role: 'img', label: 'YES', hidden: null, slot: 'YES_LOGO', text: 'YES', style: null, img: null, svg: false },
+    { n: 1, cls: 'yes-logo yes-logo--placeholder brand__logo brand__logo--placeholder', role: 'img', label: 'YES', hidden: null, slot: 'YES_LOGO', text: 'YES', style: null, img: null, imgs: [], svg: false },
     'placeholder: one element, named "YES", modifier on the caller\'s class'
   );
   t.eq([logo.pt, logo.px, logo.unsafe], ['--logo-h: 28pt', '--logo-h: 40px', null], 'size sets --logo-h; anything but a plain length is ignored');
@@ -355,6 +371,42 @@ export default async function (t) {
   t.eq([logo.dataUri.cls, logo.dataUri.role, logo.dataUri.label, logo.dataUri.img], ['yes-logo yes-logo--art pr-logo pr-logo--art', 'img', 'YES', ['data:image/svg+xml', '']], 'data-URI image: named once, image itself decorative');
   t.eq([logo.svg.cls, logo.svg.svg, logo.svg.text, logo.svg.label], ['yes-logo yes-logo--art pr-logo pr-logo--art', true, '', 'YES'], 'approved SVG markup');
   t.assert(logo.masthead, 'the masthead renders the slot through ui.logoHtml');
+  t.assert(/^data:image\/png;base64,/.test(logo.approved.src) && /^data:image\/png;base64,/.test(logo.approved.srcDark), 'the approved YES logo (black and white) is packaged as data: URIs');
+  t.eq(
+    [logo.pair.cls, logo.pair.role, logo.pair.label, logo.pair.imgs],
+    ['yes-logo yes-logo--art brand__logo brand__logo--art', 'img', 'YES', [['yes-art yes-art--light', ''], ['yes-art yes-art--dark', '']]],
+    'approved artwork with a dark variant: both images, named once ("YES"), each image decorative'
+  );
+  t.eq(logo.onDark.imgs, [['', '']], 'tone "dark" (an always-dark surface): only the white artwork');
+  t.eq(logo.symbol, { hidden: 'true', role: null, style: '--sym-h: 32px', imgs: [['yes-art yes-art--light', ''], ['yes-art yes-art--dark', '']] }, 'USBC symbol: decorative, light and dark artwork');
+
+  t.step('brand artwork follows the theme (device setting and data-theme); print uses the black version');
+  const shownArt = () =>
+    state(() => {
+      // Computed display, so it also reads in print (where the masthead itself is hidden).
+      const vis = (sel) => [...document.querySelectorAll(sel)].filter((i) => getComputedStyle(i).display !== 'none').map((i) => (i.classList.contains('yes-art--dark') ? 'white' : 'black'));
+      return { logo: vis('#masthead .brand__logo img'), coin: vis('.ov-hero__coin img, .tx-dlg__coin img') };
+    });
+  {
+    const attr0 = await state(() => document.documentElement.getAttribute('data-theme'));
+    const runs = [
+      ['light', 'light', 'screen', 'black'],
+      ['dark', null, 'screen', 'white'],
+      ['light', 'dark', 'screen', 'white'],
+      ['dark', 'light', 'screen', 'black'],
+      ['dark', 'dark', 'print', 'black']
+    ];
+    for (const [scheme, attr, media, want] of runs) {
+      await page.emulateMedia({ colorScheme: scheme, media });
+      // Let YES.theme react to the device change first (it mirrors the theme into data-theme).
+      await state(() => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0))));
+      await state((a) => (a ? document.documentElement.setAttribute('data-theme', a) : document.documentElement.removeAttribute('data-theme')), attr);
+      const shown = await shownArt();
+      t.eq(shown.logo, [want], `masthead logo (device ${scheme}, data-theme ${attr}, ${media})`);
+    }
+    await page.emulateMedia({ colorScheme: 'light', media: 'screen' });
+    await state((a) => document.documentElement.setAttribute('data-theme', a), attr0 || 'light');
+  }
 
   t.step('toast: one line is a pill; a wrapped message is a rounded rectangle across the width');
   const toast = async (msg) => {
@@ -372,7 +424,7 @@ export default async function (t) {
   const long = await toast(
     'Your inquiry draft is kept on this device only, so you can come back to it at any time. Nothing was sent, and no service case exists for this demo statement.'
   );
-  t.eq([long.multi, long.radius], [true, '10px'], 'a wrapped message takes the card radius');
+  t.eq([long.multi, long.radius], [true, '16px'], 'a wrapped message takes the card radius');
   t.assert(long.width > (mobile ? 0.85 : 0.35) * (await state(() => innerWidth)) && long.left >= 15 && long.right >= 15, 'a wrapped toast uses the width (not half the screen) and keeps the gutters: ' + JSON.stringify(long));
   await state(() => document.getElementById('toast').classList.remove('is-visible'));
 
@@ -741,7 +793,7 @@ export default async function (t) {
   await state(() => document.documentElement.setAttribute('data-theme', 'dark'));
   const viaChoice = await read(tokens);
   t.eq(viaChoice, viaDevice, 'device dark and data-theme="dark" give the same tokens');
-  t.eq(await state(() => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()), '#0e1116', 'and they are the dark tokens');
+  t.eq(await state(() => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()), '#000000', 'and they are the dark tokens');
   for (const [scheme, attr] of [
     ['light', 'dark'],
     ['dark', 'dark'],
