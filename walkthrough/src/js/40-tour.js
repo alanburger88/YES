@@ -273,7 +273,7 @@
               '<iframe id="wt-frame" class="wt-tour__frame" src="statement/index.html" title="YES statement (interactive demo)"></iframe>' +
             '</div>' +
             '<div class="wt-tour__veil" aria-hidden="true"><span class="wt-tour__spinner"></span><span>Loading the statement…</span></div>' +
-            '<div class="wt-tour__overlay" id="wt-tour-overlay" data-state="idle" data-dim="' + (S.dim ? 'on' : 'off') + '" aria-hidden="true">' +
+            '<div class="wt-tour__overlay" id="wt-tour-overlay" data-state="idle" data-dim="' + (S.dim ? 'on' : 'off') + '" data-veil="light" aria-hidden="true">' +
               '<svg class="wt-spot" width="100%" height="100%" focusable="false" aria-hidden="true">' +
                 '<defs><mask id="wt-spot-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="100%" height="100%">' +
                   '<rect class="wt-spot__all" x="0" y="0" width="100%" height="100%"></rect>' +
@@ -1252,6 +1252,7 @@
     } catch (e) {
       /* the statement is reloading */
     }
+    syncVeil();
   }
 
   /* ------------------------------------------------------------------ */
@@ -1531,12 +1532,33 @@
     els.hole.setAttribute('height', o ? Math.max(0, o.h) : 0);
   }
 
+  /**
+   * "Dim the rest" fades the statement around the highlight in the statement's own
+   * theme: a white veil over a light statement, a black veil over a dark one. A dark
+   * veil alone did nothing for YES's black cards and black dark mode.
+   */
+  function syncVeil() {
+    if (!els.overlay) return;
+    var tone = 'light';
+    try {
+      var w = fwin();
+      var y = w && w.YES;
+      if (y && y.theme && y.theme.effective) tone = y.theme.effective() === 'dark' ? 'dark' : 'light';
+      else if (w && w.document.documentElement.getAttribute('data-theme') === 'dark') tone = 'dark';
+    } catch (e) {
+      /* the statement is reloading: keep the last tone */
+      return;
+    }
+    if (els.overlay.getAttribute('data-veil') !== tone) els.overlay.setAttribute('data-veil', tone);
+  }
+
   function draw(g, t) {
     var state = { on: 'shown', off: 'offscreen', lost: 'lost', failed: 'failed' }[g.kind] || 'idle';
     setState(state);
     // Remember whether the target was fully in view, until a resize starts (afterResize compares).
     if (!S.resizing && !S.devTimer) S.wasVisible = g.kind === 'on' && !/top|bottom/.test(g.clip || '');
     var ov = els.overlay;
+    syncVeil();
     if (g.kind === 'on') {
       var o = g.o;
       if (S.tween) {

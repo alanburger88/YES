@@ -963,8 +963,14 @@ html[data-view='tour'] #view-tour {
 .wt-spot__hole {
   fill: black;
 }
+/* The veil follows the statement's theme (data-veil, set by the tour), not the app's:
+   it fades the rest of the statement rather than darkening it, so black cards and
+   the black dark mode still stand out from their surroundings. */
 .wt-spot__dim {
-  fill: var(--overlay-dim);
+  fill: rgb(255 255 255 / 0.72);
+}
+.wt-tour__overlay[data-veil='dark'] .wt-spot__dim {
+  fill: rgb(0 0 0 / 0.72);
 }
 .wt-tour__overlay[data-state='shown'] .wt-spot {
   opacity: 1;
