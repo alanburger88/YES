@@ -12,8 +12,11 @@
  *    views (keyboard Tab), never hidden under the sticky masthead.
  * 4. prefers-reduced-motion: no CSS animation or transition longer than 0.01s,
  *    no running animations, no smooth scrolling, no overlay tween.
- * 5. 200% zoom (a 640×400 CSS viewport at deviceScaleFactor 2): the tour panel's
- *    navigation buttons are fully visible, at least 24×24 and never overlap.
+ * 5. 200% zoom (a 640×400 CSS viewport at deviceScaleFactor 2): short screens
+ *    let the tour page scroll (40-tour.css, max-height: 480px), so the panel's
+ *    navigation is reached by scrolling the page; once scrolled into view, its
+ *    buttons (Back and Next included) are fully visible, at least 24×24 and
+ *    never overlap, and the page never scrolls sideways.
  * 6. Dialogs and navigation: every WT dialog closes when the route changes (Back,
  *    or a link inside the dialog), focus goes to the new view instead of a
  *    trigger on the old one, and a normal close still returns focus.
@@ -430,14 +433,20 @@ export default async function (ctx) {
   /* ------------------------------------------------------------------ */
   /* 5. 200% zoom: the tour panel's navigation                           */
   /* ------------------------------------------------------------------ */
-  await step('200% zoom (640×400 at 2×): the tour navigation is fully visible and never overlaps', async () => {
+  await step('200% zoom (640×400 at 2×): the page scrolls to the tour navigation, which is then fully visible and never overlaps', async () => {
     const P = await openPage(ctx, { viewport: ZOOM200, storage: await reviewerSeed() });
     const { page } = P;
     const navCheck = () =>
       page.evaluate(() => {
         const out = [];
         const nav = document.querySelector('.wt-tour__nav');
+        const de = document.documentElement;
+        // Reachable by scrolling the page: the navigation is in the document, below the panel text.
+        const navBottom = nav.getBoundingClientRect().bottom + window.scrollY;
+        if (navBottom > de.scrollHeight + 0.5) out.push('the navigation is beyond the end of the page');
+        nav.scrollIntoView({ block: 'end', behavior: 'instant' });
         const btns = Array.from(nav.querySelectorAll('button')).filter((b) => b.getClientRects().length);
+        for (const act of ['prev', 'next']) if (!btns.some((b) => b.getAttribute('data-act') === act)) out.push(act + ' button not shown');
         const rects = btns.map((b) => ({ b, r: b.getBoundingClientRect(), name: (b.getAttribute('title') || b.textContent).trim() }));
         if (rects.length < 4) out.push('only ' + rects.length + ' navigation buttons shown');
         for (const { b, r, name } of rects) {
@@ -463,7 +472,6 @@ export default async function (ctx) {
         const nr = nav.getBoundingClientRect();
         const sc = document.querySelector('.wt-tour__scroll').getBoundingClientRect();
         if (sc.bottom > nr.top + 0.5 && sc.height > 0) out.push('the panel content runs under the navigation');
-        const de = document.documentElement;
         if (de.scrollWidth > de.clientWidth) out.push('the page scrolls sideways');
         return out;
       });

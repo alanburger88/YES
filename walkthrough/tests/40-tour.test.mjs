@@ -1180,10 +1180,11 @@ export default async function (ctx) {
       await page.locator('input[name="tour-vote"][value="exclude"]').check();
       await until(async () => (await chipText()) === 'Your view: Excluded · High priority', 3000, 'chip Excluded');
       assert.equal((await page.locator('#tour-priority legend').innerText()).trim(), 'Priority if YES did include it (optional)');
+      await page.evaluate(() => (window.__said = []));
       await page.locator('input[name="tour-vote"][value="include"]').check();
       assert.equal((await page.locator('#tour-priority legend').innerText()).trim(), 'Priority if included');
       // Typing announces nothing until the field is left; then "Saved"
-      await until(async () => (await statusOf(page)).state === 'saved', 8000, 'saved');
+      await until(async () => (await said(page)).includes('Saved') && (await page.evaluate(() => window.WT.answers.pending())) === 0, 8000, 'the vote saved');
       await page.evaluate(() => (window.__said = []));
       await page.locator('#tour-reason').fill('Because.');
       await sleep(1500);
@@ -1226,9 +1227,10 @@ export default async function (ctx) {
     try {
       await activated(page, ids[6]);
       await recordAnnounce(page);
+      // A refusal that is not retried by itself (403): kept, with Retry, and no promise of a retry
       await page.route('**/api/me', (route) =>
         route.request().method() === 'PUT'
-          ? route.fulfill({ status: 422, contentType: 'application/json', body: '{"error":{"code":"invalid","message":"Invalid"}}' })
+          ? route.fulfill({ status: 403, contentType: 'application/json', body: '{"error":{"code":"forbidden","message":"Forbidden"}}' })
           : route.fallback()
       );
       await page.locator('input[name="tour-vote"][value="include"]').check();
@@ -1237,10 +1239,21 @@ export default async function (ctx) {
       assert.ok(st.retry, 'Retry shown');
       const msgs = (await said(page)).join(' | ');
       assert.match(msgs, /isn’t saved/, 'the failure is announced: ' + msgs);
-      const willRetry = await page.evaluate(() => window.WT.answers.status().willRetry);
-      if (willRetry !== true) {
-        assert.doesNotMatch(st.text + ' ' + msgs, /automatically|shortly|we’ll try again|we’ll retry/i, 'no promise of an automatic retry');
-      }
+      assert.equal(await page.evaluate(() => window.WT.answers.status().willRetry), false);
+      assert.doesNotMatch(st.text + ' ' + msgs, /automatically|shortly|we’ll try again|we’ll retry/i, 'no promise of an automatic retry');
+      await page.unroute('**/api/me');
+      // A change the server refuses outright (422) is dropped by the core: never shown as "Saved", no Retry
+      await page.route('**/api/me', (route) =>
+        route.request().method() === 'PUT'
+          ? route.fulfill({ status: 422, contentType: 'application/json', body: '{"error":{"code":"invalid","message":"Invalid"}}' })
+          : route.fallback()
+      );
+      await page.evaluate(() => (window.__said = []));
+      await page.locator('input[name="tour-priority"][value="low"]').check();
+      await until(async () => /server refused/.test((await statusOf(page)).text), 8000, 'refused status');
+      assert.equal((await statusOf(page)).state, 'error');
+      assert.equal((await statusOf(page)).retry, false, 'nothing to retry');
+      assert.match((await said(page)).join(' | '), /wasn’t saved: the server refused it/);
       await page.unroute('**/api/me');
       // Finish while the save hangs: "Saving your answers…", then the results within about 3 s
       await page.route('**/api/me', (route) => (route.request().method() === 'PUT' ? undefined : route.fallback()));

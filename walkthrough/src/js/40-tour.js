@@ -773,8 +773,18 @@
   }
   /** The status line from a 'saved' payload (or the current status when p is null). */
   function setSaveFrom(p) {
+    if (!S.built) return; // the tour was never opened: nothing to show
     var st = WT.answers.status();
     p = p || { ok: st.ok, pending: st.pending, willRetry: st.willRetry, saving: st.saving };
+    if (p.ok && Array.isArray(p.dropped) && p.dropped.length) {
+      // The server refused a change (422) and the core dropped it: nothing to retry, never "Saved".
+      var mine = p.dropped.indexOf(S.id) !== -1;
+      setSave('error', mine ? 'Not saved: the server refused this change.' : 'A change wasn’t saved: the server refused it.');
+      els.retry.hidden = true;
+      S.sayOnSave = false;
+      if (tourVisible()) WT.announce(mine ? 'Your change to this feature wasn’t saved: the server refused it. Please check it and try again.' : 'One of your changes wasn’t saved: the server refused it.');
+      return;
+    }
     var pending = p.pending != null ? p.pending : st.pending;
     // willRetry comes from the core when it knows (true only while a retry is scheduled);
     // without it, never promise an automatic retry.
@@ -782,7 +792,8 @@
     if (p.saving || (p.ok && pending)) return setSave('saving', 'Saving…');
     if (p.ok) {
       S.failSaid = false;
-      if (st.savedAt || p.savedAt) setSave('saved', 'Saved');
+      // After "Start as a new reviewer" ({ reset: true }) nothing of this reviewer was saved yet.
+      if (!p.reset && (p.savedAt || st.savedAt)) setSave('saved', 'Saved');
       else setSave('idle', 'Your answers save automatically.');
       return;
     }
@@ -793,7 +804,7 @@
     }
     var text = offline() || p.offline ? 'Not saved yet: you’re offline. We’ll save when you’re back.' : willRetry ? 'Not saved yet. We’ll try again shortly.' : 'Not saved yet.';
     setSave('error', text);
-    if (!S.failSaid) {
+    if (!S.failSaid && tourVisible()) {
       S.failSaid = true;
       S.sayOnSave = false;
       WT.announce(
@@ -1948,6 +1959,7 @@
       WT.on('saved', function (p) {
         p = p || {};
         setSaveFrom(p);
+        if (p.reset) S.sayOnSave = false;
         if (p.ok && !p.pending && S.sayOnSave) {
           S.sayOnSave = false;
           WT.announce('Saved');
