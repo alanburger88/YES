@@ -186,15 +186,17 @@ async function paints(page) {
   return page.evaluate(() => {
     const probe = document.createElement('span');
     document.body.appendChild(probe);
-    const tok = (name) => {
+    const tok = (name, within) => {
+      (within ? document.querySelector(within) : document.body).appendChild(probe);
       probe.style.color = 'var(' + name + ')';
       return getComputedStyle(probe).color;
     };
     const cs = (sel) => getComputedStyle(document.querySelector(sel));
     const out = {
       theme: document.documentElement.getAttribute('data-theme'),
-      card: [cs('.ov-balance').backgroundColor, tok('--surface')],
-      hero: [cs('.ov-hero__num').color, tok('--ink')],
+      // The balance card is a YES ink field (its own tokens): black, white type.
+      card: [cs('.ov-balance').backgroundColor, tok('--bg', '.ov-balance')],
+      hero: [cs('.ov-hero__num').color, tok('--ink', '.ov-balance')],
       bar: [cs('.jr-step--out .jr-bar').backgroundColor, tok('--out')],
       line: [cs('.ov-chart__svg .c-line').stroke, tok('--total')],
       marker: [cs('.ov-chart__svg .ov-mk--in').fill, tok('--in')],
@@ -818,7 +820,8 @@ export default async function (t) {
   t.assert(pd.bg !== p0.bg && pd.contrast !== p0.contrast, `the dark stage differs from the light one (luminance ${pd.bg} vs ${p0.bg}, contrast ${pd.contrast} vs ${p0.contrast})`);
   const darkPaint = await paints(page);
   t.assert(followsTokens(darkPaint), 'dark: card, hero, journey bars, chart line, markers and grid follow the tokens: ' + JSON.stringify(darkPaint));
-  t.assert(['card', 'hero', 'bar', 'line', 'marker'].every((k) => darkPaint[k][0] !== lightPaint[k][0]), 'and they are the dark colours, not the light ones');
+  t.assert(['bar', 'line', 'marker', 'grid'].every((k) => darkPaint[k][0] !== lightPaint[k][0]), 'and they are the dark colours, not the light ones');
+  t.eq([lightPaint.card[0], lightPaint.hero[0], darkPaint.card[0], darkPaint.hero[0]], ['rgb(0, 0, 0)', 'rgb(255, 255, 255)', 'rgb(0, 0, 0)', 'rgb(255, 255, 255)'], 'the balance card is the YES black field with white type in both schemes');
   await shot(t, 'dark');
   if (wide) {
     await page.evaluate(() => document.getElementById('ov-why-title').scrollIntoView());

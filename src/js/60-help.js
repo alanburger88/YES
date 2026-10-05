@@ -2191,7 +2191,7 @@
         'help.about.e.liveBalance.file': 'This statement is a period snapshot; no live balance is shown.',
         'help.about.e.liveBalance.prod': 'A separate, timestamped area, apart from the statement.',
         'help.slots.title': 'Brand and legal replacement slots',
-        'help.slots.lede': 'The logo, the USBC symbol, the colours and the typeface follow the YES brand book. YES replaces the other placeholders with approved assets and wording before production. Current values in this file:',
+        'help.slots.lede': 'The logo, the USBC symbol, the colors and the typeface follow the YES brand book. YES replaces the other placeholders with approved assets and wording before production. Current values in this file:',
         'help.slots.colSlot': 'Slot',
         'help.slots.colValue': 'Current value',
         'help.slots.logoText': 'Text “{text}” in a placeholder box',

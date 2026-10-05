@@ -7,7 +7,7 @@ The showcase is **one HTML file** (`dist/yes-statement.html`) assembled by `buil
 | Path | Owner | Purpose |
 | --- | --- | --- |
 | `src/index.html` | foundation | Page skeleton with mount points, dialogs, live regions |
-| `src/css/00-tokens.css` | foundation | Design tokens (light default; dark from the device setting or the visitor's choice), brand slots |
+| `src/css/00-tokens.css` | foundation | Design tokens: the YES brand (light default; dark from the device setting or the visitor's choice; the `.ink-field` hero), brand slots. See *YES brand tokens* |
 | `src/css/01-base.css` | foundation | Reset, typography, focus, motion, utilities |
 | `src/css/02-components.css` | foundation | Shared components (buttons, cards, chips, forms, table, dialog, notices, status, amounts) |
 | `src/css/03-shell.css` | foundation | Masthead, section tabs, phone menu, light/dark toggle, footer, withheld state |
@@ -66,6 +66,58 @@ Rules:
 10. **Demo honesty**: illustrative content is labelled (`ui.illustrativeTag()`, `.notice--illustrative`); demo-only behaviour says so; nothing claims to be sent, verified or live. The header carries no demo badge (see *Demo labels* below), so a module that shows fictional figures in its own section keeps its own tag (`.demo-badge` with `t('demo.badge')`, or `ui.illustrativeTag()`).
 11. **No network**: no external URLs for scripts, styles, fonts, images or links that fetch. The only network request in the file is the UserWay loader in `06-userway.js`.
 
+## YES brand tokens
+
+The statement follows the YES brand book (v2, June 2026): black, white and the accent blue, IBM Plex Sans, soft shapes (pill buttons and chips, 16–24px card radii), flat surfaces with hairline borders, Lucide icons and the approved YES logo and USBC symbol. `src/css/00-tokens.css` holds every value; components read roles, never raw hex.
+
+- **Palette.** Primary: black `#000000`, white `#FFFFFF`, accent blue `#0004FF`. Secondary: utility grey `#D9D9D9` / `#EFEFEF`, progressive silver `#ADB2B8` / `#D1D6DC`, bronze `#E2C2B6` / `#F3E5E0`, gold `#BCA58E` / `#DFCAB5`. Any other value is **derived** (a mix of black, white and a brand colour, tuned for contrast) and marked so in the token file.
+- **Roles.** `--primary` fills primary actions (black on light, white on dark). `--sel` marks current and selected states and key highlights (tabs, pressed pills, journey selection, switches), `--primary-ink` is links and accent text, and `--focus` is the focus ring: all accent blue on light, and on dark a derived tint, `#8587FF`, because `#0004FF` as text on black is only 2.46:1. Filled blue blocks with white type stay `#0004FF` (8.53:1), e.g. the light video stage (`--brand-blue`).
+- **Ink field.** `.ink-field` (end of `00-tokens.css`) is a YES black field with white type for one hero area, the statement balance card. It redeclares the dark token values plus the tokens derived on `:root` (`--primary`, `--focus-ring`), since a derived custom property is computed where it is declared; keep it in step with the dark blocks. Brand artwork inside it uses the white version. Screen only: print stays light.
+- **Texture.** `--dots` / `--dots-size`: a dot grid behind the balance card's header only, fading from the top right; off in print and forced colours.
+- **Type.** `--yes-font` is IBM Plex Sans (SIL OFL 1.1), latin subset, weights 400/500/600/700, inlined as woff2 by `build.mjs` from `@fontsource/ibm-plex-sans`; characters outside the subset (≈, →) fall back to the system font. CSS weights stay on those four (headings 600). Suisse Int'l (licence) and Doto Rounded are not used. The PDF keeps Helvetica (the writer uses the standard 14 fonts) and the text wordmark (it draws no images); its colours are black, derived greys, silver rules and an accent-blue header rule.
+- **Artwork.** `src/brand/*.png` (approved, transparent, 192×192), named by path in `00-config.js` (`YES_LOGO`, `USBC_SYMBOL`) and inlined as `data:` URIs by `build.mjs`; the favicon is the black mark on a white disc. Never redraw, recolour or stretch.
+
+Contrast (WCAG 2.2; text needs 4.5:1, UI boundaries and data marks 3:1):
+
+| Scheme | Token (role) | Value | On | Ratio |
+| --- | --- | --- | --- | --- |
+| Light | `--ink` (text) | `#000000` | `#FFFFFF` / `#EFEFEF` / `#D9D9D9` | 21.00 / 18.26 / 14.88 |
+| Light | `--ink-2` (secondary text, derived) | `#3D3D3D` | `#FFFFFF` / `#EFEFEF` | 10.86 / 9.45 |
+| Light | `--muted` (muted text, derived) | `#5E5E5E` | `#FFFFFF` / `#EFEFEF` | 6.48 / 5.64 |
+| Light | `--primary-ink`, `--sel`, `--focus` (links, current, focus) | `#0004FF` | `#FFFFFF` / `#EFEFEF` / `--primary-wash` `#EBEBFF` | 8.53 / 7.42 / 7.26 |
+| Light | `--on-primary` on `--primary` (button) | `#FFFFFF` on `#000000` | | 21.00 |
+| Light | `--on-sel` on `--sel` (pressed, badges) | `#FFFFFF` on `#0004FF` | | 8.53 |
+| Light | `--field-line` (field boundary, derived) | `#767676` | `#FFFFFF` / `#EFEFEF` / `#D9D9D9` | 4.54 / 3.95 / 3.22 |
+| Light | `--in` (incoming marks) | `#0004FF` | `#FFFFFF` / `--in-wash` `#E6E6FF` | 8.53 / 6.96 |
+| Light | `--out` (outgoing marks) | `#000000` | `#FFFFFF` / `--out-wash` `#EFEFEF` | 21.00 / 18.26 |
+| Light | `--total` (opening/closing bars, chart line; derived from silver) | `#6E737A` | `#FFFFFF` | 4.78 |
+| Light | `--ok` (posted, done) on `--ok-wash` | `#0004FF` on `#EBEBFF` | | 7.26 |
+| Light | `--warn` (pending, warning) **exception** | `#7A4A00` | `#FFFFFF` / `--warn-wash` `#F7EDDF` | 7.48 / 6.46 |
+| Light | `--danger` (errors) **exception** | `#B3261E` | `#FFFFFF` / `--danger-wash` `#FBECEB` | 6.54 / 5.70 |
+| Light | `--demo-ink` on `--demo-bg` (Illustrative tags, bronze) | `#6B3F2C` on `#F3E5E0` | | 7.21 |
+| Light | `--ai` icon on `--ai-wash` (Explain with AI) | `#0004FF` on `#EBEBFF` | | 7.26 |
+| Dark | `--ink` | `#FFFFFF` | `#000000` / `#121212` / `#1C1C1C` / `#262626` | 21.00 / 18.73 / 17.04 / 15.13 |
+| Dark | `--ink-2` (derived) | `#D1D1D1` | same four | 13.75 / 12.27 / 11.16 / 9.91 |
+| Dark | `--muted` (derived) | `#A8A8A8` | same four | 8.83 / 7.88 / 7.17 / 6.36 |
+| Dark | `--primary-ink`, `--sel`, `--focus` (derived tint of `#0004FF`) | `#8587FF` | same four / `--primary-wash` `#242538` | 6.91 / 6.16 / 5.61 / 4.98 / 4.94 |
+| Dark | `--on-primary` on `--primary` | `#000000` on `#FFFFFF` | | 21.00 |
+| Dark | `--on-sel` on `--sel` | `#000000` on `#8587FF` | | 6.91 |
+| Dark | `--field-line` (derived) | `#808080` | same four | 5.32 / 4.74 / 4.32 / 3.83 |
+| Dark | `--in` | `#8587FF` | `#121212` / `--in-wash` `#1B1C45` | 6.16 / 5.32 |
+| Dark | `--out` (derived, near white) | `#F2F2F2` | `#121212` / `--out-wash` `#262626` | 16.73 / 13.52 |
+| Dark | `--total` (derived from silver) | `#71767D` | `#121212` / `#1C1C1C` | 4.09 / 3.72 |
+| Dark | `--ok` on `--ok-wash` | `#8587FF` on `#17183A` | | 5.62 |
+| Dark | `--warn` **exception** | `#E9BE7E` | `#121212` / `--warn-wash` `#2A2116` | 10.82 / 9.14 |
+| Dark | `--danger` **exception** | `#FF8A80` | `#121212` / `--danger-wash` `#3A1918` | 8.21 / 6.91 |
+| Dark | `--demo-ink` on `--demo-bg` (bronze) | `#E2C2B6` on `#2A1F1B` | | 9.64 |
+| Both | Video stage type (`--vs-ink`) | `#FFFFFF` | `#0004FF` (light) / `#000000` (dark) | 8.53 / 21.00 |
+
+Dark surfaces are derived from black and white: `#121212` (black + 7% white), `#1C1C1C`, `#262626`; lines `#2B2B2B` / `#4D4D4D`.
+
+**Exceptions** (documented, not brand-book colours): pending and warning keep a warm amber tuned toward the progressive gold (`--warn`, `--warn-wash`; the pending chip's outline is progressive gold `#BCA58E`, decorative beside its icon and word); errors keep a red (`--danger`). Both are critical states. Hairlines (`--line` `#D9D9D9`, `--line-strong` silver `#ADB2B8`) are decorative; every interactive boundary that must be seen uses `--field-line` or carries its own text.
+
+**Not colour alone.** Incoming vs outgoing keeps its +/− signs, arrow icons and words; in the journey and chart the three marks also differ in lightness on light (blue, black, grey: in/out 2.46:1, out/total 4.40:1), and in forced colours "reduces" is a striped pattern. Statuses are icon + label chips. Selection adds an outline or check mark.
+
 ## Shared UI toolkit (`YES.ui`)
 
 | Function | Use |
@@ -80,14 +132,15 @@ Rules:
 | `copy(text)`, `download(name, content, mime)` | Clipboard and local file save. `content` is a string or bytes (e.g. `YES.pdf` output with `'application/pdf'`). |
 | `openDialog(dlg, opts)`, `closeDialog(dlg, opts)`, `anyModalOpen()` | Native dialog management (a late `close` event after a quick reopen is ignored) |
 | `dialogTrigger(dlg)`, `setDialogReturn(dlg, el)` | Read / change where focus returns when an open dialog closes |
-| `registerIcons({ name: '<path …/>' })` | Add icons in the shared 24×24 stroke style |
-| `icon(name, { size, label, cls })` | Inline SVG icons (see `ICONS` in 04-core.js; includes `moon`, `sun`, `file-down`, `menu`) |
+| `registerIcons({ name: '<path …/>' })` | Add icons in the shared 24×24 stroke style (Lucide: 2px stroke, round caps and joins) |
+| `icon(name, { size, label, cls })` | Inline SVG icons (see `ICONS` in 04-core.js; includes `moon`, `sun`, `file-down`, `menu`). The path data is from [Lucide](https://lucide.dev) (lucide-static 1.52.0, ISC License), under the statement's own keys; the Lucide name is noted beside each entry |
 | `amountHtml(minor, { sign, unit, cls })` | Signed amount with spoken text for screen readers |
 | `statusHtml(status)` | Status chip with icon + label |
 | `typeLabel(tx)` / `typeLabel(type[, status])`, `typeIcon(type)` | Customer-friendly type label and icon. Pass the transaction: a transaction that is not posted never gets a completed-sounding label ("Redemption requested", not "Redeemed"). A bare type (filter facets) gets the canonical label |
 | `maskedHtml(text)` | Text with masked identifiers ("•••• 4821"): bullets hidden from assistive technology, "ending in 4821" spoken instead |
 | `langSwitchHtml({ fk, compact })` | The language switch, for the shell only (masthead and phone Menu). Dialogs must not include one (rule 7). Buttons are named "English"/"Español" at every width; `compact` shows EN/ES. Clicks on any `[data-lang]` button are handled globally |
-| `logoHtml({ cls, size, decorative })` | The `[YES_LOGO]` slot as one element (masthead, video poster, print header). Uses approved SVG markup (`slot.svg`) or a `data:` image (`slot.src`; a URL that would fetch is ignored). Otherwise it shows the text placeholder (`slot.text`), outlined as a placeholder. The element is named "YES" (`role="img"`); with `decorative: true` it is hidden from assistive technology instead, for when nearby text already names YES. `cls` adds classes, and the first one also gets the state modifier, like `yes-logo` itself (`<cls>--art` / `<cls>--placeholder`). `size` is the height, as px or a CSS length (`'28pt'`). It sets `--logo-h`, and the lettering and artwork scale with it. The placeholder prints legibly without background colours |
+| `logoHtml({ cls, size, decorative, tone })` | The `[YES_LOGO]` slot as one element (masthead, video poster, Help, print header). Uses approved SVG markup (`slot.svg`) or a `data:` image (`slot.src`; a URL that would fetch is ignored). Otherwise it shows the text placeholder (`slot.text`), outlined as a placeholder. With `slot.srcDark` (the white artwork for dark backgrounds) it renders both images (`.yes-art--light` / `.yes-art--dark`) and CSS shows one: the dark one through the same two dark entry points as the tokens, and on an `.ink-field`; print always shows `src` (black); forced colours follow the system palette. `tone: 'dark'` (a surface that is dark in both schemes, like the video stage) uses only `srcDark`, `tone: 'light'` only `src`. The element is named "YES" (`role="img"`, each image `alt=""`); with `decorative: true` it is hidden from assistive technology instead, for when nearby text already names YES. `cls` adds classes, and the first one also gets the state modifier, like `yes-logo` itself (`<cls>--art` / `<cls>--placeholder`). `size` is the height, as px or a CSS length (`'28pt'`). It sets `--logo-h`, and the lettering and artwork scale with it (never stretched: `object-fit: contain`). The placeholder prints legibly without background colours |
+| `symbolHtml({ cls, size, tone })` | The `[USBC_SYMBOL]` slot (the coin symbol), always decorative (`aria-hidden`, `alt=""`): it sits beside text that already says USBC. Same `src` / `srcDark` / `tone` rules as `logoHtml`; `size` sets `--sym-h` (default 20px); `''` when the slot has no artwork. Used with restraint (brand book: wallets, transaction flows, balance displays): beside the statement balance (32px) and in the transaction detail's asset line (20px), never on every row |
 | `illustrativeTag(key)` | “Illustrative” tag |
 | `explainButton({ topic, id }, topicLabel, { compact, fk })` | “Explain with AI” entry point (handled globally) |
 
@@ -174,7 +227,7 @@ YES.ui.download('YES-statement-<id>-DEMO.pdf', doc.save(), 'application/pdf'); /
 ## Testing
 
 ```
-npm install            # playwright (uses the preinstalled Chromium) + axe-core
+npm install            # playwright (uses the preinstalled Chromium) + axe-core; the build inlines @fontsource/ibm-plex-sans
 npm test               # build + every tests/*.test.mjs, offline
 node build.mjs --modules explorer --out test-results/explorer.html
 node tests/run.mjs --file test-results/explorer.html --only explorer

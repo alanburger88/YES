@@ -602,7 +602,7 @@ export default async function (t) {
   await page.evaluate(() => YES.setLang('es'));
   t.eq(await doubled(), [], 'no repeated word anywhere in the Spanish view');
   t.assert(
-    (await text('#und-panel-token_units')).includes('En este estado de cuenta, los tokens se expresan con 2 decimales, así que cada importe es exacto.'),
+    (await text('#und-panel-token_units')).includes('En este estado de cuenta se expresa con 2 decimales, así que cada importe es exacto.'),
     'Spanish token-units copy'
   );
   t.eq(

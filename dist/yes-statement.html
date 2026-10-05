@@ -115,7 +115,7 @@ color-scheme: light;
 --radius-sm: 12px;
 --radius: 16px;
 --radius-lg: 24px;
---shadow-1: 0 0 0 transparent;
+--shadow-1: none;
 --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
 --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.16);
 --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 9%, transparent) 1.2px, transparent 1.6px);
@@ -158,7 +158,7 @@ color-scheme: dark;
 --in-wash: #1b1c45;
 --out: #f2f2f2;
 --out-wash: #262626;
---total: #8e949b;
+--total: #71767d;
 --grid: #262626;
 --axis: #4d4d4d;
 --ok: #8587ff;
@@ -176,7 +176,7 @@ color-scheme: dark;
 --ai: #8587ff;
 --ai-wash: #17183a;
 --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
---shadow-1: 0 0 0 transparent;
+--shadow-1: none;
 --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.6);
 --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.75);
 }
@@ -207,7 +207,7 @@ color-scheme: dark;
 --in-wash: #1b1c45;
 --out: #f2f2f2;
 --out-wash: #262626;
---total: #8e949b;
+--total: #71767d;
 --grid: #262626;
 --axis: #4d4d4d;
 --ok: #8587ff;
@@ -225,12 +225,12 @@ color-scheme: dark;
 --ai: #8587ff;
 --ai-wash: #17183a;
 --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
---shadow-1: 0 0 0 transparent;
+--shadow-1: none;
 --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.6);
 --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.75);
 }
 }
-@media screen {
+@media screen and (forced-colors: none) {
 .ink-field {
 color-scheme: dark;
 --bg: #000000;
@@ -257,7 +257,7 @@ color-scheme: dark;
 --in-wash: #1b1c45;
 --out: #f2f2f2;
 --out-wash: #262626;
---total: #8e949b;
+--total: #71767d;
 --grid: #262626;
 --axis: #4d4d4d;
 --ok: #8587ff;
@@ -275,7 +275,7 @@ color-scheme: dark;
 --ai: #8587ff;
 --ai-wash: #17183a;
 --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
---shadow-1: 0 0 0 transparent;
+--shadow-1: none;
 --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.6);
 --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.75);
 }
@@ -723,7 +723,7 @@ display: none;
 display: block;
 }
 }
-@media screen {
+@media screen and (forced-colors: none) {
 .ink-field .yes-art.yes-art--light {
 display: none;
 }
@@ -1173,7 +1173,7 @@ color: var(--ink-2);
 .seg__btn[aria-pressed='true'] {
 background: var(--surface);
 color: var(--ink);
-box-shadow: var(--shadow-1), inset 0 0 0 1px var(--line-strong);
+box-shadow: inset 0 0 0 1px var(--line-strong);
 }
 .seg__btn:focus-visible {
 outline: 2px solid transparent;
@@ -22860,7 +22860,7 @@ en: {
 'assistant.q.largest': 'What was my largest movement?',
 'assistant.q.pending': 'What is pending?',
 'assistant.q.statement_vs_live': 'Is my statement balance my live balance?',
-'assistant.q.peg': 'Is my balance always worth one US dollar?',
+'assistant.q.peg': 'Is each USBC always worth one US dollar?',
 'assistant.q.onchain_sent': 'Where did I send money on-chain?',
 'assistant.subject.general': 'Your statement for {period}',
 'assistant.subject.chart': 'Running balance',
@@ -22981,7 +22981,7 @@ en: {
 'assistant.edu.usd_equivalent.name': 'USD equivalent',
 'assistant.edu.usd_equivalent.p1': 'A US dollar equivalent is shown only when a rate, its source and a timestamp are all available.',
 'assistant.edu.usd_equivalent.p2': 'This statement uses an illustrative demo rate of {rate} USD per token as of {at}, which is not a market quote. At that rate, your closing balance of {closing} is shown as {fiat}.',
-'assistant.edu.usd_equivalent.p3': 'It is for reference only and does not guarantee that your balance is always worth one US dollar per unit.',
+'assistant.edu.usd_equivalent.p3': 'It is for reference only and does not guarantee that each USBC is always worth one US dollar.',
 'assistant.edu.usd_equivalent.none': 'This statement has no rate with a source and timestamp, so no USD equivalent is shown.',
 'assistant.edu.onchain_vs_internal.name': 'On-chain versus internal transfers',
 'assistant.edu.onchain_vs_internal.p1': 'An internal transfer moves tokens between YES accounts without using a blockchain network.',
@@ -23117,7 +23117,7 @@ es: {
 'assistant.q.largest': '¿Cuál fue mi mayor movimiento?',
 'assistant.q.pending': '¿Qué está pendiente?',
 'assistant.q.statement_vs_live': '¿El saldo del estado de cuenta es mi saldo en vivo?',
-'assistant.q.peg': '¿Mi saldo siempre vale un dólar estadounidense por unidad?',
+'assistant.q.peg': '¿Cada USBC vale siempre un dólar estadounidense?',
 'assistant.q.onchain_sent': '¿A dónde envié dinero en cadena?',
 'assistant.subject.general': 'Tu estado de cuenta de {period}',
 'assistant.subject.chart': 'Saldo acumulado',
@@ -23241,7 +23241,7 @@ es: {
 'assistant.edu.usd_equivalent.name': 'Equivalente en USD',
 'assistant.edu.usd_equivalent.p1': 'El equivalente en dólares estadounidenses solo se muestra cuando hay una tasa, su fuente y una marca de tiempo.',
 'assistant.edu.usd_equivalent.p2': 'Este estado de cuenta usa una tasa ilustrativa de demostración de {rate} USD por token al {at}, que no es una cotización de mercado. Con esa tasa, tu saldo final de {closing} se muestra como {fiat}.',
-'assistant.edu.usd_equivalent.p3': 'Es solo de referencia y no garantiza que tu saldo valga siempre un dólar estadounidense por unidad.',
+'assistant.edu.usd_equivalent.p3': 'Es solo de referencia y no garantiza que cada USBC valga siempre un dólar estadounidense.',
 'assistant.edu.usd_equivalent.none': 'Este estado de cuenta no tiene una tasa con fuente y marca de tiempo, así que no se muestra ningún equivalente en USD.',
 'assistant.edu.onchain_vs_internal.name': 'Transferencias en cadena frente a internas',
 'assistant.edu.onchain_vs_internal.p1': 'Una transferencia interna mueve tokens entre cuentas de YES sin usar una red blockchain.',
@@ -26898,7 +26898,7 @@ en: {
 'help.about.e.liveBalance.file': 'This statement is a period snapshot; no live balance is shown.',
 'help.about.e.liveBalance.prod': 'A separate, timestamped area, apart from the statement.',
 'help.slots.title': 'Brand and legal replacement slots',
-'help.slots.lede': 'The logo, the USBC symbol, the colours and the typeface follow the YES brand book. YES replaces the other placeholders with approved assets and wording before production. Current values in this file:',
+'help.slots.lede': 'The logo, the USBC symbol, the colors and the typeface follow the YES brand book. YES replaces the other placeholders with approved assets and wording before production. Current values in this file:',
 'help.slots.colSlot': 'Slot',
 'help.slots.colValue': 'Current value',
 'help.slots.logoText': 'Text “{text}” in a placeholder box',

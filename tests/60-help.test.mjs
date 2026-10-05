@@ -422,12 +422,32 @@ export default async function (t) {
   });
   t.assert((await analytics()).includes('UserWay'), 'widget named again when enabled');
   // The logo slot shows a miniature of the real slot rendering, hidden from AT (the words describe it).
+  // The approved YES artwork ships in the slot (black and white versions).
   t.eq(
-    await page.$eval('[data-slot-row="YES_LOGO"] .help-logo-mini', (e) => ({ cls: e.className, hidden: e.getAttribute('aria-hidden'), slot: e.getAttribute('data-slot'), text: e.textContent })),
-    { cls: 'yes-logo yes-logo--placeholder help-logo-mini help-logo-mini--placeholder', hidden: 'true', slot: 'YES_LOGO', text: 'YES' },
+    await page.$eval('[data-slot-row="YES_LOGO"] .help-logo-mini', (e) => ({ cls: e.className, hidden: e.getAttribute('aria-hidden'), slot: e.getAttribute('data-slot'), imgs: e.querySelectorAll('img').length })),
+    { cls: 'yes-logo yes-logo--art help-logo-mini help-logo-mini--art', hidden: 'true', slot: 'YES_LOGO', imgs: 2 },
     'logo slot miniature uses ui.logoHtml'
   );
-  t.assert((await text('[data-slot-row="YES_LOGO"]')).includes('Text “YES” in a placeholder box'), 'logo slot described as a text placeholder');
+  t.assert((await text('[data-slot-row="YES_LOGO"]')).includes('Approved YES logo, black and white versions'), 'logo slot described as the approved artwork');
+  t.assert((await text('[data-slot-row="USBC_SYMBOL"]')).includes('Approved USBC symbol, black and white versions'), 'USBC symbol slot described as the approved artwork');
+  const logoTextRow = await page.evaluate(() => {
+    const slot = YES.config.slots.YES_LOGO;
+    const approved = { src: slot.src, srcDark: slot.srcDark };
+    delete slot.src;
+    delete slot.srcDark;
+    YES.renderAll();
+    const row = document.querySelector('[data-slot-row="YES_LOGO"]');
+    const mini = row.querySelector('.help-logo-mini');
+    const out = { cls: mini.className, text: mini.textContent, words: row.querySelector('.help-slot__value').textContent, placeholderTag: !!row.querySelector('.tag--illustrative') };
+    Object.assign(slot, approved);
+    YES.renderAll();
+    return out;
+  });
+  t.eq(
+    logoTextRow,
+    { cls: 'yes-logo yes-logo--placeholder help-logo-mini help-logo-mini--placeholder', text: 'YES', words: 'YESText “YES” in a placeholder box', placeholderTag: true },
+    'without artwork: the text placeholder, described and tagged as one'
+  );
   const logoArtRow = await page.evaluate(() => {
     YES.config.slots.YES_LOGO.svg = '<svg viewBox="0 0 120 40" focusable="false" aria-hidden="true"><rect width="120" height="40" rx="8"/></svg>';
     YES.renderAll();
@@ -437,14 +457,19 @@ export default async function (t) {
     YES.renderAll();
     return out;
   });
-  t.eq(logoArtRow, { svg: true, text: 'Logo artwork supplied' }, 'supplied logo artwork is shown and named in the slot table');
+  t.eq(logoArtRow, { svg: true, text: 'Approved YES logo, black and white versions' }, 'supplied logo artwork is shown and named in the slot table');
   const slots = await page.$$eval('[data-help-slots] tbody tr', (els) => els.map((e) => e.getAttribute('data-slot-row')));
-  t.eq(slots, ['YES_LOGO', 'YES_PRIMARY', 'YES_ACCENT', 'YES_FONT', 'PRODUCT_NAME', 'ISSUER_OR_PARTNER', 'VIDEO_POSTER', 'VIDEO_VOICEOVER', 'DISCLOSURES', 'SUPPORT'], 'replacement slots');
+  t.eq(slots, ['YES_LOGO', 'USBC_SYMBOL', 'YES_PRIMARY', 'YES_ACCENT', 'YES_FONT', 'PRODUCT_NAME', 'ISSUER_OR_PARTNER', 'VIDEO_POSTER', 'VIDEO_VOICEOVER', 'DISCLOSURES', 'SUPPORT'], 'replacement slots');
   const slotsCfg = await page.evaluate(() => YES.config.slots);
   t.assert(about.includes(slotsCfg.YES_PRIMARY) && about.includes(slotsCfg.YES_ACCENT), 'colour slot values');
   t.assert(about.includes(slotsCfg.PRODUCT_NAME.en) && about.includes(slotsCfg.ISSUER_OR_PARTNER.en), 'product and issuer slot values');
   t.assert(about.includes(slotsCfg.DISCLOSURES.en.slice(0, 40)), 'disclosures slot value');
-  t.eq(await page.locator('[data-help-slots] .tag--illustrative').count(), 10, 'every slot tagged as placeholder');
+  t.eq(await page.locator('[data-help-slots] .tag--illustrative').count(), 6, 'every slot not from the brand book tagged as placeholder');
+  t.eq(
+    await page.$$eval('[data-help-slots] tbody tr', (els) => els.filter((e) => e.querySelector('.tag--brand')).map((e) => e.getAttribute('data-slot-row'))),
+    ['YES_LOGO', 'USBC_SYMBOL', 'YES_PRIMARY', 'YES_ACCENT', 'YES_FONT'],
+    'logo, USBC symbol, colours and typeface tagged as YES brand'
+  );
   // The video: the overview's player draws its own poster (its opening frame)
   // and narrates with the device voice unless an approved recording is set.
   const videoAbout = await text('[data-enh="video"]');
@@ -697,6 +722,26 @@ export default async function (t) {
   t.eq(await page.locator('#print-root [data-print-tx]').count(), 15, 'rendered on beforeprint');
 
   t.step('print header uses supplied logo artwork');
+  // The approved YES logo ships in the slot: print shows its black version.
+  await page.emulateMedia({ media: 'print', colorScheme: 'dark' });
+  const shippedPrint = await page.evaluate(() => {
+    window.dispatchEvent(new Event('beforeprint'));
+    const el = document.querySelector('#print-root .pr-logo');
+    return {
+      art: el.classList.contains('pr-logo--art'),
+      label: el.getAttribute('aria-label'),
+      shown: [...el.querySelectorAll('img')].filter((i) => getComputedStyle(i).display !== 'none').map((i) => i.getAttribute('src') === YES.config.slots.YES_LOGO.src)
+    };
+  });
+  await page.emulateMedia({ media: 'screen', colorScheme: 'light' });
+  t.eq(shippedPrint, { art: true, label: 'YES', shown: [true] }, 'print: the approved logo, black version only (even on a dark device)');
+  await page.evaluate(() => {
+    const slot = YES.config.slots.YES_LOGO;
+    window.__approvedLogo = { src: slot.src, srcDark: slot.srcDark };
+    delete slot.src;
+    delete slot.srcDark;
+    window.dispatchEvent(new Event('beforeprint'));
+  });
   t.eq((await text('#print-root .pr-logo')).trim(), 'YES', 'text placeholder when no artwork is supplied');
   const logo = await page.evaluate(() => {
     const slot = YES.config.slots.YES_LOGO;
@@ -739,6 +784,10 @@ export default async function (t) {
   t.eq([logoBox.bg, logoBox.color, logoBox.border], ['rgba(0, 0, 0, 0)', 'rgb(0, 0, 0)', 'solid'], 'placeholder prints as a boxed black wordmark without a fill');
   t.assert(logoBox.h >= 34 && logoBox.h <= 40, `print logo is 28pt tall (${logoBox.h}px)`);
   await page.emulateMedia({ media: 'screen' });
+  await page.evaluate(() => {
+    Object.assign(YES.config.slots.YES_LOGO, window.__approvedLogo);
+    window.dispatchEvent(new Event('beforeprint'));
+  });
 
   /* ------------------------------------------------------------------ */
   t.step('statement-of-record PDF');
@@ -850,7 +899,7 @@ export default async function (t) {
     t.assert(/^Page size:\s+595\.28 x 841\.89 pts \(A4\)/m.test(es.info), 'Spanish: A4');
     t.eq(nbsp((es.info.match(/^Title:\s+(.*)$/m) || [])[1] || ''), 'Estado de cuenta oficial de YES del 1 al 30 de septiembre de 2026 (YES-STM-202609-000184)', 'Spanish title');
     const tx = es.text;
-    for (const fact of ['Estado de cuenta oficial', 'Cuenta YES de dólares digitales emitidos por un banco •••• 7316', 'Monedero 0x5A…E19C', 'Período del estado de cuenta', 'Resumen del saldo', 'Saldo inicial 1.000,00 + Depósitos 500,00', 'Movimientos registrados', 'Fecha de inicio', 'Período anterior', 'Comisión de REF-N8C4-2VB9', 'Resumen de comisiones', 'Divulgaciones', 'Página 1 de ' + es.pages, 'Datos ilustrativos de demostración — cliente, importes y referencias ficticios', 'DATOS ILUSTRATIVOS DE DEMOSTRACIÓN']) {
+    for (const fact of ['Estado de cuenta oficial', 'Cuenta YES de dólares digitales emitidos por un banco', '•••• 7316', 'Monedero 0x5A…E19C', 'Período del estado de cuenta', 'Resumen del saldo', 'Saldo inicial 1.000,00 + Depósitos 500,00', 'Movimientos registrados', 'Fecha de inicio', 'Período anterior', 'Comisión de REF-N8C4-2VB9', 'Resumen de comisiones', 'Divulgaciones', 'Página 1 de ' + es.pages, 'Datos ilustrativos de demostración — cliente, importes y referencias ficticios', 'DATOS ILUSTRATIVOS DE DEMOSTRACIÓN']) {
       t.assert(tx.includes(fact), `Spanish PDF text includes "${fact}"`);
     }
     t.assert(/Saldo final\s+1\.147,50 USBC/.test(tx), 'Spanish closing balance 1.147,50 USBC');

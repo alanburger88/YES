@@ -66,6 +66,14 @@ The fictional data is still marked:
 - **PDF.** The PDF is built in the browser by a small PDF 1.4 writer (`src/js/07-pdf.js`), with no library and no network. It downloads in one click (e.g. `YES-statement-<id>-DEMO.pdf`). Every page of the statement of record carries a demo watermark. The text is real and selectable, set in the standard Helvetica fonts with exact widths, so amounts align.
 - **Light/dark.** The page starts from the device setting and follows it until the visitor uses the toggle. The choice is then remembered in this browser (`localStorage`, key `yes.theme`; if storage is blocked, the page still works). Print and PDF always use the light scheme.
 
+## YES brand
+
+The statement follows the YES brand book (v2, June 2026): a white page (black on dark) with black, white and the accent blue `#0004FF`; IBM Plex Sans for all text; pill buttons, rounded cards and flat surfaces with hairline borders; Lucide icons; the approved YES logo (black and white versions, swapped with the theme) and the USBC symbol beside the statement balance and in the transaction detail. The balance card is a YES black field with white type and a light dot texture. Accent blue as text on black is too faint, so dark mode uses a lighter derived tint for links and selected states. Pending and warning (amber, tuned toward gold) and errors (red) are documented exceptions. The token table with every contrast ratio is in `docs/ARCHITECTURE.md` (*YES brand tokens*).
+
+- **Fonts and artwork are inside the file.** `build.mjs` inlines IBM Plex Sans (latin subset, weights 400–700, SIL Open Font License, from `@fontsource/ibm-plex-sans`) and the PNGs in `src/brand/` as `data:` URIs, so the file still fetches nothing. Icons are Lucide path data (ISC License).
+- **Not used yet:** Suisse Int'l (the headline font needs a licence) and the Doto Rounded accent font.
+- **PDF:** Helvetica and a text wordmark (the writer uses the standard fonts and draws no images), in black with an accent-blue header rule.
+
 ## Connected enhancements (network required, never blocking)
 
 | Enhancement | In this file |
@@ -82,7 +90,7 @@ The fictional data is still marked:
 
 All brand, legal, support and integration values live in `src/js/00-config.js`:
 
-- **Brand and legal slots:** `YES_LOGO`, `YES_PRIMARY`, `YES_ACCENT`, `YES_FONT`, `PRODUCT_NAME`, `ISSUER_OR_PARTNER`, `VIDEO_POSTER`, `VIDEO_VOICEOVER` and `DISCLOSURES`. For the logo, set `YES_LOGO.svg` to approved SVG markup, or `YES_LOGO.src` to a `data:` image. Until then, a text placeholder is shown. The shared helper `YES.ui.logoHtml()` renders the slot.
+- **Brand and legal slots:** `YES_LOGO`, `USBC_SYMBOL`, `YES_PRIMARY`, `YES_ACCENT`, `YES_FONT`, `PRODUCT_NAME`, `ISSUER_OR_PARTNER`, `VIDEO_POSTER`, `VIDEO_VOICEOVER` and `DISCLOSURES`. The logo, the USBC symbol, the colours and the typeface follow the YES brand book (see *YES brand* below); the others are placeholders. `YES_LOGO` and `USBC_SYMBOL` take `src` (a `data:` image) and an optional `srcDark` (the white version for dark backgrounds); a `brand/<file>` path is inlined from `src/brand/` by the build. `YES_LOGO.svg` (SVG markup) also works; with no artwork a text placeholder is shown. The shared helpers `YES.ui.logoHtml()` and `YES.ui.symbolHtml()` render the slots.
 - **Video voiceover:** `VIDEO_VOICEOVER = { en, es }` holds the approved recorded narration for “Your statement in 60 seconds”, one per language, as `data:` audio URIs (for example `data:audio/mpeg;base64,…`), so the file still fetches nothing. When the current language has one, the player plays it in step with the animation. Otherwise (`null`, the default) it narrates with the device's built-in voice (Web Speech API). Captions and the transcript are available either way.
 - **Support destinations:** fictional placeholders for now.
 - **Feature flags**
@@ -118,7 +126,7 @@ node build.mjs                                                 # packages the re
 ## Build and test
 
 ```bash
-npm install          # playwright (preinstalled Chromium) + axe-core, dev only
+npm install          # dev only: playwright (preinstalled Chromium), axe-core, @fontsource/ibm-plex-sans (inlined by the build), lucide-static (source of the icon paths)
 npm run build        # → dist/yes-statement.html (release gate + inline everything, comments stripped)
 node build.mjs --no-minify   # same, with the sources inlined verbatim (debugging)
 npm test             # build, then every browser test offline (desktop + mobile)

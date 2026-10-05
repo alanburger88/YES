@@ -109,7 +109,7 @@
   --radius: 16px;
   --radius-lg: 24px;
   /* Quiet surfaces: flat, with hairline borders; shadows only for layers. */
-  --shadow-1: 0 0 0 transparent;
+  --shadow-1: none;
   --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
   --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.16);
 
@@ -176,7 +176,7 @@
     --in-wash: #1b1c45; /* derived */
     --out: #f2f2f2; /* derived: near white */
     --out-wash: #262626;
-    --total: #8e949b; /* derived from progressive silver */
+    --total: #71767d; /* derived from progressive silver, darker than the blue tint */
     --grid: #262626;
     --axis: #4d4d4d;
 
@@ -197,7 +197,7 @@
     --ai-wash: #17183a;
 
     --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
-    --shadow-1: 0 0 0 transparent;
+    --shadow-1: none;
     --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.6);
     --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.75);
   }
@@ -233,7 +233,7 @@
     --in-wash: #1b1c45; /* derived */
     --out: #f2f2f2; /* derived: near white */
     --out-wash: #262626;
-    --total: #8e949b; /* derived from progressive silver */
+    --total: #71767d; /* derived from progressive silver, darker than the blue tint */
     --grid: #262626;
     --axis: #4d4d4d;
 
@@ -254,7 +254,7 @@
     --ai-wash: #17183a;
 
     --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
-    --shadow-1: 0 0 0 transparent;
+    --shadow-1: none;
     --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.6);
     --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.75);
   }
@@ -266,9 +266,12 @@
  * values (keep them in step with the dark blocks above), plus the tokens the
  * :root blocks derive from others (--primary, --focus-ring), because a
  * derived custom property is computed where it is declared. The field itself
- * is --bg (#000000). Screen only: print keeps the light scheme.
+ * is --bg (#000000). Screen only: print keeps the light scheme. Off in
+ * forced colours, where the system palette paints the card and its icons
+ * keep the page's own tokens (a dark-scheme tint would be faint on a light
+ * system background).
  */
-@media screen {
+@media screen and (forced-colors: none) {
   .ink-field {
     color-scheme: dark;
 
@@ -300,7 +303,7 @@
     --in-wash: #1b1c45; /* derived */
     --out: #f2f2f2; /* derived: near white */
     --out-wash: #262626;
-    --total: #8e949b; /* derived from progressive silver */
+    --total: #71767d; /* derived from progressive silver, darker than the blue tint */
     --grid: #262626;
     --axis: #4d4d4d;
 
@@ -321,7 +324,7 @@
     --ai-wash: #17183a;
 
     --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
-    --shadow-1: 0 0 0 transparent;
+    --shadow-1: none;
     --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.6);
     --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.75);
   }
