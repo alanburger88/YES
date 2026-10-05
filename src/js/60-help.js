@@ -787,6 +787,9 @@
     // A miniature of the slot as rendered everywhere else; the words name its state.
     var logoMini = ui.logoHtml({ cls: 'help-logo-mini', size: 24, decorative: true });
     var logoArt = logoMini.indexOf('yes-logo--art') !== -1;
+    var symbolMini = ui.symbolHtml({ cls: 'help-logo-mini', size: 24 });
+    // Values taken from the YES brand book (v2) are tagged as such, not as placeholders.
+    var BRAND_ROWS = { YES_LOGO: logoArt, USBC_SYMBOL: !!symbolMini, YES_PRIMARY: true, YES_ACCENT: true, YES_FONT: true };
     // The video player uses a poster or a recording only when it is packaged in
     // this file as a data: URI (anything else would be a request), so the table
     // reports what the player will actually use, by the same test.
@@ -807,6 +810,7 @@
     var voiceNote = voiceUsable === 2 ? 'help.slots.voiceNoteAll' : voiceUsable ? 'help.slots.voiceNoteSome' : 'help.slots.voiceNoteNone';
     var slotRows = [
       ['YES_LOGO', logoMini + '<span>' + esc(logoArt ? t('help.slots.logoSvg') : t('help.slots.logoText', { text: logo.text || t('brand.logoAlt') })) + '</span>'],
+      ['USBC_SYMBOL', symbolMini + '<span>' + esc(t(symbolMini ? 'help.slots.symbolArt' : 'help.slots.symbolNone')) + '</span>'],
       ['YES_PRIMARY', swatch(slots.YES_PRIMARY)],
       ['YES_ACCENT', swatch(slots.YES_ACCENT)],
       ['YES_FONT', '<span class="mono help-slot__font">' + esc(slots.YES_FONT) + '</span>'],
@@ -841,7 +845,7 @@
           '<span class="help-slot__value">' +
           r[1] +
           '</span> ' +
-          ui.illustrativeTag('common.placeholder') +
+          (BRAND_ROWS[r[0]] ? '<span class="tag tag--brand">' + esc(t('help.slots.brandTag')) + '</span>' : ui.illustrativeTag('common.placeholder')) +
           '</td></tr>'
         );
       })
@@ -1325,12 +1329,15 @@
    * page) shows through everywhere.
    */
   var PDF_PAGE_SIZE = { en: 'letter', es: 'a4' };
-  var PDF_INK = '#111820';
-  var PDF_INK_2 = '#3f4a57';
-  var PDF_MUTED = '#5d6874';
-  var PDF_RULE = '#8c96a2';
-  var PDF_HAIR = '#cfd5dc';
+  /* YES brand print palette: black ink, greys derived from black and white,
+     progressive silver rules and the accent blue for the header rule. */
+  var PDF_INK = '#000000';
+  var PDF_INK_2 = '#3d3d3d';
+  var PDF_MUTED = '#5e5e5e';
+  var PDF_RULE = '#8e949b';
+  var PDF_HAIR = '#d1d6dc';
   var PDF_MARK = '#e3e3e3';
+  var PDF_ACCENT = '#0004ff';
   var PDF_FS = { body: 7.5, sub: 6.5, head: 6.8, note: 7.5, h2: 11 };
   var PDF_PAD_X = 3;
   var PDF_PAD_Y = 3.2;
@@ -1613,7 +1620,7 @@
       headH = Math.max(headH, dH);
     }
     y += headH + 7;
-    pdf.line(L, y, R, y, { width: 1.6, color: PDF_INK });
+    pdf.line(L, y, R, y, { width: 1.6, color: PDF_ACCENT });
     y += 12;
 
     /* ---------------------------------------- Customer, account, facts */
@@ -2184,11 +2191,14 @@
         'help.about.e.liveBalance.file': 'This statement is a period snapshot; no live balance is shown.',
         'help.about.e.liveBalance.prod': 'A separate, timestamped area, apart from the statement.',
         'help.slots.title': 'Brand and legal replacement slots',
-        'help.slots.lede': 'YES replaces these placeholders with approved assets and wording before production. Current values in this file:',
+        'help.slots.lede': 'The logo, the USBC symbol, the colours and the typeface follow the YES brand book. YES replaces the other placeholders with approved assets and wording before production. Current values in this file:',
         'help.slots.colSlot': 'Slot',
         'help.slots.colValue': 'Current value',
         'help.slots.logoText': 'Text “{text}” in a placeholder box',
-        'help.slots.logoSvg': 'Logo artwork supplied',
+        'help.slots.logoSvg': 'Approved YES logo, black and white versions',
+        'help.slots.symbolArt': 'Approved USBC symbol, black and white versions',
+        'help.slots.symbolNone': 'Not set',
+        'help.slots.brandTag': 'YES brand',
         'help.slots.posterNone': 'Not set — the player shows its own opening frame',
         'help.slots.posterSet': 'Poster image supplied',
         'help.slots.posterIgnored': 'Not used — only an image packaged in this file (a data: URI) is shown, so the player shows its own opening frame',
@@ -2427,11 +2437,14 @@
         'help.about.e.liveBalance.file': 'Este estado de cuenta es una instantánea del período; no se muestra ningún saldo en vivo.',
         'help.about.e.liveBalance.prod': 'Un área separada y con fecha y hora, aparte del estado de cuenta.',
         'help.slots.title': 'Espacios reemplazables de marca y textos legales',
-        'help.slots.lede': 'YES reemplaza estos marcadores de posición por recursos y textos aprobados antes de producción. Valores actuales en este archivo:',
+        'help.slots.lede': 'El logotipo, el símbolo de USBC, los colores y la tipografía siguen el manual de marca de YES. YES reemplaza los demás marcadores de posición por recursos y textos aprobados antes de producción. Valores actuales en este archivo:',
         'help.slots.colSlot': 'Espacio',
         'help.slots.colValue': 'Valor actual',
         'help.slots.logoText': 'Texto «{text}» en un recuadro provisional',
-        'help.slots.logoSvg': 'Logotipo proporcionado',
+        'help.slots.logoSvg': 'Logotipo aprobado de YES, versiones en negro y en blanco',
+        'help.slots.symbolArt': 'Símbolo aprobado de USBC, versiones en negro y en blanco',
+        'help.slots.symbolNone': 'Sin definir',
+        'help.slots.brandTag': 'Marca YES',
         'help.slots.posterNone': 'Sin definir: el reproductor muestra su propio fotograma inicial',
         'help.slots.posterSet': 'Imagen de portada proporcionada',
         'help.slots.posterIgnored': 'No se usa: solo se muestra una imagen incluida en este archivo (un URI data:), así que el reproductor muestra su propio fotograma inicial',

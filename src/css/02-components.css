@@ -121,7 +121,7 @@
 }
 @media (min-width: 720px) {
   .card {
-    padding: var(--s6);
+    padding: var(--s8);
   }
 }
 .card--flat {
@@ -140,7 +140,7 @@
 }
 .card__eyebrow {
   font-size: var(--fs-xs);
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -187,7 +187,7 @@
   background: var(--primary);
   color: var(--on-primary);
   font-size: calc(var(--logo-h) * 0.47);
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.04em;
   white-space: nowrap;
   outline: 1px dashed color-mix(in srgb, var(--primary) 60%, transparent);
@@ -199,6 +199,76 @@
   width: auto;
   height: 100%;
   max-width: calc(var(--logo-h) * 5);
+  object-fit: contain; /* never stretched */
+}
+
+/* ------------------------------------------ USBC symbol ([USBC_SYMBOL]) */
+/* ui.symbolHtml(): the approved coin symbol, decorative, square artwork. */
+.usbc-symbol {
+  --sym-h: 20px;
+  display: inline-flex;
+  flex: none;
+  width: var(--sym-h);
+  height: var(--sym-h);
+  vertical-align: middle;
+}
+.usbc-symbol > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Brand artwork with a dark-background variant (ui.logoHtml / ui.symbolHtml
+   render both; the colour scheme shows one). Light by default, so print and
+   the light scheme use the black artwork; the dark scheme uses the white one
+   through the same two entry points as 00-tokens.css. */
+.yes-art.yes-art--dark {
+  display: none;
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .yes-art.yes-art--light {
+    display: none;
+  }
+  :root:not([data-theme='light']) .yes-art.yes-art--dark {
+    display: block;
+  }
+}
+@media screen {
+  :root[data-theme='dark'] .yes-art.yes-art--light {
+    display: none;
+  }
+  :root[data-theme='dark'] .yes-art.yes-art--dark {
+    display: block;
+  }
+}
+/* On an ink field (00-tokens.css) the artwork is always the white one. */
+@media screen {
+  .ink-field .yes-art.yes-art--light {
+    display: none;
+  }
+  .ink-field .yes-art.yes-art--dark {
+    display: block;
+  }
+}
+/* Forced colours paint the system's own background, whatever the theme:
+   follow the system scheme (Chromium reports a dark forced palette as
+   prefers-color-scheme: dark) so the mark always contrasts with it. */
+@media (forced-colors: active) {
+  :root .yes-art.yes-art--light {
+    display: block !important;
+  }
+  :root .yes-art.yes-art--dark {
+    display: none !important;
+  }
+}
+@media (forced-colors: active) and (prefers-color-scheme: dark) {
+  :root .yes-art.yes-art--light {
+    display: none !important;
+  }
+  :root .yes-art.yes-art--dark {
+    display: block !important;
+  }
 }
 
 /* ------------------------------------------------------- Badges and tags */
@@ -237,6 +307,11 @@
   border-color: var(--demo-line);
   color: var(--demo-ink);
 }
+.tag--brand {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--surface);
+}
 .tag--ai {
   background: var(--ai-wash);
   border-color: color-mix(in srgb, var(--ai) 45%, var(--line));
@@ -252,7 +327,7 @@
   align-items: center;
   gap: 4px;
   font-size: var(--fs-xs);
-  font-weight: 650;
+  font-weight: 600;
   padding: 1px 8px 1px 6px;
   border-radius: 999px;
   white-space: nowrap;
@@ -280,7 +355,7 @@
 /* Amounts: sign + icon/label carry direction; colour is supplementary. */
 .amount {
   font-variant-numeric: tabular-nums;
-  font-weight: 650;
+  font-weight: 600;
   white-space: nowrap;
 }
 .amount--in {
@@ -451,7 +526,7 @@
 }
 .field__label {
   font-size: var(--fs-sm);
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink);
 }
 .field__hint {
@@ -527,7 +602,7 @@ fieldset {
 legend {
   padding: 0;
   font-size: var(--fs-sm);
-  font-weight: 650;
+  font-weight: 600;
   margin-bottom: 6px;
 }
 .choice {
@@ -550,11 +625,11 @@ legend {
   margin: 3px 0 0;
   width: 18px;
   height: 18px;
-  accent-color: var(--primary);
+  accent-color: var(--sel);
   flex-shrink: 0;
 }
 .choice:has(input:checked) {
-  border-color: var(--primary);
+  border-color: var(--sel);
   background: var(--primary-wash);
 }
 .choice:has(input:focus-visible) {
@@ -574,7 +649,7 @@ legend {
   min-height: 36px;
   padding: 0 6px 0 12px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--line));
+  border: 1px solid color-mix(in srgb, var(--sel) 40%, var(--line));
   background: var(--primary-wash);
   color: var(--ink);
   font-size: var(--fs-sm);
@@ -592,7 +667,7 @@ legend {
   color: var(--ink-2);
 }
 .chip button:hover {
-  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  background: color-mix(in srgb, var(--sel) 16%, transparent);
 }
 .pill {
   display: inline-flex;
@@ -608,9 +683,9 @@ legend {
   color: var(--ink);
 }
 .pill[aria-pressed='true'] {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--on-primary);
+  background: var(--sel);
+  border-color: var(--sel);
+  color: var(--on-sel);
 }
 
 /* Segmented control (language switcher and similar). */
@@ -687,7 +762,7 @@ legend {
 .table caption {
   text-align: left;
   padding: var(--s3) var(--s4);
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink);
 }
 .table th,
@@ -700,7 +775,7 @@ legend {
 .table thead th {
   background: var(--surface-2);
   font-size: var(--fs-xs);
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink-2);
   letter-spacing: 0.02em;
   border-top: 0;
@@ -835,11 +910,11 @@ dialog.dlg::backdrop {
 }
 .steps li[aria-current='step'] {
   color: var(--ink);
-  font-weight: 650;
+  font-weight: 600;
 }
 .steps li[aria-current='step']::before,
 .steps li.is-done::before {
-  background: var(--primary);
+  background: var(--sel);
 }
 
 /* -------------------------------------------------------- Empty states */
@@ -919,7 +994,7 @@ dialog.dlg::backdrop {
 }
 .check__state {
   margin-left: auto;
-  font-weight: 650;
+  font-weight: 600;
   font-size: var(--fs-xs);
   color: var(--ink-2);
   white-space: nowrap;
@@ -928,7 +1003,7 @@ dialog.dlg::backdrop {
 /* Highlight for search matches and linked rows. */
 mark,
 .hl {
-  background: color-mix(in srgb, var(--accent) 38%, transparent);
+  background: color-mix(in srgb, var(--sel) 22%, transparent);
   color: inherit;
   border-radius: 2px;
   padding: 0 1px;

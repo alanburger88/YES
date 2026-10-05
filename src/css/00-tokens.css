@@ -1,70 +1,86 @@
 /*
- * Design tokens. Brand slots ([YES_PRIMARY], [YES_ACCENT], [YES_FONT]) are set
- * at boot from YES.config.slots; every component reads roles, never raw hex.
+ * Design tokens: the YES brand (brand book v2, June 2026). Brand slots
+ * ([YES_PRIMARY], [YES_ACCENT], [YES_FONT]) are set at boot from
+ * YES.config.slots; every component reads roles, never raw hex.
  * Light and dark schemes are designed separately (not an automatic flip);
  * the light scheme is the default and the only one used for print.
+ *
+ * Brand palette: black #000000, white #FFFFFF, accent blue #0004FF; utility
+ * grey #D9D9D9 / #EFEFEF; progressive silver #ADB2B8 / #D1D6DC, bronze
+ * #E2C2B6 / #F3E5E0, gold #BCA58E / #DFCAB5. Values not in that list are
+ * DERIVED (mixes of black, white and a brand colour, tuned for contrast) and
+ * marked "derived". Pending/warning (amber, tuned toward gold and bronze) and
+ * error (red) are documented exceptions: critical states. Contrast ratios for
+ * every pair: docs/ARCHITECTURE.md, "YES brand tokens".
  */
 :root {
   color-scheme: light;
 
-  /* Brand slots (placeholders until YES assets are approved) */
-  --yes-primary: var(--yes-primary-slot, #0e5a8a);
-  --yes-accent: var(--yes-accent-slot, #e8a33d);
-  --yes-font: var(--yes-font-slot, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+  /* Brand slots */
+  --yes-primary: var(--yes-primary-slot, #000000);
+  --yes-accent: var(--yes-accent-slot, #0004ff);
+  --yes-font: var(--yes-font-slot, 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+
+  /* Fixed brand colours: the same in both schemes (fields, artwork stages). */
+  --brand-black: #000000;
+  --brand-white: #ffffff;
+  --brand-blue: #0004ff; /* white text on it 8.53:1 */
 
   /* Surfaces */
-  --bg: #f5f6f8; /* page plane */
+  --bg: #ffffff; /* page plane */
   --surface: #ffffff; /* cards, dialogs, chart surface */
-  --surface-2: #f0f2f5; /* insets, table header, hover wash */
-  --surface-3: #e6e9ee;
-  --overlay: rgba(14, 22, 33, 0.48);
+  --surface-2: #efefef; /* utility grey: insets, table header, hover wash */
+  --surface-3: #d9d9d9; /* utility grey: pressed */
+  --overlay: rgba(0, 0, 0, 0.5);
 
   /* Ink (all text tokens ≥ 4.5:1 on --surface and --surface-2) */
-  --ink: #111820;
-  --ink-2: #3f4a57;
-  --muted: #5d6874;
+  --ink: #000000;
+  --ink-2: #3d3d3d; /* derived */
+  --muted: #5e5e5e; /* derived */
   --on-primary: #ffffff;
 
   /* Lines */
-  --line: #dde2e8;
-  --line-strong: #b9c2cd; /* decorative dividers and control outlines */
-  --field-line: #7c8693; /* form-field boundary: ≥3:1 on --surface, --bg, --surface-2 and --surface-3 (WCAG 1.4.11) */
+  --line: #d9d9d9; /* utility grey: hairlines */
+  --line-strong: #adb2b8; /* progressive silver: decorative dividers and control outlines */
+  --field-line: #767676; /* derived. Form-field boundary: ≥3:1 on --surface, --bg, --surface-2 and --surface-3 (WCAG 1.4.11) */
 
   /* Interaction */
-  --primary: var(--yes-primary);
-  --primary-hover: color-mix(in srgb, var(--yes-primary) 86%, #000);
-  --primary-wash: color-mix(in srgb, var(--yes-primary) 9%, var(--surface));
-  --primary-ink: color-mix(in srgb, var(--yes-primary) 88%, #000); /* primary used as text */
+  --primary: var(--yes-primary); /* primary action fill: black */
+  --primary-hover: #333333; /* derived */
+  --sel: var(--yes-accent); /* current and selected states, key highlights: accent blue */
+  --on-sel: #ffffff;
+  --primary-wash: color-mix(in srgb, var(--sel) 8%, var(--surface)); /* selected wash */
+  --primary-ink: var(--yes-accent); /* links and accent text: 8.53:1 on white */
   --accent: var(--yes-accent);
-  --focus: #1a5fd0;
+  --focus: var(--yes-accent);
   --focus-ring: 0 0 0 3px var(--surface), 0 0 0 5px var(--focus);
 
   /* Data: direction (validated pair, ≥3:1 on surface). Marks only — text uses ink. */
-  --in: #1d6fd6;
-  --in-wash: #e3eefb;
-  --out: #c2552b;
-  --out-wash: #fbe9e1;
-  --total: #3f4a57; /* opening / closing bars */
-  --grid: #e6e9ee;
-  --axis: #b9c2cd;
+  --in: #0004ff; /* accent blue */
+  --in-wash: #e6e6ff; /* derived */
+  --out: #000000; /* black */
+  --out-wash: #efefef; /* utility grey */
+  --total: #6e737a; /* derived from progressive silver: opening / closing bars */
+  --grid: #efefef;
+  --axis: #adb2b8;
 
   /* Status (always paired with icon + label) */
-  --ok: #0a7a35;
-  --ok-wash: #e4f4ea;
-  --warn: #8a5a00;
-  --warn-wash: #fff3d6;
-  --warn-line: #e0a100;
-  --danger: #b42318;
-  --danger-wash: #fdecea;
-  --info: #1a5fd0;
-  --info-wash: #e7effc;
+  --ok: #0004ff; /* posted / done: accent blue */
+  --ok-wash: #ebebff; /* derived */
+  --warn: #7a4a00; /* EXCEPTION: amber tuned toward gold (pending, warning) */
+  --warn-wash: #f7eddf; /* derived, gold */
+  --warn-line: #bca58e; /* progressive gold */
+  --danger: #b3261e; /* EXCEPTION: red (errors) */
+  --danger-wash: #fbeceb;
+  --info: #0004ff;
+  --info-wash: #ebebff;
 
-  /* Demo / illustrative marking */
-  --demo-ink: #4f3800;
-  --demo-bg: #fff4d1;
-  --demo-line: #d9a200;
-  --ai: #5b3fbf; /* "Explain with AI" accent (border/icon) */
-  --ai-wash: #f1edfc;
+  /* Demo / illustrative marking: progressive bronze */
+  --demo-ink: #6b3f2c; /* derived, bronze */
+  --demo-bg: #f3e5e0; /* progressive bronze */
+  --demo-line: #c49a88; /* derived, bronze */
+  --ai: #0004ff; /* "Explain with AI" accent (border/icon): accent blue */
+  --ai-wash: #ebebff;
 
   /* Type scale */
   --fs-hero: clamp(2.6rem, 6vw + 1rem, 3.75rem);
@@ -88,12 +104,18 @@
   --s12: 48px;
   --s16: 64px;
 
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 16px;
-  --shadow-1: 0 1px 2px rgba(17, 24, 32, 0.06), 0 1px 1px rgba(17, 24, 32, 0.04);
-  --shadow-2: 0 6px 20px rgba(17, 24, 32, 0.1), 0 2px 6px rgba(17, 24, 32, 0.06);
-  --shadow-3: 0 20px 48px rgba(17, 24, 32, 0.18);
+  /* Soft shapes: generous radii, pills for controls (brand: never sharp). */
+  --radius-sm: 12px;
+  --radius: 16px;
+  --radius-lg: 24px;
+  /* Quiet surfaces: flat, with hairline borders; shadows only for layers. */
+  --shadow-1: 0 0 0 transparent;
+  --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.16);
+
+  /* Dot-grid texture (hero areas only; off in print and forced colours) */
+  --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 9%, transparent) 1.2px, transparent 1.6px);
+  --dots-size: 14px 14px;
 
   --container: 1120px;
   --gutter: 16px;
@@ -126,108 +148,187 @@
 @media screen and (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --yes-primary: var(--yes-primary-dark-slot, #6cb4ee);
+    --yes-primary: var(--yes-primary-dark-slot, #ffffff);
 
-    --bg: #0e1116;
-    --surface: #161a21;
-    --surface-2: #1d222b;
-    --surface-3: #262c36;
-    --overlay: rgba(0, 0, 0, 0.62);
+    --bg: #000000;
+    --surface: #121212; /* derived: black + 7% white */
+    --surface-2: #1c1c1c; /* derived */
+    --surface-3: #262626; /* derived */
+    --overlay: rgba(0, 0, 0, 0.72);
 
-    --ink: #f1f4f8;
-    --ink-2: #c5ccd6;
-    --muted: #a3acb8;
-    --on-primary: #0b1220;
+    --ink: #ffffff;
+    --ink-2: #d1d1d1; /* derived */
+    --muted: #a8a8a8; /* derived */
+    --on-primary: #000000;
 
-    --line: #2b323d;
-    --line-strong: #46505e;
-    --field-line: #6b7685;
+    --line: #2b2b2b; /* derived */
+    --line-strong: #4d4d4d; /* derived */
+    --field-line: #808080; /* derived: ≥3:1 on every dark surface */
 
-    --primary-hover: color-mix(in srgb, var(--yes-primary) 85%, #fff);
-    --primary-wash: color-mix(in srgb, var(--yes-primary) 14%, var(--surface));
-    --primary-ink: var(--yes-primary);
-    --focus: #8ab4ff;
+    --primary-hover: #d9d9d9;
+    --sel: #8587ff; /* derived tint of accent blue: 6.91:1 on black */
+    --on-sel: #000000;
+    --primary-wash: color-mix(in srgb, var(--sel) 16%, var(--surface));
+    --primary-ink: #8587ff;
+    --focus: #8587ff;
 
-    --in: #4b94ea;
-    --in-wash: #182a40;
-    --out: #e0703f;
-    --out-wash: #3a2219;
-    --total: #aeb7c3;
-    --grid: #262c36;
-    --axis: #46505e;
+    --in: #8587ff;
+    --in-wash: #1b1c45; /* derived */
+    --out: #f2f2f2; /* derived: near white */
+    --out-wash: #262626;
+    --total: #8e949b; /* derived from progressive silver */
+    --grid: #262626;
+    --axis: #4d4d4d;
 
-    --ok: #4cc27a;
-    --ok-wash: #15291e;
-    --warn: #f0b84a;
-    --warn-wash: #2f2512;
-    --warn-line: #b58300;
-    --danger: #ff8a7f;
-    --danger-wash: #3a1d1b;
-    --info: #8ab4ff;
-    --info-wash: #17233a;
+    --ok: #8587ff;
+    --ok-wash: #17183a;
+    --warn: #e9be7e; /* EXCEPTION: amber tuned toward gold */
+    --warn-wash: #2a2116;
+    --warn-line: #8c6c45;
+    --danger: #ff8a80; /* EXCEPTION: red */
+    --danger-wash: #3a1918;
+    --info: #8587ff;
+    --info-wash: #17183a;
 
-    --demo-ink: #ffd772;
-    --demo-bg: #2e2510;
-    --demo-line: #8f6c10;
-    --ai: #b3a2f5;
-    --ai-wash: #231d3b;
+    --demo-ink: #e2c2b6; /* progressive bronze */
+    --demo-bg: #2a1f1b; /* derived, bronze */
+    --demo-line: #7a5a4c; /* derived, bronze */
+    --ai: #8587ff;
+    --ai-wash: #17183a;
 
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
-    --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.45);
-    --shadow-3: 0 20px 48px rgba(0, 0, 0, 0.6);
+    --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
+    --shadow-1: 0 0 0 transparent;
+    --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.6);
+    --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.75);
   }
 }
 @media screen {
   :root[data-theme='dark'] {
     color-scheme: dark;
-    --yes-primary: var(--yes-primary-dark-slot, #6cb4ee);
+    --yes-primary: var(--yes-primary-dark-slot, #ffffff);
 
-    --bg: #0e1116;
-    --surface: #161a21;
-    --surface-2: #1d222b;
-    --surface-3: #262c36;
-    --overlay: rgba(0, 0, 0, 0.62);
+    --bg: #000000;
+    --surface: #121212; /* derived: black + 7% white */
+    --surface-2: #1c1c1c; /* derived */
+    --surface-3: #262626; /* derived */
+    --overlay: rgba(0, 0, 0, 0.72);
 
-    --ink: #f1f4f8;
-    --ink-2: #c5ccd6;
-    --muted: #a3acb8;
-    --on-primary: #0b1220;
+    --ink: #ffffff;
+    --ink-2: #d1d1d1; /* derived */
+    --muted: #a8a8a8; /* derived */
+    --on-primary: #000000;
 
-    --line: #2b323d;
-    --line-strong: #46505e;
-    --field-line: #6b7685;
+    --line: #2b2b2b; /* derived */
+    --line-strong: #4d4d4d; /* derived */
+    --field-line: #808080; /* derived: ≥3:1 on every dark surface */
 
-    --primary-hover: color-mix(in srgb, var(--yes-primary) 85%, #fff);
-    --primary-wash: color-mix(in srgb, var(--yes-primary) 14%, var(--surface));
-    --primary-ink: var(--yes-primary);
-    --focus: #8ab4ff;
+    --primary-hover: #d9d9d9;
+    --sel: #8587ff; /* derived tint of accent blue: 6.91:1 on black */
+    --on-sel: #000000;
+    --primary-wash: color-mix(in srgb, var(--sel) 16%, var(--surface));
+    --primary-ink: #8587ff;
+    --focus: #8587ff;
 
-    --in: #4b94ea;
-    --in-wash: #182a40;
-    --out: #e0703f;
-    --out-wash: #3a2219;
-    --total: #aeb7c3;
-    --grid: #262c36;
-    --axis: #46505e;
+    --in: #8587ff;
+    --in-wash: #1b1c45; /* derived */
+    --out: #f2f2f2; /* derived: near white */
+    --out-wash: #262626;
+    --total: #8e949b; /* derived from progressive silver */
+    --grid: #262626;
+    --axis: #4d4d4d;
 
-    --ok: #4cc27a;
-    --ok-wash: #15291e;
-    --warn: #f0b84a;
-    --warn-wash: #2f2512;
-    --warn-line: #b58300;
-    --danger: #ff8a7f;
-    --danger-wash: #3a1d1b;
-    --info: #8ab4ff;
-    --info-wash: #17233a;
+    --ok: #8587ff;
+    --ok-wash: #17183a;
+    --warn: #e9be7e; /* EXCEPTION: amber tuned toward gold */
+    --warn-wash: #2a2116;
+    --warn-line: #8c6c45;
+    --danger: #ff8a80; /* EXCEPTION: red */
+    --danger-wash: #3a1918;
+    --info: #8587ff;
+    --info-wash: #17183a;
 
-    --demo-ink: #ffd772;
-    --demo-bg: #2e2510;
-    --demo-line: #8f6c10;
-    --ai: #b3a2f5;
-    --ai-wash: #231d3b;
+    --demo-ink: #e2c2b6; /* progressive bronze */
+    --demo-bg: #2a1f1b; /* derived, bronze */
+    --demo-line: #7a5a4c; /* derived, bronze */
+    --ai: #8587ff;
+    --ai-wash: #17183a;
 
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
-    --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.45);
-    --shadow-3: 0 20px 48px rgba(0, 0, 0, 0.6);
+    --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
+    --shadow-1: 0 0 0 transparent;
+    --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.6);
+    --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.75);
+  }
+}
+
+/*
+ * Ink field: a YES black field with white type (brand imagery), for one hero
+ * area (the statement balance card, .ink-field). It carries the dark token
+ * values (keep them in step with the dark blocks above), plus the tokens the
+ * :root blocks derive from others (--primary, --focus-ring), because a
+ * derived custom property is computed where it is declared. The field itself
+ * is --bg (#000000). Screen only: print keeps the light scheme.
+ */
+@media screen {
+  .ink-field {
+    color-scheme: dark;
+
+    --bg: #000000;
+    --surface: #121212; /* derived: black + 7% white */
+    --surface-2: #1c1c1c; /* derived */
+    --surface-3: #262626; /* derived */
+    --overlay: rgba(0, 0, 0, 0.72);
+
+    --ink: #ffffff;
+    --ink-2: #d1d1d1; /* derived */
+    --muted: #a8a8a8; /* derived */
+    --on-primary: #000000;
+
+    --line: #2b2b2b; /* derived */
+    --line-strong: #4d4d4d; /* derived */
+    --field-line: #808080; /* derived: ≥3:1 on every dark surface */
+
+    --primary: #ffffff;
+    --primary-hover: #d9d9d9;
+    --sel: #8587ff; /* derived tint of accent blue: 6.91:1 on black */
+    --on-sel: #000000;
+    --primary-wash: color-mix(in srgb, var(--sel) 16%, var(--surface));
+    --primary-ink: #8587ff;
+    --focus: #8587ff;
+    --focus-ring: 0 0 0 3px var(--bg), 0 0 0 5px var(--focus);
+
+    --in: #8587ff;
+    --in-wash: #1b1c45; /* derived */
+    --out: #f2f2f2; /* derived: near white */
+    --out-wash: #262626;
+    --total: #8e949b; /* derived from progressive silver */
+    --grid: #262626;
+    --axis: #4d4d4d;
+
+    --ok: #8587ff;
+    --ok-wash: #17183a;
+    --warn: #e9be7e; /* EXCEPTION: amber tuned toward gold */
+    --warn-wash: #2a2116;
+    --warn-line: #8c6c45;
+    --danger: #ff8a80; /* EXCEPTION: red */
+    --danger-wash: #3a1918;
+    --info: #8587ff;
+    --info-wash: #17183a;
+
+    --demo-ink: #e2c2b6; /* progressive bronze */
+    --demo-bg: #2a1f1b; /* derived, bronze */
+    --demo-line: #7a5a4c; /* derived, bronze */
+    --ai: #8587ff;
+    --ai-wash: #17183a;
+
+    --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
+    --shadow-1: 0 0 0 transparent;
+    --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.6);
+    --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.75);
+  }
+  .ink-field,
+  .card.ink-field {
+    background-color: var(--bg);
+    border-color: var(--line);
+    color: var(--ink);
   }
 }

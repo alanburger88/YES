@@ -1894,8 +1894,11 @@
       (YES.config.demo ? '<span class="tx-dlg__demo">' + ui.illustrativeTag('demo.badge') + '</span>' : '') +
       '<span class="tx-dlg__break" aria-hidden="true"></span>' +
       '<p class="tx-dlg__unit">' +
+      // The USBC symbol (decorative: the line names the asset).
+      ui.symbolHtml({ size: 20, cls: 'tx-dlg__coin' }) +
+      '<span>' +
       esc(t('explorer.dlg.unit', { asset: YES.L(a.name), symbol: a.symbol })) +
-      '</p>' +
+      '</span></p>' +
       '</div>' +
       inquiryNote +
       '<section class="tx-dlg__section" aria-labelledby="txd-details-h"><h3 id="txd-details-h">' +

@@ -84,7 +84,7 @@
 /* Table of contents: wrapping pills on small screens, sticky list on desktop. */
 .help-toc__title {
   font-size: var(--fs-xs);
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -389,7 +389,7 @@
 }
 .help-route--inquiry {
   background: var(--surface);
-  border-color: color-mix(in srgb, var(--primary) 35%, var(--line));
+  border-color: color-mix(in srgb, var(--sel) 35%, var(--line));
 }
 .help-route__title {
   margin: 0;
@@ -573,7 +573,7 @@
 }
 .help-eq__op {
   font-size: var(--fs-lg);
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.25;
   color: var(--ink-2);
   min-width: 0.8em;
@@ -585,13 +585,13 @@
 }
 .help-eq__val {
   font-size: var(--fs-lg);
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.25;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .help-eq__term--total .help-eq__val {
-  font-weight: 750;
+  font-weight: 700;
 }
 .help-eq__item--result {
   flex-basis: 100%;
@@ -767,7 +767,7 @@
   font-size: var(--fs-sm);
 }
 .help-table th[scope='row'] {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink);
   vertical-align: top;
 }
@@ -869,7 +869,7 @@
   .help-table__lbl {
     display: block;
     font-size: var(--fs-xs);
-    font-weight: 650;
+    font-weight: 600;
     color: var(--muted);
     margin-top: var(--s1);
   }
@@ -1044,7 +1044,7 @@
   }
   #print-root .pr-closing th,
   #print-root .pr-closing td {
-    font-weight: 800;
+    font-weight: 700;
     border-top: 1.5pt solid var(--ink);
     border-bottom: 1.5pt double var(--ink);
   }

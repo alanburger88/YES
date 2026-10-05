@@ -17,15 +17,25 @@
        labels. (The header's demo badge was removed on 2026-10-04.) */
     demo: true,
 
-    /* Brand replacement slots (PRD 5.1). Values are placeholders, not YES assets. */
+    /* Brand replacement slots (PRD 5.1). The YES logo, the USBC symbol,
+       the colours and the typeface follow the YES brand book (v2, June 2026);
+       the legal, partner and media slots are still placeholders. */
     slots: {
-      // Replace with approved artwork: `svg` (SVG markup) or `src` (a data: image URI;
-      // the file fetches nothing). Rendered by YES.ui.logoHtml().
-      YES_LOGO: { text: 'YES', placeholder: true },
-      YES_PRIMARY: '#0e5a8a',
-      YES_PRIMARY_DARK: '#6cb4ee', // primary tuned for dark colour scheme
-      YES_ACCENT: '#e8a33d',
-      YES_FONT: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+      /* Approved artwork: `svg` (SVG markup) or `src` (a data: image URI; the
+         file fetches nothing), plus an optional `srcDark` for dark
+         backgrounds, swapped with the colour scheme by CSS (print always uses
+         `src`). Rendered by YES.ui.logoHtml(). A brand/<file> path is
+         inlined from src/brand/ as a data: URI by build.mjs; unbuilt, the
+         `text` placeholder shows instead. Never redraw, recolour or stretch. */
+      YES_LOGO: { text: 'YES', src: 'brand/yes-logo-black.png', srcDark: 'brand/yes-logo-white.png' },
+      /* The USBC symbol (brand book: wallets, transaction flows, balance
+         displays), decorative beside text that already says USBC. Rendered
+         by YES.ui.symbolHtml(); same `src` / `srcDark` rules as the logo. */
+      USBC_SYMBOL: { src: 'brand/usbc-symbol-black.png', srcDark: 'brand/usbc-symbol-white.png' },
+      YES_PRIMARY: '#000000', // primary actions on light (black); text and fills read tokens, see 00-tokens.css
+      YES_PRIMARY_DARK: '#ffffff', // primary actions on dark (white)
+      YES_ACCENT: '#0004ff', // YES accent blue: links, current and selected states, focus, key highlights
+      YES_FONT: '"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
       PRODUCT_NAME: { en: 'US Bank Coin', es: 'US Bank Coin' },
       ISSUER_OR_PARTNER: { en: '[Issuer or partner — pending YES approval]', es: '[Emisor o socio — pendiente de aprobación de YES]' },
       VIDEO_POSTER: null, // approved poster image (data URI); when null the player shows its own opening frame

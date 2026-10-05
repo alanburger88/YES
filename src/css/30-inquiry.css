@@ -41,7 +41,7 @@
   max-width: max-content;
   padding-inline: var(--s3) var(--s4);
   color: var(--primary-ink);
-  font-weight: 650;
+  font-weight: 600;
   justify-content: flex-start;
   text-align: left;
 }
@@ -99,7 +99,7 @@
 }
 .inq-step__count {
   font-size: var(--fs-xs);
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -172,12 +172,12 @@
 }
 .inq-tx__type {
   font-size: var(--fs-xs);
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--muted);
 }
 .inq-tx__desc {
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.35;
 }
 .inq-tx__amount {
@@ -231,7 +231,7 @@
   padding: 0;
   margin: 0;
   font-size: var(--fs-base);
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink);
 }
 fieldset.inq-group > .inq-legend {
@@ -300,7 +300,7 @@ fieldset.inq-group > .inq-hint {
   line-height: 1.4;
 }
 .inq-choice:has(input:checked) .inq-choice__label {
-  font-weight: 650;
+  font-weight: 600;
 }
 .inq-choice__hint {
   font-size: var(--fs-xs);
@@ -309,13 +309,13 @@ fieldset.inq-group > .inq-hint {
 }
 .inq-choices--channel .inq-choice__label {
   font-size: var(--fs-sm);
-  font-weight: 650;
+  font-weight: 600;
 }
 .inq-group.is-invalid .inq-choice {
   border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
 }
 .inq-group.is-invalid .inq-choice:has(input:checked) {
-  border-color: var(--primary);
+  border-color: var(--sel);
 }
 @media (min-width: 600px) {
   .inq-choices--channel {
@@ -355,7 +355,7 @@ fieldset.inq-group > .inq-hint {
 }
 .inq-count.is-low {
   color: var(--warn);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 /* Error summary: a named group that takes focus (announced once), links to each field */
@@ -397,7 +397,7 @@ fieldset.inq-group > .inq-hint {
   padding-block: 11px;
   line-height: 1.5;
   color: var(--danger);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 /* ------------------------------------------------------------ Review */
@@ -438,10 +438,10 @@ fieldset.inq-group > .inq-hint {
   overflow-wrap: anywhere;
 }
 .inq-review__strong {
-  font-weight: 650;
+  font-weight: 600;
 }
 .inq-review__value .amount {
-  font-weight: 650;
+  font-weight: 600;
 }
 .inq-quote {
   white-space: pre-wrap;

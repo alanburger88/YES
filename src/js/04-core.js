@@ -964,39 +964,81 @@
   /**
    * The [YES_LOGO] brand slot (YES.config.slots.YES_LOGO) as one element, for
    * every place that shows the logo (masthead, video poster, print header):
-   *   slot.svg — approved SVG markup (trusted configuration, inserted as is)
-   *   slot.src — approved image as a data: URI (a URL that would fetch is ignored:
-   *              the file makes no network request for its own assets)
-   *   neither  — the text placeholder (slot.text), outlined as a placeholder
+   *   slot.svg     — approved SVG markup (trusted configuration, inserted as is)
+   *   slot.src     — approved image as a data: URI (a URL that would fetch is
+   *                  ignored: the file makes no network request for its own assets)
+   *   slot.srcDark — optional variant of src for dark backgrounds: both images
+   *                  are rendered and the colour scheme shows one (CSS: the
+   *                  device setting and data-theme, as 00-tokens.css; print and
+   *                  forced colours have their own rules, see 02-components.css)
+   *   neither      — the text placeholder (slot.text), outlined as a placeholder
    * The element is an image named by 'brand.logoAlt' ("YES"), or hidden from
    * assistive technology with opts.decorative (when nearby text already names YES).
    *   opts.cls  — class name(s) to add; the first also gets the state modifier,
    *               like yes-logo itself: <cls>--art or <cls>--placeholder
    *   opts.size — height: a number (px) or a CSS length ('28pt', '2.5rem'); the
    *               placeholder lettering and the artwork scale with it
+   *   opts.tone — 'dark' on a surface that is always dark (the video stage):
+   *               only srcDark is used; 'light' only src; default: the theme
    */
   var LOGO_SRC_RE = /^data:image\/(?:png|jpeg|gif|webp|avif|svg\+xml)[;,]/i;
   var LOGO_SIZE_RE = /^\d+(?:\.\d+)?(?:px|pt|rem|em|mm)$/;
+  function artSrc(v) {
+    return typeof v === 'string' && LOGO_SRC_RE.test(v) ? v : null;
+  }
+  /* The <img> markup for an image slot: one image, or a light and a dark one
+     that CSS swaps with the colour scheme (.yes-art--light / .yes-art--dark). */
+  function artImgs(slot, tone) {
+    var src = artSrc(slot.src);
+    var dark = artSrc(slot.srcDark);
+    var img = function (s, cls) {
+      return '<img' + (cls ? ' class="yes-art ' + cls + '"' : '') + ' src="' + ui.esc(s) + '" alt="" />';
+    };
+    if (!src) return '';
+    if (!dark || tone === 'light') return img(src);
+    if (tone === 'dark') return img(dark);
+    return img(src, 'yes-art--light') + img(dark, 'yes-art--dark');
+  }
+  function cssSize(v) {
+    return typeof v === 'number' && v > 0 ? v + 'px' : LOGO_SIZE_RE.test(String(v || '')) ? String(v) : '';
+  }
   ui.logoHtml = function (opts) {
     opts = opts || {};
     var slot = (YES.config && YES.config.slots && YES.config.slots.YES_LOGO) || {};
-    var src = typeof slot.src === 'string' && LOGO_SRC_RE.test(slot.src) ? slot.src : null;
-    var kind = slot.svg || src ? 'art' : 'placeholder';
+    var imgs = slot.svg ? '' : artImgs(slot, opts.tone);
+    var kind = slot.svg || imgs ? 'art' : 'placeholder';
     var extra = String(opts.cls || '')
       .split(/\s+/)
       .filter(Boolean);
     var classes = ['yes-logo', 'yes-logo--' + kind].concat(extra);
     if (extra.length) classes.push(extra[0] + '--' + kind);
-    var size = typeof opts.size === 'number' && opts.size > 0 ? opts.size + 'px' : LOGO_SIZE_RE.test(String(opts.size || '')) ? String(opts.size) : '';
+    var size = cssSize(opts.size);
     var name = YES.t('brand.logoAlt');
     var html = '<span class="' + ui.esc(classes.join(' ')) + '" data-slot="YES_LOGO"' + (size ? ' style="--logo-h: ' + size + '"' : '');
     html += opts.decorative ? ' aria-hidden="true"' : ' role="img" aria-label="' + ui.esc(name) + '"';
     if (kind === 'placeholder' && !opts.decorative) html += ' title="' + ui.esc(YES.t('brand.logoPlaceholder')) + '"';
     html += '>';
     if (slot.svg) html += String(slot.svg);
-    else if (src) html += '<img src="' + ui.esc(src) + '" alt="" />';
+    else if (imgs) html += imgs;
     else html += ui.esc(slot.text || name);
     return html + '</span>';
+  };
+
+  /**
+   * The [USBC_SYMBOL] brand slot (YES.config.slots.USBC_SYMBOL): the coin
+   * symbol, always decorative (it sits beside text that already says USBC).
+   * Same src / srcDark rules as the logo; '' when the slot has no artwork.
+   *   opts.cls  — class name(s) to add
+   *   opts.size — height, as for ui.logoHtml (sets --sym-h)
+   *   opts.tone — 'dark' | 'light' | default (the theme), as for ui.logoHtml
+   */
+  ui.symbolHtml = function (opts) {
+    opts = opts || {};
+    var slot = (YES.config && YES.config.slots && YES.config.slots.USBC_SYMBOL) || {};
+    var imgs = artImgs(slot, opts.tone);
+    if (!imgs) return '';
+    var size = cssSize(opts.size);
+    return '<span class="usbc-symbol' + (opts.cls ? ' ' + ui.esc(opts.cls) : '') + '" data-slot="USBC_SYMBOL" aria-hidden="true"' + (size ? ' style="--sym-h: ' + size + '"' : '') + '>' + imgs + '</span>';
   };
 
   /** "Illustrative" tag used on fictional blockchain / reserve / rate content. */

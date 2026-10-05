@@ -462,7 +462,8 @@
       esc(YES.fmt.amountSpoken(s.closing) + ', ' + YES.L(a.unitLabel)) +
       '</span></p>';
     return (
-      '<section class="card ov-balance" aria-labelledby="ov-balance-title">' +
+      // .ink-field: a YES black field (00-tokens.css), the brand's wallet look.
+      '<section class="card ov-balance ink-field" aria-labelledby="ov-balance-title">' +
       '<div class="ov-balance__grid">' +
       '<div class="ov-balance__main">' +
       '<h2 id="ov-balance-title" class="ov-balance__title">' +
@@ -470,9 +471,12 @@
       '</h2>' +
       hero +
       // Asset name and symbol ("US Bank Coin (USBC)"), the same in every language.
+      // The USBC symbol beside it (decorative: the line names the asset).
       '<p class="ov-hero__unit">' +
+      ui.symbolHtml({ size: 32, cls: 'ov-hero__coin' }) +
+      '<span>' +
       esc(YES.L(a.name) + ' (' + a.symbol + ')') +
-      '</p>' +
+      '</span></p>' +
       '<p class="ov-asof">' +
       ui.icon('clock', { size: 16 }) +
       '<span>' +
@@ -1922,8 +1926,10 @@
       '</span></p>'
     );
   }
+  /* The stage is a dark field in both schemes (accent blue, or black): the
+     white artwork (srcDark) whatever the theme. */
   function logo() {
-    return ui.logoHtml({ cls: 'vs-logo', decorative: true });
+    return ui.logoHtml({ cls: 'vs-logo', decorative: true, tone: 'dark' });
   }
   function dirIcon(minor, kind) {
     var dir = kind || (minor < 0 ? 'out' : 'in');

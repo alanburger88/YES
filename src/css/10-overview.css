@@ -39,6 +39,24 @@
 .ov-balance {
   container: ov-balance / inline-size;
 }
+/* Dot-grid texture behind the card's header, fading out from the top right
+   (brand: dot patterns create texture). Screen only, off in forced colours. */
+@media screen {
+  .ov-balance {
+    background-image: radial-gradient(ellipse 70% 260px at 100% 0, transparent 0, var(--bg) 100%), var(--dots);
+    background-size: auto, var(--dots-size);
+  }
+}
+@media (forced-colors: active) {
+  .ov-balance {
+    background-image: none;
+  }
+}
+.ov-hero__unit {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
 .ov-balance__grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -46,7 +64,7 @@
 }
 .ov-balance__title {
   font-size: var(--fs-sm);
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink-2);
   letter-spacing: 0.01em;
   margin: 0 0 var(--s1);
@@ -66,14 +84,14 @@
      figure to fit instead of scrolling the page sideways (WCAG 1.4.4/1.4.10).
      One column: the whole card; two columns: the left 1.2fr of the grid. */
   font-size: min(clamp(3rem, 5.5cqi + 1rem, 4rem), calc(100cqi / var(--ov-hero-em, 5)));
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.025em;
   font-variant-numeric: proportional-nums;
   color: var(--ink);
 }
 .ov-hero__sym {
   font-size: var(--fs-lg);
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink-2);
   letter-spacing: 0.02em;
 }
@@ -110,7 +128,7 @@
   margin: 0 0 var(--s1);
 }
 .ov-fiat__value {
-  font-weight: 650;
+  font-weight: 600;
   font-size: var(--fs-md);
 }
 .ov-fiat__label {
@@ -132,7 +150,7 @@
 .ov-change__label {
   margin: 0 0 var(--s1);
   font-size: var(--fs-sm);
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink-2);
 }
 .ov-change__value {
@@ -297,7 +315,7 @@
 }
 .ov-details__title {
   font-size: var(--fs-xs);
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -483,7 +501,7 @@ button.jr-step:hover {
   align-items: center;
   gap: 4px;
   font-size: var(--fs-sm);
-  font-weight: 650;
+  font-weight: 600;
   min-width: 0;
   /* Labels wrap between words only (never "Redemptio ns"). */
   overflow-wrap: break-word;
@@ -503,8 +521,8 @@ button.jr-step:hover {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--primary);
-  color: var(--on-primary);
+  background: var(--sel);
+  color: var(--on-sel);
 }
 .jr-check .icon {
   width: 12px;
@@ -529,7 +547,7 @@ button.jr-step:hover {
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
-  font-weight: 650;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -691,13 +709,13 @@ button.jr-step:hover {
 /* Selection: wash + outline (shape, not only colour); others recede. */
 .jr-step[aria-pressed='true'],
 .jr-group[aria-pressed='true'] {
-  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
-  border-color: var(--primary);
-  box-shadow: inset 0 0 0 1px var(--primary);
+  background: color-mix(in srgb, var(--sel) 10%, var(--surface));
+  border-color: var(--sel);
+  box-shadow: inset 0 0 0 1px var(--sel);
 }
 .jr-step.is-member {
-  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
-  border-color: color-mix(in srgb, var(--primary) 45%, var(--line));
+  background: color-mix(in srgb, var(--sel) 6%, var(--surface));
+  border-color: color-mix(in srgb, var(--sel) 45%, var(--line));
 }
 .jr .is-dim .jr-bar {
   opacity: 0.3;
@@ -712,7 +730,7 @@ button.jr-step:hover {
 }
 .jr-step[aria-pressed='true']:focus-visible,
 .jr-group[aria-pressed='true']:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--primary), var(--focus-ring);
+  box-shadow: inset 0 0 0 1px var(--sel), var(--focus-ring);
 }
 
 /* The moment of delight: the selected step grows from its starting level. */
@@ -850,15 +868,15 @@ button.jr-step:hover {
      longest label word ("Transferencias" in the narrowest waterfall) keeps
      clear of it instead of touching an inset frame. */
   .jr-step[aria-pressed='true'] {
-    background: color-mix(in srgb, var(--primary) 9%, transparent);
+    background: color-mix(in srgb, var(--sel) 9%, transparent);
     border-color: transparent;
-    box-shadow: 0 0 0 2px var(--primary);
+    box-shadow: 0 0 0 2px var(--sel);
   }
   .jr-step[aria-pressed='true']:focus-visible {
-    box-shadow: 0 0 0 2px var(--primary), 0 0 0 4px var(--surface), 0 0 0 6px var(--focus);
+    box-shadow: 0 0 0 2px var(--sel), 0 0 0 4px var(--surface), 0 0 0 6px var(--focus);
   }
   .jr-step.is-member {
-    background: color-mix(in srgb, var(--primary) 5%, transparent);
+    background: color-mix(in srgb, var(--sel) 5%, transparent);
     border-color: transparent;
   }
   .jr-plot {
@@ -913,7 +931,7 @@ button.jr-step:hover {
   }
   .jr-label {
     font-size: var(--fs-xs);
-    font-weight: 650;
+    font-weight: 600;
     color: var(--ink-2);
     line-height: 1.3;
     /* Two lines reserved, so every value sits on the same baseline. */
@@ -957,7 +975,7 @@ button.jr-step:hover {
     border-color: transparent;
   }
   .jr-group[aria-pressed='true'] {
-    background: color-mix(in srgb, var(--primary) 9%, transparent);
+    background: color-mix(in srgb, var(--sel) 9%, transparent);
     border-color: transparent;
     box-shadow: none;
   }
@@ -1088,7 +1106,7 @@ button.jr-step:hover {
   font-size: var(--fs-sm);
 }
 .ov-panel__meta .ov-num {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
@@ -1203,7 +1221,7 @@ button.jr-step:hover {
     display: grid;
     padding: 0 13px 6px;
     font-size: var(--fs-xs);
-    font-weight: 650;
+    font-weight: 600;
     color: var(--muted);
   }
   .ov-txhead__amt {
@@ -1318,7 +1336,7 @@ button.jr-step:hover {
 .jr-eq__title {
   margin: 0 0 var(--s2);
   font-size: var(--fs-xs);
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1337,7 +1355,7 @@ button.jr-step:hover {
   max-width: 100%;
 }
 .jr-eq__num {
-  font-weight: 650;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1350,12 +1368,12 @@ button.jr-step:hover {
   overflow-wrap: break-word;
 }
 .jr-eq__op {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink-2);
   margin-right: 0.35em;
 }
 .jr-eq__term--total .jr-eq__num {
-  font-weight: 800;
+  font-weight: 700;
 }
 
 /* Table views */
@@ -1573,11 +1591,11 @@ button.jr-step:hover {
 }
 .ov-chart__svg .c-end {
   fill: var(--ink-2);
-  font-weight: 650;
+  font-weight: 600;
 }
 .ov-chart__svg .c-area {
-  fill: var(--total);
-  opacity: 0.1;
+  fill: var(--sel);
+  opacity: 0.07;
 }
 .ov-chart__svg .c-line {
   fill: none;
@@ -1761,7 +1779,7 @@ button.jr-step:hover {
   width: 100%;
   font-size: var(--fs-sm);
   color: var(--ink-2);
-  font-weight: 650;
+  font-weight: 600;
 }
 .ov-fees__value {
   font-size: var(--fs-xl);
@@ -1963,8 +1981,8 @@ button.jr-step:hover {
 }
 .ov-vchap__btn[aria-current='true'] {
   background: var(--primary-wash);
-  border-color: color-mix(in srgb, var(--primary) 35%, var(--line));
-  font-weight: 650;
+  border-color: color-mix(in srgb, var(--sel) 35%, var(--line));
+  font-weight: 600;
 }
 .ov-vchap__n {
   display: inline-grid;
@@ -1978,9 +1996,9 @@ button.jr-step:hover {
   font-weight: 700;
 }
 .ov-vchap__btn[aria-current='true'] .ov-vchap__n {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--on-primary);
+  background: var(--sel);
+  border-color: var(--sel);
+  color: var(--on-sel);
 }
 .ov-vchap__time {
   color: var(--muted);
@@ -2034,11 +2052,11 @@ button.jr-step:hover {
 }
 .ov-vtr__line.is-current {
   background: var(--primary-wash);
-  box-shadow: inset 3px 0 0 var(--primary);
+  box-shadow: inset 3px 0 0 var(--sel);
   color: var(--ink);
 }
 .ov-vtr__line.is-current:focus-visible {
-  box-shadow: inset 3px 0 0 var(--primary), var(--focus-ring);
+  box-shadow: inset 3px 0 0 var(--sel), var(--focus-ring);
 }
 .ov-vtr__time {
   color: var(--muted);
@@ -2046,13 +2064,13 @@ button.jr-step:hover {
 }
 
 /* ------------------------------------------------------------ Player */
-/* Stage colours: deep in both schemes, like a poster (in dark mode the brand
-   primary is a light tint, which would outshine the closing balance). The
-   cards inside use the page's own surfaces and ink. */
+/* Stage colours: a YES brand field in both schemes, like a poster: accent
+   blue with white type on light (8.53:1), black with white type on dark
+   ("black on black"). The cards inside use the page's own surfaces and ink. */
 .vp {
-  --vs-bg: var(--primary);
-  --vs-deep: color-mix(in srgb, var(--primary) 58%, var(--ink));
-  --vs-ink: var(--on-primary);
+  --vs-bg: var(--brand-blue);
+  --vs-deep: color-mix(in srgb, var(--brand-blue) 62%, var(--brand-black));
+  --vs-ink: var(--brand-white);
   --vs-card: var(--surface);
   --vs-cc-bg: color-mix(in srgb, var(--ink) 86%, transparent);
   --vs-cc-ink: var(--surface);
@@ -2066,8 +2084,8 @@ button.jr-step:hover {
 }
 @media screen and (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) .vp {
-    --vs-bg: color-mix(in srgb, var(--primary) 24%, var(--surface));
-    --vs-deep: var(--bg);
+    --vs-bg: var(--brand-black);
+    --vs-deep: var(--brand-black);
     --vs-ink: var(--ink);
     --vs-card: var(--surface-2);
     --vs-cc-bg: color-mix(in srgb, var(--bg) 90%, transparent);
@@ -2076,8 +2094,8 @@ button.jr-step:hover {
 }
 @media screen {
   :root[data-theme='dark'] .vp {
-    --vs-bg: color-mix(in srgb, var(--primary) 24%, var(--surface));
-    --vs-deep: var(--bg);
+    --vs-bg: var(--brand-black);
+    --vs-deep: var(--brand-black);
     --vs-ink: var(--ink);
     --vs-card: var(--surface-2);
     --vs-cc-bg: color-mix(in srgb, var(--bg) 90%, transparent);
@@ -2175,7 +2193,7 @@ button.jr-step:hover {
   background: var(--vs-cc-bg);
   color: var(--vs-cc-ink);
   font-size: var(--fs-xs);
-  font-weight: 650;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .vp.is-started .vp-dur {
@@ -2200,7 +2218,7 @@ button.jr-step:hover {
   border-radius: 0.3em;
   background: var(--vs-cc-bg);
   color: var(--vs-cc-ink);
-  font-weight: 550;
+  font-weight: 500;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
@@ -2450,7 +2468,7 @@ button.jr-step:hover {
   background: var(--primary-wash);
   color: var(--primary-ink);
   font-size: 1.65cqw;
-  font-weight: 750;
+  font-weight: 700;
   letter-spacing: 0;
 }
 .vs-eyebrow {
@@ -2552,7 +2570,7 @@ button.jr-step:hover {
   margin: 0;
   font-size: 5.8cqw;
   text-wrap: balance;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1.08;
   letter-spacing: -0.015em;
 }
@@ -2614,7 +2632,7 @@ button.jr-step:hover {
   font-size: 1.85cqw;
   line-height: 1.2;
   background: color-mix(in srgb, var(--primary-wash) calc(var(--hl, 0) * 100%), transparent);
-  box-shadow: inset 0 0 0 0.16cqw color-mix(in srgb, var(--primary) calc(var(--hl, 0) * 55%), transparent);
+  box-shadow: inset 0 0 0 0.16cqw color-mix(in srgb, var(--sel) calc(var(--hl, 0) * 55%), transparent);
 }
 .vs-row__label {
   color: var(--ink-2);
@@ -2804,13 +2822,13 @@ button.jr-step:hover {
 .vs-big__amt {
   margin: 1.4cqw 0 0.4cqw;
   font-size: 4.6cqw;
-  font-weight: 750;
+  font-weight: 700;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 .vs-big__amt span {
   font-size: 2.3cqw;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink-2);
   letter-spacing: 0;
 }
@@ -2841,7 +2859,7 @@ button.jr-step:hover {
 }
 .vs-kv__row > :last-child {
   margin: 0;
-  font-weight: 650;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .vs-big__none {
@@ -2849,7 +2867,7 @@ button.jr-step:hover {
   right: 5cqw;
   top: 14cqw;
   font-size: 3cqw;
-  font-weight: 650;
+  font-weight: 600;
   text-align: center;
 }
 
@@ -2887,7 +2905,7 @@ button.jr-step:hover {
   padding: 0.6cqw 1cqw;
   border-radius: 0.9cqw;
   font-size: 1.7cqw;
-  border: 0.15cqw solid color-mix(in srgb, var(--primary) calc(var(--hl, 0) * 100%), var(--line));
+  border: 0.15cqw solid color-mix(in srgb, var(--sel) calc(var(--hl, 0) * 100%), var(--line));
   background: color-mix(in srgb, var(--primary-wash) calc(var(--hl, 0) * 100%), var(--vs-card));
 }
 .vs-step .vs-dir {
@@ -2917,8 +2935,8 @@ button.jr-step:hover {
   height: 2.2cqw;
   margin-left: -0.2cqw;
   border-radius: 50%;
-  background: var(--primary);
-  color: var(--on-primary);
+  background: var(--sel);
+  color: var(--on-sel);
   opacity: var(--hl, 0);
 }
 .vs-step__check .icon {
@@ -2957,7 +2975,7 @@ button.jr-step:hover {
   gap: 1.2cqw;
   padding: 0.85cqw 1.1cqw;
   border-radius: 0.9cqw;
-  border: 0.15cqw solid color-mix(in srgb, var(--primary) calc(var(--hl, 0) * 100%), var(--line));
+  border: 0.15cqw solid color-mix(in srgb, var(--sel) calc(var(--hl, 0) * 100%), var(--line));
   background: color-mix(in srgb, var(--primary-wash) calc(var(--hl, 0) * 100%), var(--vs-card));
   font-size: 1.7cqw;
 }
@@ -3019,7 +3037,7 @@ button.jr-step:hover {
   gap: 1.4cqw;
   margin: 0.5cqw 0 1cqw;
   font-size: 3cqw;
-  font-weight: 750;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 .vs-status {
@@ -3031,7 +3049,7 @@ button.jr-step:hover {
   background: var(--ok-wash);
   color: var(--ink);
   font-size: 1.5cqw;
-  font-weight: 650;
+  font-weight: 600;
 }
 .vs-status .icon {
   width: 1.7cqw;
@@ -3067,7 +3085,7 @@ button.jr-step:hover {
   background: var(--vs-card);
   color: var(--ink);
   font-size: 1.55cqw;
-  font-weight: 650;
+  font-weight: 600;
   white-space: nowrap;
   box-shadow: 0 0 0 calc(var(--hl, 0) * 0.45cqw) color-mix(in srgb, var(--focus) 60%, transparent);
 }
@@ -3130,7 +3148,7 @@ button.jr-step:hover {
 .vs-help__t {
   margin: 1.4cqw 0 0.6cqw;
   font-size: 2.8cqw;
-  font-weight: 750;
+  font-weight: 700;
 }
 .vs-help__p {
   margin: 0 0 1.6cqw;
@@ -3188,7 +3206,7 @@ button.jr-step:hover {
 .vs-end__bye {
   margin: 0.6cqw 0 0;
   font-size: 5.6cqw;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.01em;
 }
@@ -3203,7 +3221,7 @@ button.jr-step:hover {
   border-radius: 99cqw;
   border: 0.15cqw solid color-mix(in srgb, var(--vs-ink) 50%, transparent);
   font-size: 1.55cqw;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 /* Where the pointer waits on a phone (the 16:9 frame uses fixed spots). */
@@ -3364,7 +3382,7 @@ button.jr-step:hover {
     padding: 1.2cqw 1.8cqw;
     border-radius: 1.8cqw;
     font-size: calc(var(--u) * 1.1);
-    box-shadow: inset 0 0 0 0.4cqw color-mix(in srgb, var(--primary) calc(var(--hl, 0) * 55%), transparent);
+    box-shadow: inset 0 0 0 0.4cqw color-mix(in srgb, var(--sel) calc(var(--hl, 0) * 55%), transparent);
   }
   .vs-row__label {
     text-wrap: balance;

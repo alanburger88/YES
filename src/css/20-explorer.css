@@ -22,7 +22,7 @@
   margin-bottom: var(--s5);
 }
 .tx-head .view-lede strong {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink);
 }
 
@@ -136,7 +136,7 @@
   }
 }
 .tx-filter-toggle[aria-expanded='true'] {
-  border-color: var(--primary);
+  border-color: var(--sel);
   background: var(--primary-wash);
 }
 .tx-badge {
@@ -147,8 +147,8 @@
   height: 22px;
   padding: 0 6px;
   border-radius: 999px;
-  background: var(--primary);
-  color: var(--on-primary);
+  background: var(--sel);
+  color: var(--on-sel);
   font-size: var(--fs-xs);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -195,7 +195,7 @@
   width: 100%;
   margin-bottom: var(--s2);
   font-size: var(--fs-sm);
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink);
 }
 .tx-fs__legend + * {
@@ -245,14 +245,14 @@
   width: 18px;
   height: 18px;
   margin: 0;
-  accent-color: var(--primary);
+  accent-color: var(--sel);
   flex-shrink: 0;
 }
 .tx-check:has(input:focus-visible) {
   box-shadow: var(--focus-ring);
 }
 .tx-check:has(input:checked) .tx-check__label {
-  font-weight: 650;
+  font-weight: 600;
 }
 .tx-check__n {
   margin-left: auto;
@@ -278,7 +278,7 @@
   margin-left: -4px;
 }
 .tx-check--radio input {
-  accent-color: var(--primary);
+  accent-color: var(--sel);
 }
 
 .tx-filters__foot {
@@ -356,7 +356,7 @@
   vertical-align: middle;
   margin: 0 var(--s3) var(--s2) 0;
   font-size: var(--fs-xs);
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -400,7 +400,7 @@
   flex-shrink: 0;
 }
 .tx-chip:hover .tx-chip__x {
-  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  background: color-mix(in srgb, var(--sel) 16%, transparent);
   color: var(--ink);
 }
 .tx-chip:focus-visible {
@@ -488,7 +488,7 @@
   background: none;
   color: var(--ink);
   font: inherit;
-  font-weight: 650;
+  font-weight: 600;
   text-align: left;
   line-height: 1.35;
   border-radius: 3px;
@@ -531,7 +531,7 @@ mark.tx-mark-amount {
   gap: 4px;
   margin-top: 4px;
   font-size: var(--fs-xs);
-  font-weight: 650;
+  font-weight: 600;
   color: var(--warn);
 }
 .tx-match {
@@ -547,7 +547,7 @@ mark.tx-mark-amount {
   color: var(--muted);
 }
 .tx-match__label {
-  font-weight: 650;
+  font-weight: 600;
 }
 .tx-match__value {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
@@ -628,7 +628,7 @@ mark.tx-mark-amount {
 }
 .tx-date__day {
   display: block;
-  font-weight: 650;
+  font-weight: 600;
   white-space: nowrap;
 }
 .tx-date__time {
@@ -659,7 +659,7 @@ mark.tx-mark-amount {
   font-size: var(--fs-base);
 }
 .tx-type-inline {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink);
 }
 
@@ -722,7 +722,7 @@ mark.tx-mark-amount {
   color: var(--muted);
 }
 .tx-card__type {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink-2);
 }
 .tx-card__amount {
@@ -889,7 +889,7 @@ mark.tx-mark-amount {
 .tx-dlg__eyebrow {
   margin: 0;
   font-size: var(--fs-xs);
-  font-weight: 650;
+  font-weight: 600;
   color: var(--muted);
   letter-spacing: 0.02em;
 }
@@ -905,7 +905,7 @@ mark.tx-mark-amount {
   max-width: 100%;
 }
 .tx-dlg__demo .tag--illustrative {
-  font-weight: 650;
+  font-weight: 600;
   white-space: normal; /* wraps on a 320px sheet instead of overflowing the card */
 }
 .tx-dlg__hero {
@@ -941,6 +941,9 @@ mark.tx-mark-amount {
 .tx-dlg__unit {
   flex: 1 1 16rem;
   order: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
   margin: 0;
   font-size: var(--fs-sm);
   color: var(--ink-2);
@@ -1077,7 +1080,7 @@ mark.tx-mark-amount {
 }
 .tx-fee__kind,
 .tx-link-card__title {
-  font-weight: 650;
+  font-weight: 600;
   font-size: var(--fs-sm);
 }
 .tx-fee__id,
@@ -1095,7 +1098,7 @@ mark.tx-mark-amount {
   margin: var(--s2) 0 0;
   padding: var(--s2) var(--s4);
   font-size: var(--fs-sm);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 /* On-chain */
