@@ -330,7 +330,46 @@ export default async function (t) {
     vh: innerHeight
   }));
   if (vp === 'mobile') t.assert(fold.actions <= fold.vh, 'both primary actions are on the first screen of a 390×844 phone (bottom ' + fold.actions + ')');
-  if (wide) t.assert(fold.journey + 32 <= fold.vh, 'the balance journey starts on the first screen at 1280×900 (heading at ' + fold.journey + ')');
+  if (wide) {
+    // "From YES" (promos): one compact update card follows the balance card. It
+    // never displaces the balance: the whole balance card (balance, both
+    // actions, the pending notice) stays on the first screen, and the card is
+    // the only promotion above the fold.
+    const promoFold = await page.evaluate(() => {
+      const card = document.querySelector('#overview-root .promo--overview');
+      const above = [...document.querySelectorAll('[data-promo]')].filter((e) => e.getClientRects().length && e.getBoundingClientRect().top + scrollY < innerHeight);
+      return {
+        balance: Math.round(document.querySelector('.ov-balance').getBoundingClientRect().bottom + scrollY),
+        top: card ? Math.round(card.getBoundingClientRect().top + scrollY) : null,
+        height: card ? Math.round(card.getBoundingClientRect().height) : null,
+        above: above.length
+      };
+    });
+    t.assert(promoFold.balance <= fold.vh, 'the whole balance card is on the first screen at 1280×900 (bottom ' + promoFold.balance + ')');
+    t.assert(promoFold.top !== null && promoFold.top > promoFold.balance && promoFold.top < fold.vh, 'the What\'s new card starts on the first screen, right after the balance card: ' + JSON.stringify(promoFold));
+    t.assert(promoFold.height <= 240, 'the What\'s new card stays compact at 1280×900: ' + promoFold.height + 'px');
+    t.eq(promoFold.above, 1, 'at most one promotion above the fold');
+    // PRD 5.1: with no update showing (or with the card after the journey,
+    // YES.config.promotions.overviewPosition), the balance journey starts on
+    // the first screen at 1280×900, exactly as before.
+    for (const mode of ['afterJourney', 'none']) {
+      const j = await page.evaluate((m) => {
+        const c = YES.config.promotions;
+        const keep = { pos: c.overviewPosition, enabled: c.enabled };
+        if (m === 'afterJourney') c.overviewPosition = 'afterJourney';
+        else c.enabled = false;
+        YES.renderAll();
+        const top = Math.round(document.getElementById('ov-journey-title').getBoundingClientRect().top + scrollY);
+        const after = document.querySelector('.ov-journey ~ .promo-slot .promo--overview');
+        c.overviewPosition = keep.pos;
+        c.enabled = keep.enabled;
+        YES.renderAll();
+        return { top, after: !!after };
+      }, mode);
+      t.assert(j.top + 32 <= fold.vh, `the balance journey starts on the first screen at 1280×900 (${mode}; heading at ${j.top})`);
+      if (mode === 'afterJourney') t.assert(j.after, 'overviewPosition "afterJourney" moves the card below the balance journey');
+    }
+  }
   const sf = await stageFacts(page);
   t.assert(sf.contrast >= 4.5, 'video poster text contrast: ' + sf.contrast);
   // No choice yet: the device setting (light, or dark with tests/run.mjs --color-scheme dark).
@@ -695,7 +734,12 @@ export default async function (t) {
   const insight = norm(await page.locator('.ov-insight').innerText());
   const largest = await page.evaluate(() => YES.calc.largest().id);
   t.assert(insight.includes('+250.00 USBC') && insight.includes('September 1, 2026'), 'insight from calc.largest(): ' + insight);
-  t.eq(await page.locator('.ov-insight, .ov-education, [class*="promo"]').count(), 1, 'at most one insight card');
+  t.eq(await page.locator('.ov-insight, .ov-education').count(), 1, 'at most one insight card');
+  // "From YES" promotions on the Overview: the one update card and one quiet
+  // note beside the network fee; nothing promotional inside the Why section's cards.
+  t.eq(await page.locator('#overview-root .promo').count(), 1, 'one "From YES" card on the Overview');
+  t.eq(await page.locator('#overview-root .promo-note').count(), 1, 'one "From YES" note (beside the network fee)');
+  t.eq(await page.locator('.ov-why .promo, .ov-insight [data-promo], .ov-chartcard [data-promo]').count(), 0, 'no promotion in the chart or insight cards');
   await page.click('[data-fk="ov-insight-view"]');
   t.eq((await calls(page))[0], { fn: 'openTx', id: largest, fk: 'ov-insight-view', list: null }, 'insight opens the largest transaction (no list of its own)');
   await page.click('[data-fk="ov-insight-learn"]');

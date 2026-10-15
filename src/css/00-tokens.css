@@ -82,6 +82,17 @@
   --ai: #0004ff; /* "Explain with AI" accent (border/icon): accent blue */
   --ai-wash: #ebebff;
 
+  /* Progressive trust levels ("From YES" trust meter, 70-promos.css). Fills
+     are the brand's progressive colours, decorative; each mark's outline is a
+     derived darker tone, ≥3:1 on --surface and --surface-2, and every level is
+     also named in words. */
+  --tier-bronze: #e2c2b6; /* progressive bronze */
+  --tier-bronze-line: #8a5a46; /* derived: 5.78:1 on white */
+  --tier-silver: #adb2b8; /* progressive silver */
+  --tier-silver-line: #5c6168; /* derived: 6.24:1 on white */
+  --tier-gold: #bca58e; /* progressive gold */
+  --tier-gold-line: #7a6146; /* derived: 5.79:1 on white */
+
   /* Type scale */
   --fs-hero: clamp(2.6rem, 6vw + 1rem, 3.75rem);
   --fs-xl: clamp(1.5rem, 1.6vw + 1rem, 2rem);
@@ -196,6 +207,13 @@
     --ai: #8587ff;
     --ai-wash: #17183a;
 
+    --tier-bronze: #e2c2b6; /* progressive bronze: 11.26:1 on #121212 */
+    --tier-bronze-line: #e2c2b6;
+    --tier-silver: #adb2b8; /* progressive silver: 8.78:1 */
+    --tier-silver-line: #adb2b8;
+    --tier-gold: #bca58e; /* progressive gold: 7.95:1 */
+    --tier-gold-line: #bca58e;
+
     --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
     --shadow-1: none;
     --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.6);
@@ -252,6 +270,13 @@
     --demo-line: #7a5a4c; /* derived, bronze */
     --ai: #8587ff;
     --ai-wash: #17183a;
+
+    --tier-bronze: #e2c2b6; /* progressive bronze: 11.26:1 on #121212 */
+    --tier-bronze-line: #e2c2b6;
+    --tier-silver: #adb2b8; /* progressive silver: 8.78:1 */
+    --tier-silver-line: #adb2b8;
+    --tier-gold: #bca58e; /* progressive gold: 7.95:1 */
+    --tier-gold-line: #bca58e;
 
     --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
     --shadow-1: none;
@@ -322,6 +347,13 @@
     --demo-line: #7a5a4c; /* derived, bronze */
     --ai: #8587ff;
     --ai-wash: #17183a;
+
+    --tier-bronze: #e2c2b6; /* progressive bronze: 11.26:1 on #121212 */
+    --tier-bronze-line: #e2c2b6;
+    --tier-silver: #adb2b8; /* progressive silver: 8.78:1 */
+    --tier-silver-line: #adb2b8;
+    --tier-gold: #bca58e; /* progressive gold: 7.95:1 */
+    --tier-gold-line: #bca58e;
 
     --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
     --shadow-1: none;

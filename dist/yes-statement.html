@@ -94,6 +94,12 @@ color-scheme: light;
 --demo-line: #c49a88;
 --ai: #0004ff;
 --ai-wash: #ebebff;
+--tier-bronze: #e2c2b6;
+--tier-bronze-line: #8a5a46;
+--tier-silver: #adb2b8;
+--tier-silver-line: #5c6168;
+--tier-gold: #bca58e;
+--tier-gold-line: #7a6146;
 --fs-hero: clamp(2.6rem, 6vw + 1rem, 3.75rem);
 --fs-xl: clamp(1.5rem, 1.6vw + 1rem, 2rem);
 --fs-lg: 1.25rem;
@@ -175,6 +181,12 @@ color-scheme: dark;
 --demo-line: #7a5a4c;
 --ai: #8587ff;
 --ai-wash: #17183a;
+--tier-bronze: #e2c2b6;
+--tier-bronze-line: #e2c2b6;
+--tier-silver: #adb2b8;
+--tier-silver-line: #adb2b8;
+--tier-gold: #bca58e;
+--tier-gold-line: #bca58e;
 --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
 --shadow-1: none;
 --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.6);
@@ -224,6 +236,12 @@ color-scheme: dark;
 --demo-line: #7a5a4c;
 --ai: #8587ff;
 --ai-wash: #17183a;
+--tier-bronze: #e2c2b6;
+--tier-bronze-line: #e2c2b6;
+--tier-silver: #adb2b8;
+--tier-silver-line: #adb2b8;
+--tier-gold: #bca58e;
+--tier-gold-line: #bca58e;
 --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
 --shadow-1: none;
 --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.6);
@@ -274,6 +292,12 @@ color-scheme: dark;
 --demo-line: #7a5a4c;
 --ai: #8587ff;
 --ai-wash: #17183a;
+--tier-bronze: #e2c2b6;
+--tier-bronze-line: #e2c2b6;
+--tier-silver: #adb2b8;
+--tier-silver-line: #adb2b8;
+--tier-gold: #bca58e;
+--tier-gold-line: #bca58e;
 --dots: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1.2px, transparent 1.6px);
 --shadow-1: none;
 --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.6);
@@ -7640,6 +7664,14 @@ margin: 0 0 var(--s2);
 .asst-tag-policy .icon {
 color: var(--ai);
 }
+.asst-tag-yes {
+background: var(--primary-wash);
+border-color: color-mix(in srgb, var(--sel) 40%, var(--line));
+color: var(--primary-ink);
+}
+.asst-whatsnew {
+margin-top: var(--s3);
+}
 .asst-ans__title {
 font-size: var(--fs-md);
 margin: 0 0 var(--s2);
@@ -10240,6 +10272,470 @@ white-space: normal;
 overflow-wrap: anywhere;
 }
 }
+/* ---- css/70-promos.css ---- */
+.promo {
+--promo-edge: color-mix(in srgb, var(--sel) 40%, var(--line));
+position: relative;
+background-color: var(--surface);
+border: 1px solid var(--promo-edge);
+border-radius: var(--radius-lg);
+padding: var(--s5);
+color: var(--ink);
+}
+.promo-slot {
+margin-top: var(--s5);
+container: promo / inline-size;
+}
+.promo-slot:empty {
+display: none;
+}
+@media screen {
+.promo--overview {
+background-image: radial-gradient(ellipse 38% 150px at 100% 0, transparent 0, var(--surface) 100%), var(--dots);
+background-size: auto, var(--dots-size);
+}
+}
+.promo-from {
+display: inline-flex;
+align-items: center;
+gap: 4px;
+font-size: var(--fs-xs);
+font-weight: 600;
+color: var(--primary-ink);
+white-space: nowrap;
+}
+.promo__heading {
+display: flex;
+align-items: center;
+gap: 6px;
+margin: 0;
+color: var(--primary-ink);
+font-size: var(--fs-sm);
+font-weight: 600;
+letter-spacing: 0.01em;
+}
+.promo__heading .promo-from {
+font-size: inherit;
+white-space: normal;
+}
+.promo__top {
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+justify-content: space-between;
+gap: var(--s2) var(--s3);
+}
+.promo__meta {
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+gap: var(--s2);
+margin: 0;
+}
+.promo__count {
+font-size: var(--fs-xs);
+font-weight: 600;
+color: var(--muted);
+font-variant-numeric: tabular-nums;
+}
+.promo__icon {
+display: inline-flex;
+align-items: center;
+justify-content: center;
+flex: none;
+width: 44px;
+height: 44px;
+border-radius: var(--radius-sm);
+border: 1px solid var(--promo-edge);
+background: var(--primary-wash);
+color: var(--primary-ink);
+}
+.promo__eyebrow {
+margin: 0 0 2px;
+font-size: var(--fs-xs);
+font-weight: 600;
+letter-spacing: 0.06em;
+text-transform: uppercase;
+color: var(--muted);
+}
+.promo__title {
+margin: 0 0 var(--s1);
+font-size: var(--fs-lg);
+font-weight: 600;
+line-height: 1.3;
+}
+.promo__title:focus {
+outline: none;
+}
+.promo__title:focus-visible {
+outline: 2px solid var(--focus);
+outline-offset: 2px;
+border-radius: 4px;
+}
+.promo__body {
+margin: 0;
+max-width: 72ch;
+color: var(--ink-2);
+}
+.promo__personal {
+color: var(--ink);
+font-weight: 500;
+}
+.promo__personal--block {
+display: flex;
+flex-wrap: wrap;
+align-items: baseline;
+gap: 2px var(--s2);
+margin: var(--s3) 0 0;
+padding: var(--s2) var(--s3);
+border-radius: var(--radius-sm);
+background: var(--surface-2);
+}
+.promo__for {
+flex: none;
+font-size: var(--fs-xs);
+font-weight: 700;
+letter-spacing: 0.06em;
+text-transform: uppercase;
+color: var(--ink-2);
+}
+.promo__foot {
+margin: var(--s2) 0 0;
+max-width: 80ch;
+font-size: var(--fs-xs);
+color: var(--muted);
+}
+.promo-handle {
+font-weight: 600;
+color: var(--ink);
+white-space: nowrap;
+}
+.promo__actions {
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+gap: var(--s2);
+}
+.btn--promo {
+background: var(--sel);
+border-color: var(--sel);
+color: var(--on-sel);
+}
+.btn--promo:hover {
+background: color-mix(in srgb, var(--sel) 86%, var(--ink));
+border-color: color-mix(in srgb, var(--sel) 86%, var(--ink));
+}
+.promo--overview .promo__main {
+display: grid;
+grid-template-columns: auto minmax(0, 1fr);
+gap: var(--s3) var(--s4);
+margin-top: var(--s3);
+}
+.promo--overview .promo__actions {
+grid-column: 1 / -1;
+}
+.promo--overview .promo__actions .btn--promo {
+flex: 1 1 100%;
+}
+.promo--overview .promo__actions .btn--ghost {
+flex: 1 1 auto;
+border-color: var(--line-strong);
+}
+@container promo (width >= 36em) {
+.promo--overview .promo__actions {
+grid-column: 2;
+}
+.promo--overview .promo__actions .btn--promo {
+flex: 0 0 auto;
+}
+.promo--overview .promo__actions .btn--ghost {
+flex: 0 0 auto;
+}
+}
+@container promo (width >= 52em) {
+.promo--overview {
+padding: var(--s5) var(--s6);
+}
+.promo--overview .promo__main {
+grid-template-columns: auto minmax(0, 1fr) auto;
+align-items: start;
+}
+.promo--overview .promo__actions {
+grid-column: 3;
+flex-direction: column;
+align-items: stretch;
+min-width: 13rem;
+}
+.promo--overview .promo__actions .btn {
+justify-content: flex-start;
+}
+}
+.promo-cleared {
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+gap: 4px var(--s2);
+margin: 0;
+font-size: var(--fs-sm);
+color: var(--ink-2);
+}
+.promo-cleared .icon {
+color: var(--primary-ink);
+}
+.promo-cleared__link,
+.promo-note__link {
+display: inline;
+padding-block: 4px;
+margin-block: -4px;
+color: var(--primary-ink);
+font-weight: 600;
+text-decoration: underline;
+text-underline-offset: 2px;
+border-radius: 2px;
+}
+.promo-cleared__link:hover,
+.promo-note__link:hover {
+text-decoration-thickness: 2px;
+}
+.promo-note {
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+gap: 2px var(--s2);
+margin: 6px 0 0;
+padding: 4px 10px;
+border-radius: var(--radius-sm);
+background: color-mix(in srgb, var(--sel) 5%, var(--surface));
+font-size: var(--fs-xs);
+color: var(--ink-2);
+}
+.promo-note .tag {
+line-height: 1.4;
+}
+.promo-note__labels {
+display: inline-flex;
+flex-wrap: wrap;
+align-items: center;
+gap: 4px var(--s2);
+}
+.promo-note__msg {
+min-width: 0;
+}
+.ov-minilist > li > .promo-note {
+margin-inline: 4px;
+}
+.tx-dlg__section .promo-note {
+margin-top: var(--s3);
+}
+@media (pointer: coarse) {
+.promo-note__link,
+.promo-cleared__link {
+padding-block: 12px;
+margin-block: -12px;
+}
+}
+.promo-meter {
+margin: var(--s3) 0 0;
+max-width: 30rem;
+}
+.promo-meter__label {
+margin: 0 0 6px;
+font-size: var(--fs-xs);
+font-weight: 600;
+color: var(--ink-2);
+}
+.promo-meter__steps {
+display: grid;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+gap: 6px;
+margin: 0;
+padding: 0;
+list-style: none;
+}
+.promo-meter__step {
+--t-fill: var(--tier-silver);
+--t-line: var(--tier-silver-line);
+display: flex;
+flex-direction: column;
+gap: 4px;
+min-width: 0;
+font-size: var(--fs-xs);
+}
+.promo-meter__step[data-tier='bronze'] {
+--t-fill: var(--tier-bronze);
+--t-line: var(--tier-bronze-line);
+}
+.promo-meter__step[data-tier='gold'] {
+--t-fill: var(--tier-gold);
+--t-line: var(--tier-gold-line);
+}
+.promo-meter__bar {
+display: block;
+height: 10px;
+border-radius: 999px;
+border: 1px dashed var(--t-line);
+background: transparent;
+}
+.promo-meter__step--done .promo-meter__bar,
+.promo-meter__step--current .promo-meter__bar {
+border-style: solid;
+background: var(--t-fill);
+}
+.promo-meter__step--current .promo-meter__bar {
+box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--t-line);
+}
+.promo-meter__name {
+display: inline-flex;
+align-items: center;
+gap: 4px;
+font-weight: 600;
+color: var(--ink);
+}
+.promo-meter__name .icon {
+flex: none;
+color: var(--t-line);
+}
+.promo-meter__state {
+color: var(--muted);
+}
+.promo-meter__step--current .promo-meter__state {
+color: var(--ink);
+font-weight: 600;
+}
+.promo-codes {
+margin: var(--s3) 0 0;
+}
+.promo-codes__label {
+margin: 0 0 6px;
+font-size: var(--fs-xs);
+font-weight: 600;
+color: var(--ink-2);
+}
+.promo-codes__list {
+display: flex;
+flex-wrap: wrap;
+gap: 6px;
+margin: 0;
+padding: 0;
+list-style: none;
+}
+.promo-codes__list li {
+display: inline-flex;
+align-items: baseline;
+gap: 6px;
+padding: 3px 10px;
+border: 1px solid var(--line-strong);
+border-radius: 999px;
+font-size: var(--fs-xs);
+}
+.promo-codes__code {
+font-weight: 700;
+letter-spacing: 0.02em;
+}
+.promo-codes__name {
+color: var(--ink-2);
+}
+#whatsnew-root {
+container: wn / inline-size;
+}
+.wn-head {
+margin-bottom: var(--s6);
+}
+.wn-lede {
+margin-bottom: var(--s4);
+}
+.wn-note {
+max-width: 72ch;
+}
+.wn-hidden {
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+gap: 2px var(--s2);
+margin: var(--s3) 0 0;
+font-size: var(--fs-sm);
+color: var(--ink-2);
+}
+.wn-hidden .btn--link {
+min-height: 24px;
+}
+.wn-list {
+display: grid;
+grid-template-columns: minmax(0, 1fr);
+gap: var(--s5);
+margin: 0;
+padding: 0;
+list-style: none;
+}
+@container wn (width >= 50em) {
+.wn-list {
+grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+}
+.wn-item {
+display: flex;
+min-width: 0;
+}
+.promo--full {
+display: flex;
+flex-direction: column;
+width: 100%;
+scroll-margin-top: calc(var(--masthead-h) + var(--s4));
+}
+@media (min-width: 720px) {
+.promo--full {
+padding: var(--s6);
+}
+}
+.promo__head {
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+gap: var(--s2) var(--s3);
+margin-bottom: var(--s3);
+}
+.promo__tags {
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+gap: 6px;
+margin: 0;
+}
+.promo__tags .promo-from {
+padding: 1px 8px;
+border: 1px solid var(--promo-edge);
+border-radius: 999px;
+background: var(--primary-wash);
+line-height: 1.6;
+}
+.promo--full .promo__actions {
+margin-top: auto;
+padding-top: var(--s5);
+}
+.wn-empty {
+color: var(--ink-2);
+}
+@media (forced-colors: active) {
+.promo--overview {
+background-image: none;
+}
+.promo,
+.promo__icon,
+.promo-note {
+border: 1px solid CanvasText;
+}
+.promo-meter__bar {
+border-color: CanvasText;
+}
+.promo-meter__step--done .promo-meter__bar,
+.promo-meter__step--current .promo-meter__bar {
+background: CanvasText;
+forced-color-adjust: none;
+}
+.btn--promo {
+border: 2px solid ButtonText;
+}
+}
 /* ---- css/90-print.css ---- */
 #print-root {
 display: none;
@@ -10271,7 +10767,12 @@ font-size: 10.5pt;
 dialog,
 .toast,
 #assistant-root,
-[data-print-hide] {
+[data-print-hide],
+[data-promo],
+.promo-slot,
+.promo-note,
+.promo-cleared,
+#view-whatsnew {
 display: none !important;
 }
 #print-root {
@@ -10355,6 +10856,10 @@ page-break-after: avoid;
         </section>
         <section class="view" id="view-help" data-view="help" aria-labelledby="h-help" hidden>
           <div id="help-root" class="container"></div>
+        </section>
+        <!-- "From YES" updates (promos module): illustrative, screen only, never in print -->
+        <section class="view" id="view-whatsnew" data-view="whatsnew" aria-labelledby="h-whatsnew" hidden>
+          <div id="whatsnew-root" class="container"></div>
         </section>
       </main>
       <footer class="site-footer" id="site-footer"></footer>
@@ -10451,7 +10956,134 @@ src: 'https://cdn.userway.org/widget.js',
 timeoutMs: 8000,
 position: 5
 },
-reconciliation: { blockOnMismatch: true }
+reconciliation: { blockOnMismatch: true },
+promotions: {
+enabled: true,
+storageKey: 'yes.promos',
+overviewPosition: 'afterBalance',
+items: [
+{
+id: 'pay-identity',
+theme: 'identity',
+priority: 40,
+icon: 'send',
+placements: ['overview', 'whatsnew', 'fees', 'txDetail', 'assistant'],
+rule: { kind: 'networkFeePaid', feeKind: 'network_transfer', min: 1 },
+handle: 'yes.danielk',
+eyebrow: { en: 'New: YES identities', es: 'Novedad: identidades YES' },
+title: { en: 'Pay a YES identity', es: 'Paga a una identidad YES' },
+body: {
+en: 'Send to a YES identity, like {handle}, instantly and with no network fee.',
+es: 'Envía a una identidad YES, como {handle}, al instante y sin comisión de red.'
+},
+personal: {
+en: 'You paid {fee} in network fees this month sending to external wallets.',
+es: 'Este mes pagaste {fee} en comisiones de red por envíos a monederos externos.'
+},
+note: {
+en: 'Next time, pay a YES identity. No network fee.',
+es: 'La próxima vez, paga a una identidad YES. Sin comisión de red.'
+},
+cta: { en: 'Find a YES identity', es: 'Busca una identidad YES' },
+feature: { en: 'YES identities', es: 'las identidades YES' },
+footnote: {
+en: '{handle} is an example handle. Network fees apply only when you send to a wallet outside YES.',
+es: '{handle} es un identificador de ejemplo. Las comisiones de red solo se aplican cuando envías a un monedero fuera de YES.'
+}
+},
+{
+id: 'trust',
+theme: 'trust',
+priority: 30,
+icon: 'shield-check',
+placements: ['overview', 'whatsnew', 'assistant'],
+rule: { kind: 'trustBelow', level: 'gold' },
+tiers: [
+{ id: 'bronze', label: { en: 'Bronze', es: 'Bronce' } },
+{ id: 'silver', label: { en: 'Silver', es: 'Plata' } },
+{ id: 'gold', label: { en: 'Gold', es: 'Oro' } }
+],
+eyebrow: { en: 'Progressive trust', es: 'Confianza progresiva' },
+title: { en: "You're at {level}", es: 'Estás en el nivel {level}' },
+body: {
+en: 'Verify your address to reach {next} and raise your monthly send limit.',
+es: 'Verifica tu dirección para llegar a {next} y aumentar tu límite mensual de envío.'
+},
+personal: {
+en: 'You sent {sent} this month. Your {level} limit is {limit} a month.',
+es: 'Este mes enviaste {sent}. Tu límite {level} es de {limit} al mes.'
+},
+note: {
+en: 'Verify your address to reach {next}.',
+es: 'Verifica tu dirección para llegar a {next}.'
+},
+cta: { en: 'Verify your address', es: 'Verifica tu dirección' },
+feature: { en: 'address verification', es: 'la verificación de dirección' },
+footnote: {
+en: 'Trust levels and limits shown here are illustrative.',
+es: 'Los niveles de confianza y los límites que se muestran son ilustrativos.'
+}
+},
+{
+id: 'currencies',
+theme: 'currencies',
+priority: 20,
+icon: 'globe',
+placements: ['overview', 'whatsnew', 'assistant'],
+rule: { kind: 'always' },
+codes: [
+{ code: 'EUBC', name: { en: 'Euro', es: 'Euro' } },
+{ code: 'UKBC', name: { en: 'British pound', es: 'Libra esterlina' } },
+{ code: 'MXBC', name: { en: 'Mexican peso', es: 'Peso mexicano' } },
+{ code: 'NZBC', name: { en: 'New Zealand dollar', es: 'Dólar neozelandés' } }
+],
+eyebrow: { en: 'Coming soon', es: 'Próximamente' },
+title: { en: 'More currencies', es: 'Más monedas' },
+body: {
+en: 'Coming soon: hold EUBC, UKBC, MXBC and NZBC alongside USBC.',
+es: 'Próximamente: ten EUBC, UKBC, MXBC y NZBC junto a tus USBC.'
+},
+note: {
+en: 'More currencies are coming to YES.',
+es: 'Llegan más monedas a YES.'
+},
+cta: { en: 'Notify me', es: 'Avísame' },
+feature: { en: 'currency updates', es: 'las novedades de monedas' },
+footnote: {
+en: 'Planned currencies are subject to regulatory approval.',
+es: 'Las monedas previstas están sujetas a aprobación regulatoria.'
+}
+},
+{
+id: 'interest',
+theme: 'interest',
+priority: 10,
+icon: 'percent',
+placements: ['overview', 'whatsnew', 'assistant'],
+rule: { kind: 'balanceAtLeast', amount: 1 },
+eyebrow: { en: 'Coming soon', es: 'Próximamente' },
+title: { en: 'Interest on USBC', es: 'Intereses en USBC' },
+body: {
+en: 'Coming soon: earn interest on your USBC balance.',
+es: 'Próximamente: gana intereses sobre tu saldo en USBC.'
+},
+personal: {
+en: 'Your statement balance: {closing}.',
+es: 'Saldo de tu estado de cuenta: {closing}.'
+},
+note: {
+en: 'Interest on USBC is coming soon.',
+es: 'Pronto llegan los intereses en USBC.'
+},
+cta: { en: 'Notify me', es: 'Avísame' },
+feature: { en: 'interest updates', es: 'las novedades sobre intereses' },
+footnote: {
+en: 'Subject to regulatory approval. Rates and terms to be confirmed.',
+es: 'Sujeto a aprobación regulatoria. Tasas y condiciones por confirmar.'
+}
+}
+]
+}
 };
 })(typeof window !== 'undefined' ? window : globalThis);
 /* ---- js/00-media.js ---- */
@@ -10483,7 +11115,8 @@ language: 'en',
 customer: {
 firstName: 'Sam',
 displayName: 'Sam Ortega',
-address: ['100 Sample Avenue, Apt 4', 'Anytown, ST 00000']
+address: ['100 Sample Avenue, Apt 4', 'Anytown, ST 00000'],
+trust: { level: 'silver', monthlySendLimit: 100000, nextStep: 'verify_address', illustrative: true }
 },
 account: {
 label: { en: 'YES bank-issued digital dollar account', es: 'Cuenta YES de dólares digitales emitidos por un banco' },
@@ -11340,6 +11973,7 @@ en: {
 'nav.transactions': 'Transactions',
 'nav.understand': 'Understand',
 'nav.help': 'Help',
+'nav.whatsnew': "What's new",
 'lang.label': 'Language',
 'lang.en': 'English',
 'lang.es': 'Español',
@@ -11491,6 +12125,7 @@ es: {
 'nav.transactions': 'Movimientos',
 'nav.understand': 'Entender',
 'nav.help': 'Ayuda',
+'nav.whatsnew': 'Novedades',
 'lang.label': 'Idioma',
 'lang.en': 'English',
 'lang.es': 'Español',
@@ -11674,7 +12309,8 @@ sort: { key: 'posted', dir: 'desc' },
 selectedTx: null,
 inquiry: null,
 assistant: null,
-feedback: {}
+feedback: {},
+promos: null
 };
 YES.set = function (patch) {
 var changed = [];
@@ -11763,7 +12399,21 @@ return null;
 YES.assistant = { open: stub('assistant', 'open'), close: stub('assistant', 'close'), ask: stub('assistant', 'ask') };
 YES.understand = { openTopic: stub('understand', 'openTopic') };
 YES.help = { open: stub('help', 'open'), downloadPdf: stub('help', 'downloadPdf') };
-var VIEWS = ['overview', 'transactions', 'understand', 'help'];
+YES.promos = {
+slotHtml: function () {
+return '';
+},
+noteHtml: function () {
+return '';
+},
+list: function () {
+return [];
+},
+view: function () {
+return null;
+}
+};
+var VIEWS = ['overview', 'transactions', 'understand', 'help', 'whatsnew'];
 YES.VIEWS = VIEWS;
 function safeDecode(s) {
 try {
@@ -12264,7 +12914,13 @@ sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><pat
 eye: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
 video: '<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
 accessibility: '<circle cx="16" cy="4" r="1"/><path d="m18 19 1-7-6 1"/><path d="m5 8 3-3 5.5 3-2.36 3.5"/><path d="M4.24 14.5a5 5 0 0 0 6.88 6"/><path d="M13.76 17.5a5 5 0 0 0-6.88-6"/>',
-calendar: '<path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>'
+calendar: '<path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>',
+send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
+'shield-check': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+'badge-check': '<path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m16 9-5.5 5.5L8 12"/>',
+coins: '<path d="M13.744 17.736a6 6 0 1 1-7.48-7.48"/><path d="M15 6h1v4"/><path d="m6.134 14.768.866-.5 2 3.464"/><circle cx="16" cy="8" r="6"/>',
+percent: '<line x1="19" x2="5" y1="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
+megaphone: '<path d="M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/><path d="M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14"/><path d="M8 6v8"/>'
 };
 ui.icon = function (name, opts) {
 opts = opts || {};
@@ -14580,7 +15236,7 @@ body +
 '</tbody></table></div></div></details>'
 );
 }
-function miniRowHtml(tx, fk, extra) {
+function miniRowHtml(tx, fk, extra, after) {
 return (
 '<li><button type="button" class="ov-mini" data-ov-tx="' +
 esc(tx.id) +
@@ -14599,7 +15255,9 @@ rowAmount(tx.amount) +
 '</span>' +
 '<span class="sr-only">, ' +
 esc(t('overview.panel.open')) +
-'</span></button></li>'
+'</span></button>' +
+(after || '') +
+'</li>'
 );
 }
 function lowDataHtml(running) {
@@ -14683,7 +15341,7 @@ esc(rows.length === 1 ? t('overview.fees.count1') : t('overview.fees.countN', { 
 '<ul class="ov-minilist">' +
 rows
 .map(function (tx) {
-return miniRowHtml(tx, 'ov-fee-');
+return miniRowHtml(tx, 'ov-fee-', null, YES.promos.noteHtml('fees', { txId: tx.id }));
 })
 .join('') +
 '</ul>' +
@@ -16609,7 +17267,15 @@ if (YES.state.view !== 'transactions') YES.nav.go('transactions');
 }
 function viewHtml() {
 var rec = YES.calc.reconcile(YES.data);
-return headerHtml() + balanceHtml() + journeySectionHtml(rec) + whyHtml(rec) + videoCardHtml(rec);
+return (
+headerHtml() +
+balanceHtml() +
+YES.promos.slotHtml('overview', 'afterBalance') +
+journeySectionHtml(rec) +
+YES.promos.slotHtml('overview', 'afterJourney') +
+whyHtml(rec) +
+videoCardHtml(rec)
+);
 }
 function render() {
 var el = doc.getElementById('overview-root');
@@ -18645,6 +19311,7 @@ esc(t('explorer.dlg.feeSeparate')) +
 } else {
 body = '<p class="tx-dlg__muted">' + esc(t('explorer.dlg.noFees')) + '</p>';
 }
+body += YES.promos.noteHtml('txDetail', { txId: tx.id });
 return '<section class="tx-dlg__section" aria-labelledby="txd-fees-h"><h3 id="txd-fees-h">' + ui.icon('fee', { size: 18 }) + '<span>' + esc(t('explorer.dlg.fees')) + '</span></h3>' + body + '</section>';
 }
 function onchainSectionHtml(tx) {
@@ -21078,7 +21745,7 @@ var MAX_THREAD = 24;
 var ROW_PREVIEW = 6;
 var SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 var ENTRY_ID = /^a\d{1,9}$/;
-var QUESTIONS = ['why_balance', 'fees_paid', 'largest', 'pending', 'statement_vs_live', 'peg', 'onchain_sent'];
+var QUESTIONS = ['why_balance', 'fees_paid', 'largest', 'pending', 'statement_vs_live', 'peg', 'onchain_sent', 'whats_new'];
 var Q_TOPIC = {
 why_balance: { topic: 'balance' },
 fees_paid: { topic: 'fees' },
@@ -21086,10 +21753,11 @@ largest: { topic: 'largest' },
 pending: { topic: 'pending' },
 statement_vs_live: { topic: 'edu', id: 'statement_vs_live' },
 peg: { topic: 'peg' },
-onchain_sent: { topic: 'onchain_sent' }
+onchain_sent: { topic: 'onchain_sent' },
+whats_new: { topic: 'whatsnew' }
 };
 var EDU = ['token_units', 'usd_equivalent', 'onchain_vs_internal', 'tx_status', 'fees', 'redemption', 'statement_vs_live', 'transparency'];
-var CONTEXT_TOPICS = { general: 1, balance: 1, step: 1, transaction: 1, fees: 1, edu: 1, chart: 1, pending: 1 };
+var CONTEXT_TOPICS = { general: 1, balance: 1, step: 1, transaction: 1, fees: 1, edu: 1, chart: 1, pending: 1, whatsnew: 1 };
 var RAILS = ['internal', 'onchain', 'other'];
 var CP_STOP = { linked: 1, external: 1, debit: 1, yes: 1, cuenta: 1, monedero: 1, tarjeta: 1, comision: 1, bank: 1, card: 1, wallet: 1 };
 var els = { root: null, dlg: null };
@@ -21406,7 +22074,12 @@ status: /\b(posted|settled|registrado|registrados|registrada|liquidado|transacti
 statusWeak: /\b(status|failed|fail|fails|failure|fallido|fallidos|fallo)\b|\bestado\b(?! de cuenta)/,
 balance: /\b(balance|saldo|went up|went down|net change|cambio neto)\b|\bhow much (money )?(do i have|have i got|is left|is (left )?in my)\b|\bcuanto (dinero )?(tengo|me queda|hay en mi)\b/,
 balanceWeak: /\b(change|changed|changes|closing|opening|net|final|inicial|neto|cambio|cambios|cambiado|cambia|cambiaron)\b/,
-greet: /^(hi|hello|hey|hola|buenas|buenos dias|good morning|good afternoon|help|ayuda|start|menu|inicio)\b|\b(thanks|thank you|gracias)\b/
+greet: /^(hi|hello|hey|hola|buenas|buenos dias|good morning|good afternoon|help|ayuda|start|menu|inicio)\b|\b(thanks|thank you|gracias)\b/,
+whatsnew: /\b(what s new|whats new|what is new|anything new|new features?|coming soon|news from yes|updates from yes|que hay de nuevo|que hay nuevo|novedad|novedades|nuevas funciones|nueva funcion|funciones nuevas|proximamente)\b/,
+interest: /\b(interest|interes|intereses)\b/,
+limits: /\b(limit|limits|send limit|sending limit|monthly limit|trust level|trust levels|limite|limites|nivel de confianza|niveles de confianza)\b/,
+identity: /\b(yes identity|yes identities|yes handle|yes handles|identidad yes|identidades yes)\b/,
+currencies: /\b(eubc|ukbc|mxbc|nzbc|new currencies|other currencies|more currencies|nuevas monedas|otras monedas|mas monedas)\b/
 };
 var ES_ONLY = /\b(red|final|mayor|actual|retire|cargo|cargos)\b/g;
 var LANG_WORDS = {
@@ -21470,6 +22143,11 @@ return x.reference === ref;
 return R('transaction', hit ? hit.id : ref);
 }
 if (RX.human.test(n)) return R('human');
+if (RX.whatsnew.test(n)) return R('whatsnew');
+if (RX.interest.test(n)) return R('whatsnew', 'interest');
+if (RX.limits.test(n)) return R('whatsnew', 'trust');
+if (RX.identity.test(n)) return R('whatsnew', 'identity');
+if (RX.currencies.test(n)) return R('whatsnew', 'currencies');
 if (RX.liveStrong.test(n) || (RX.liveNow.test(n) && RX.liveWhat.test(n))) return R('edu', 'statement_vs_live');
 if (has(RX.pending, RX.pendingWeak, 'pending')) return R('pending');
 var def = RX.define.test(n) || (RX.defineGeneral.test(n) && !RX.mine.test(n));
@@ -21978,6 +22656,41 @@ return a.indexOf(q) === i;
 });
 return { title: t('assistant.fallback.title'), paras: [P('assistant.fallback.p1'), P('assistant.fallback.p2')], policy: true, suggest: suggest.slice(0, 3) };
 };
+B.whatsnew = function (key) {
+var ids = YES.promos.list('assistant');
+var views = ids
+.map(function (id) {
+return YES.promos.view(id);
+})
+.filter(Boolean);
+var one = key
+? views.filter(function (v) {
+return v.id === key || v.theme === key;
+})[0]
+: null;
+if (one) {
+return {
+title: one.title,
+paras: [esc(one.body)].concat(one.personal ? [esc(one.personal)] : []),
+after: one.footnote ? [esc(one.footnote)] : [],
+illustrative: true,
+fromYes: true,
+whatsnew: one.id,
+suggest: ['whats_new']
+};
+}
+if (!views.length) return { title: t('assistant.whatsnew.title'), paras: [P('assistant.whatsnew.none')], fromYes: true, whatsnew: '' };
+return {
+title: t('assistant.whatsnew.title'),
+paras: [P('assistant.whatsnew.p1')],
+bullets: views.map(function (v) {
+return '<strong>' + esc(v.title) + '.</strong> ' + esc(v.body) + (v.personal ? ' ' + esc(v.personal) : '') + (v.theme === 'interest' && v.footnote ? ' ' + esc(v.footnote) : '');
+}),
+illustrative: true,
+fromYes: true,
+whatsnew: ''
+};
+};
 function example(x) {
 return P(x.amount < 0 ? 'assistant.example.out' : 'assistant.example.in', { date: dLong(x.postedAt), id: x.id }, { amount: amt(x.amount) });
 }
@@ -22157,6 +22870,8 @@ case 'advice':
 return B.advice();
 case 'human':
 return B.human();
+case 'whatsnew':
+return B.whatsnew(r.id);
 case 'fallback':
 return B.fallback(r.id);
 default:
@@ -22202,6 +22917,10 @@ case 'advice':
 return { label: t('assistant.subject.advice') };
 case 'human':
 return { label: t('assistant.talk') };
+case 'whatsnew': {
+var w = r.id ? B.whatsnew(r.id) : null;
+return { label: w && w.whatsnew ? w.title : t('assistant.subject.whatsnew') };
+}
 case 'fallback':
 return { label: t('assistant.subject.fallback') };
 default:
@@ -22294,7 +23013,7 @@ esc(t('assistant.inquiry.' + k)) +
 function answerHtml(e, m, s) {
 var id = 'asst-' + esc(e.id);
 var h = '<article class="asst-ans' + (m.policy ? ' asst-ans--policy' : '') + (m.plain ? ' asst-ans--welcome' : '') + '" aria-labelledby="' + id + '-h">';
-h += '<p class="asst-ans__tags">' + demoTag(id + '-tag') + (m.policy ? '<span class="tag asst-tag-policy">' + ui.icon('shield', { size: 14 }) + '<span>' + esc(t('assistant.policyTag')) + '</span></span>' : '') + (m.illustrative ? ui.illustrativeTag('assistant.illustrativeTag') : '') + '</p>';
+h += '<p class="asst-ans__tags">' + demoTag(id + '-tag') + (m.policy ? '<span class="tag asst-tag-policy">' + ui.icon('shield', { size: 14 }) + '<span>' + esc(t('assistant.policyTag')) + '</span></span>' : '') + (m.fromYes ? '<span class="tag asst-tag-yes">' + ui.icon('megaphone', { size: 14 }) + '<span>' + esc(t('assistant.fromYes')) + '</span></span>' : '') + (m.illustrative ? ui.illustrativeTag('assistant.illustrativeTag') : '') + '</p>';
 h += '<h3 id="' + id + '-h" class="asst-ans__title" tabindex="-1" data-fk="' + id + '-h" aria-describedby="' + id + '-tag">' + mask(m.title) + '</h3>';
 h += '<div class="asst-ans__text">';
 (m.paras || []).forEach(function (p) {
@@ -22346,6 +23065,18 @@ h += '<button type="button" class="btn asst-showrows" data-asst-rows="' + esc(e.
 h += '</div></div>';
 }
 if (m.inquiry && calc.tx(m.inquiry)) h += inquiryHtml(id, m.inquiry);
+if (m.whatsnew != null) {
+h +=
+'<div class="asst-sec__actions asst-whatsnew"><button type="button" class="btn" data-asst-whatsnew="' +
+esc(m.whatsnew) +
+'" data-fk="' +
+id +
+'-whatsnew">' +
+ui.icon('megaphone', { size: 16 }) +
+'<span>' +
+esc(t(m.whatsnew ? 'assistant.whatsnew.openOne' : 'assistant.whatsnew.open')) +
+'</span></button></div>';
+}
 if (m.suggest && m.suggest.length) {
 h += '<div class="asst-inline-q"><p class="asst-inline-q__k">' + esc(t('assistant.tryThese')) + '</p><ul class="asst-qlist">' + m.suggest.map(function (q) {
 return qButton(q, id + '-q-' + q);
@@ -22757,6 +23488,12 @@ handOff(function () {
 YES.understand.openTopic(topic);
 });
 });
+ui.delegate(d, 'click', '[data-asst-whatsnew]', function (e, b) {
+var param = b.getAttribute('data-asst-whatsnew') || null;
+handOff(function () {
+YES.nav.go('whatsnew', { param: param && SAFE_ID.test(param) ? param : null });
+});
+});
 ui.delegate(d, 'click', '[data-asst-clear]', function () {
 clearThread();
 });
@@ -22862,6 +23599,14 @@ en: {
 'assistant.q.statement_vs_live': 'Is my statement balance my live balance?',
 'assistant.q.peg': 'Is each USBC always worth one US dollar?',
 'assistant.q.onchain_sent': 'Where did I send money on-chain?',
+'assistant.q.whats_new': "What's new?",
+'assistant.fromYes': 'From YES',
+'assistant.subject.whatsnew': "What's new from YES",
+'assistant.whatsnew.title': "What's new from YES",
+'assistant.whatsnew.p1': 'Here is what YES is working on. These updates are illustrative and subject to YES approval. They are not part of your statement.',
+'assistant.whatsnew.none': 'There are no updates from YES right now.',
+'assistant.whatsnew.open': "Open What's new",
+'assistant.whatsnew.openOne': "See this update in What's new",
 'assistant.subject.general': 'Your statement for {period}',
 'assistant.subject.chart': 'Running balance',
 'assistant.subject.counterparty': 'Activity with {name}',
@@ -23119,6 +23864,14 @@ es: {
 'assistant.q.statement_vs_live': '¿El saldo del estado de cuenta es mi saldo en vivo?',
 'assistant.q.peg': '¿Cada USBC vale siempre un dólar estadounidense?',
 'assistant.q.onchain_sent': '¿A dónde envié dinero en cadena?',
+'assistant.q.whats_new': '¿Qué hay de nuevo?',
+'assistant.fromYes': 'De YES',
+'assistant.subject.whatsnew': 'Novedades de YES',
+'assistant.whatsnew.title': 'Novedades de YES',
+'assistant.whatsnew.p1': 'Esto es lo que prepara YES. Estas novedades son ilustrativas y están sujetas a la aprobación de YES. No forman parte de tu estado de cuenta.',
+'assistant.whatsnew.none': 'Ahora mismo no hay novedades de YES.',
+'assistant.whatsnew.open': 'Abrir Novedades',
+'assistant.whatsnew.openOne': 'Ver esta novedad en Novedades',
 'assistant.subject.general': 'Tu estado de cuenta de {period}',
 'assistant.subject.chart': 'Saldo acumulado',
 'assistant.subject.counterparty': 'Actividad con {name}',
@@ -27259,6 +28012,750 @@ onState: function (keys) {
 if (!inited) return;
 if (keys.indexOf('inquiry') !== -1) renderQuickTx();
 if (keys.indexOf('feedback') !== -1) renderFeedback();
+}
+});
+})(window);
+/* ---- js/70-promos.js ---- */
+(function (root) {
+'use strict';
+var YES = root.YES;
+var ui = YES.ui;
+var t = YES.t;
+var esc = ui.esc;
+var calc = YES.calc;
+var doc = root.document;
+var SAFE_ID = /^[a-z0-9-]{1,40}$/;
+var THEMES = { identity: 1, trust: 1, currencies: 1, interest: 1 };
+var NOTE_PLACES = { fees: 1, txDetail: 1 };
+var metrics = { impressions: {}, clicks: {} };
+var seen = {};
+var cleared = false;
+var inited = false;
+var focusTimer = null;
+function conf() {
+var c = YES.config && YES.config.promotions;
+return c && c.enabled !== false && Array.isArray(c.items) ? c : null;
+}
+function all() {
+var c = conf();
+if (!c) return [];
+return c.items.filter(function (p) {
+return p && SAFE_ID.test(String(p.id)) && THEMES[p.theme] && p.title && p.body;
+});
+}
+function byId(id) {
+var list = all();
+for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+return null;
+}
+function sorted(list) {
+return list
+.map(function (p, i) {
+return { p: p, i: i };
+})
+.sort(function (a, b) {
+return (+b.p.priority || 0) - (+a.p.priority || 0) || a.i - b.i;
+})
+.map(function (x) {
+return x.p;
+});
+}
+function placed(p, place) {
+return Array.isArray(p.placements) && p.placements.indexOf(place) !== -1;
+}
+function st() {
+return YES.data.statement;
+}
+function trust() {
+var c = st().customer;
+var tr = c && c.trust;
+return tr && typeof tr === 'object' && tr.level ? tr : null;
+}
+function tiers() {
+var p = all().filter(function (x) {
+return x.theme === 'trust';
+})[0];
+return p && Array.isArray(p.tiers) ? p.tiers : [];
+}
+function tierIndex(id) {
+var ts = tiers();
+for (var i = 0; i < ts.length; i++) if (ts[i].id === id) return i;
+return -1;
+}
+function feeKindOf(p) {
+return (p && p.rule && p.rule.feeKind) || 'network_transfer';
+}
+function feesOfKind(kind) {
+var out = { total: 0, count: 0, txIds: [], parentIds: [] };
+calc.posted().forEach(function (x) {
+if (x.type !== 'fee' || x.feeKind !== kind || x.asset !== st().assetId) return;
+out.total += -x.amount;
+out.count += 1;
+out.txIds.push(x.id);
+if (x.parentId) out.parentIds.push(x.parentId);
+});
+return out;
+}
+function sentTotal() {
+var c = calc.category('transfers_out');
+return c ? Math.abs(c.total) : 0;
+}
+function eligible(p) {
+var r = (p && p.rule) || {};
+switch (r.kind) {
+case 'always':
+return true;
+case 'networkFeePaid':
+return feesOfKind(r.feeKind || 'network_transfer').total >= (Number.isInteger(r.min) && r.min > 0 ? r.min : 1);
+case 'trustBelow': {
+var tr = trust();
+var i = tr ? tierIndex(tr.level) : -1;
+var j = tierIndex(r.level);
+return i !== -1 && j !== -1 && i < j;
+}
+case 'balanceAtLeast':
+return Number.isInteger(r.amount) && st().closing >= r.amount;
+default:
+return false;
+}
+}
+function vars(p) {
+var tr = trust();
+var ts = tiers();
+var i = tr ? tierIndex(tr.level) : -1;
+return {
+handle: (p && p.handle) || '',
+fee: YES.fmt.amount(feesOfKind(feeKindOf(p)).total),
+sent: YES.fmt.amount(sentTotal()),
+limit: tr && Number.isInteger(tr.monthlySendLimit) ? YES.fmt.amount(tr.monthlySendLimit) : '',
+level: i !== -1 ? YES.L(ts[i].label) : '',
+next: i !== -1 && ts[i + 1] ? YES.L(ts[i + 1].label) : '',
+closing: YES.fmt.amount(st().closing)
+};
+}
+function fill(str, v) {
+var missing = false;
+var out = String(str == null ? '' : str).replace(/\{(\w+)\}/g, function (m, k) {
+if (v[k] == null || v[k] === '') {
+missing = true;
+return m;
+}
+return v[k];
+});
+return missing ? null : out;
+}
+function copy(p, field, v) {
+if (!p || !p[field]) return '';
+var s = fill(YES.L(p[field]), v || vars(p));
+return s == null ? '' : s;
+}
+function storageKey() {
+var c = conf();
+return (c && c.storageKey) || 'yes.promos';
+}
+function known(id) {
+return typeof id === 'string' && !!byId(id);
+}
+function readStored() {
+try {
+var raw = root.localStorage.getItem(storageKey());
+if (!raw) return [];
+var o = JSON.parse(raw);
+return Array.isArray(o && o.dismissed) ? o.dismissed.filter(known) : [];
+} catch (e) {
+return [];
+}
+}
+function writeStored(list) {
+try {
+if (list.length) root.localStorage.setItem(storageKey(), JSON.stringify({ v: 1, dismissed: list }));
+else root.localStorage.removeItem(storageKey());
+} catch (e) {
+}
+}
+function S() {
+var s = YES.state.promos;
+if (!s || typeof s !== 'object') {
+s = { dismissed: readStored(), current: null };
+YES.state.promos = s;
+}
+return { dismissed: Array.isArray(s.dismissed) ? s.dismissed.filter(known) : [], current: known(s.current) ? s.current : null };
+}
+function save(next) {
+writeStored(next.dismissed);
+YES.set({ promos: { dismissed: next.dismissed.slice(), current: next.current || null } });
+}
+function isDismissed(id) {
+return S().dismissed.indexOf(id) !== -1;
+}
+function queue() {
+var d = S().dismissed;
+return sorted(
+all().filter(function (p) {
+return placed(p, 'overview') && eligible(p) && d.indexOf(p.id) === -1;
+})
+).map(function (p) {
+return p.id;
+});
+}
+function currentId() {
+var q = queue();
+var c = S().current;
+return q.indexOf(c) !== -1 ? c : q[0] || null;
+}
+function view(id) {
+var p = byId(id);
+if (!p) return null;
+var v = vars(p);
+var ok = eligible(p);
+return {
+id: p.id,
+theme: p.theme,
+icon: p.icon || 'megaphone',
+eyebrow: copy(p, 'eyebrow', v),
+title: copy(p, 'title', v),
+body: copy(p, 'body', v),
+personal: ok ? copy(p, 'personal', v) : '',
+note: copy(p, 'note', v),
+cta: copy(p, 'cta', v),
+feature: copy(p, 'feature', v),
+footnote: copy(p, 'footnote', v),
+eligible: ok,
+dismissed: isDismissed(p.id)
+};
+}
+function list(place) {
+var d = S().dismissed;
+return sorted(
+all().filter(function (p) {
+if (!placed(p, place)) return false;
+if (place === 'whatsnew' || place === 'assistant') return true;
+return eligible(p) && d.indexOf(p.id) === -1;
+})
+).map(function (p) {
+return p.id;
+});
+}
+function count(kind, id) {
+metrics[kind][id] = (metrics[kind][id] || 0) + 1;
+}
+function impression(place, id) {
+var k = place + ':' + id;
+if (seen[k]) return;
+seen[k] = true;
+count('impressions', id);
+}
+function demoTag() {
+return YES.config.demo ? ui.illustrativeTag() : '';
+}
+function fromHtml() {
+return '<span class="promo-from">' + ui.icon('megaphone', { size: 14 }) + '<span>' + esc(t('promos.from')) + '</span></span>';
+}
+function textHtml(str, handle) {
+var h = esc(str);
+if (handle) h = h.split(esc(handle)).join('<span class="promo-handle" translate="no">' + esc(handle) + '</span>');
+return h;
+}
+function seeLinkHtml(p, fk, cls, label) {
+return (
+'<a class="' +
+cls +
+'" href="#/whatsnew/' +
+esc(p.id) +
+'" data-nav="whatsnew" data-nav-param="' +
+esc(p.id) +
+'" data-promo-action="see" data-promo-id="' +
+esc(p.id) +
+'" data-fk="' +
+esc(fk) +
+'">' +
+label +
+'</a>'
+);
+}
+function meterHtml(idBase) {
+var tr = trust();
+var ts = tiers();
+var cur = tr ? tierIndex(tr.level) : -1;
+if (cur === -1) return '';
+var steps = ts
+.map(function (tier, i) {
+var state = i < cur ? 'done' : i === cur ? 'current' : i === cur + 1 ? 'next' : 'later';
+var word = { done: 'promos.meter.done', current: 'promos.meter.current', next: 'promos.meter.next', later: 'promos.meter.later' }[state];
+return (
+'<li class="promo-meter__step promo-meter__step--' +
+state +
+'" data-tier="' +
+esc(tier.id) +
+'"' +
+(state === 'current' ? ' aria-current="step"' : '') +
+'><span class="promo-meter__bar" aria-hidden="true"></span><span class="promo-meter__name">' +
+(i <= cur ? ui.icon('badge-check', { size: 16 }) : '') +
+'<span>' +
+esc(YES.L(tier.label)) +
+'</span></span><span class="promo-meter__state">' +
+esc(t(word)) +
+'</span></li>'
+);
+})
+.join('');
+return (
+'<div class="promo-meter" data-level="' +
+esc(tr.level) +
+'"><p class="promo-meter__label" id="' +
+esc(idBase) +
+'-meter">' +
+esc(t('promos.meter.label')) +
+'</p><ol class="promo-meter__steps" aria-labelledby="' +
+esc(idBase) +
+'-meter">' +
+steps +
+'</ol></div>'
+);
+}
+function codesHtml(p, idBase) {
+if (!Array.isArray(p.codes) || !p.codes.length) return '';
+return (
+'<div class="promo-codes"><p class="promo-codes__label" id="' +
+esc(idBase) +
+'-codes">' +
+esc(t('promos.codes.label')) +
+'</p><ul class="promo-codes__list" aria-labelledby="' +
+esc(idBase) +
+'-codes">' +
+p.codes
+.map(function (c) {
+return '<li><span class="promo-codes__code" translate="no">' + esc(c.code) + '</span><span class="promo-codes__name">' + esc(YES.L(c.name)) + '</span></li>';
+})
+.join('') +
+'</ul></div>'
+);
+}
+function extraHtml(p, idBase, compact) {
+if (p.theme === 'trust') return meterHtml(idBase);
+if (p.theme === 'currencies' && !compact) return codesHtml(p, idBase);
+return '';
+}
+function overviewCardHtml(id) {
+var p = byId(id);
+var m = view(id);
+var q = queue();
+var pos = q.indexOf(id);
+impression('overview', id);
+var counter = q.length > 1 ? '<span class="promo__count">' + esc(t('promos.count', { a: YES.fmt.count(pos + 1), b: YES.fmt.count(q.length) })) + '</span>' : '';
+return (
+'<section class="promo promo--overview" aria-labelledby="promo-ov-h" data-promo="' +
+esc(id) +
+'" data-promo-theme="' +
+esc(p.theme) +
+'">' +
+'<div class="promo__top">' +
+'<h2 id="promo-ov-h" class="promo__heading">' +
+ui.icon('megaphone', { size: 16 }) +
+'<span class="promo-from">' +
+esc(t('promos.cardTitle')) +
+'</span></h2>' +
+'<p class="promo__meta">' +
+demoTag() +
+counter +
+'</p></div>' +
+'<div class="promo__main">' +
+'<span class="promo__icon" aria-hidden="true">' +
+ui.icon(m.icon, { size: 22 }) +
+'</span>' +
+'<div class="promo__text">' +
+(m.eyebrow ? '<p class="promo__eyebrow">' + esc(m.eyebrow) + '</p>' : '') +
+'<h3 class="promo__title" id="promo-ov-title" tabindex="-1" data-fk="promo-ov-title">' +
+esc(m.title) +
+'</h3>' +
+'<p class="promo__body">' +
+textHtml(m.body, p.handle) +
+(m.personal ? ' <span class="promo__personal">' + textHtml(m.personal, p.handle) + '</span>' : '') +
+'</p>' +
+extraHtml(p, 'promo-ov', true) +
+(m.footnote ? '<p class="promo__foot">' + textHtml(m.footnote, p.handle) + '</p>' : '') +
+'</div>' +
+'<div class="promo__actions">' +
+seeLinkHtml(p, 'promo-ov-see', 'btn btn--promo', '<span>' + esc(t('promos.see')) + '</span>' + ui.icon('arrow-right', { size: 18 })) +
+(q.length > 1
+? '<button type="button" class="btn btn--ghost promo__next" data-promo-action="next" data-fk="promo-ov-next">' + ui.icon('chevron', { size: 18 }) + '<span>' + esc(t('promos.next')) + '</span></button>'
+: '') +
+'<button type="button" class="btn btn--ghost promo__dismiss" data-promo-action="dismiss" data-promo-id="' +
+esc(id) +
+'" data-fk="promo-ov-dismiss" aria-label="' +
+esc(t('promos.dismissLabel', { title: m.title })) +
+'">' +
+ui.icon('close', { size: 18 }) +
+'<span>' +
+esc(t('promos.dismiss')) +
+'</span></button>' +
+'</div></div></section>'
+);
+}
+function clearedHtml() {
+return (
+'<p class="promo-cleared">' +
+ui.icon('check', { size: 16 }) +
+'<span>' +
+esc(t('promos.cleared')) +
+'</span> <a class="promo-cleared__link" href="#/whatsnew" data-nav="whatsnew" data-fk="promo-ov-cleared">' +
+esc(t('promos.clearedLink')) +
+'</a></p>'
+);
+}
+function overviewInner() {
+var id = currentId();
+if (id) return overviewCardHtml(id);
+return cleared ? clearedHtml() : '';
+}
+function overviewPosition() {
+var c = conf();
+return c && c.overviewPosition === 'afterJourney' ? 'afterJourney' : 'afterBalance';
+}
+function slotHtml(place, position) {
+if (place !== 'overview' || !conf()) return '';
+if ((position || 'afterBalance') !== overviewPosition()) return '';
+return '<div class="promo-slot promo-slot--' + overviewPosition() + '" data-promo-slot="overview">' + overviewInner() + '</div>';
+}
+function noteFits(p, tx) {
+if (!tx) return false;
+if (p.theme !== 'identity') return false;
+var kind = feeKindOf(p);
+if (tx.type === 'fee') return tx.feeKind === kind && tx.status === 'posted';
+return (
+tx.status === 'posted' &&
+(tx.fees || []).some(function (f) {
+return f.kind === kind && f.asset === st().assetId;
+})
+);
+}
+function noteHtml(place, ctx) {
+if (!NOTE_PLACES[place] || !conf()) return '';
+var tx = ctx && ctx.txId ? calc.tx(String(ctx.txId)) : null;
+var ids = list(place).filter(function (id) {
+return noteFits(byId(id), tx);
+});
+if (!ids.length) return '';
+var p = byId(ids[0]);
+var m = view(p.id);
+if (!m.note) return '';
+impression(place, p.id);
+var fk = 'promo-note-' + place + '-' + tx.id;
+return (
+'<p class="promo-note" data-promo="' +
+esc(p.id) +
+'" data-promo-place="' +
+esc(place) +
+'" data-promo-tx="' +
+esc(tx.id) +
+'">' +
+'<span class="promo-note__labels">' +
+fromHtml() +
+demoTag() +
+'</span><span class="promo-note__msg"><span class="promo-note__text">' +
+textHtml(m.note, p.handle) +
+'</span> ' +
+seeLinkHtml(p, fk, 'promo-note__link', esc(t('promos.noteLink')) + '<span class="sr-only">: ' + esc(m.title) + '</span>') +
+'</span></p>'
+);
+}
+function fullCardHtml(id) {
+var p = byId(id);
+var m = view(id);
+var base = 'wn-' + id;
+impression('whatsnew', id);
+return (
+'<li class="wn-item"><article class="promo promo--full" id="' +
+esc(base) +
+'" data-promo="' +
+esc(id) +
+'" data-promo-theme="' +
+esc(p.theme) +
+'" aria-labelledby="' +
+esc(base) +
+'-title">' +
+'<div class="promo__head">' +
+'<span class="promo__icon" aria-hidden="true">' +
+ui.icon(m.icon, { size: 22 }) +
+'</span>' +
+'<p class="promo__tags">' +
+fromHtml() +
+demoTag() +
+(m.dismissed ? '<span class="tag promo__hidden">' + esc(t('promos.hiddenTag')) + '</span>' : '') +
+'</p></div>' +
+(m.eyebrow ? '<p class="promo__eyebrow">' + esc(m.eyebrow) + '</p>' : '') +
+'<h2 class="promo__title" id="' +
+esc(base) +
+'-title" tabindex="-1" data-fk="' +
+esc(base) +
+'-title">' +
+esc(m.title) +
+'</h2>' +
+'<p class="promo__body">' +
+textHtml(m.body, p.handle) +
+'</p>' +
+(m.personal ? '<p class="promo__personal promo__personal--block"><span class="promo__for">' + esc(t('promos.forYou')) + '</span> <span>' + textHtml(m.personal, p.handle) + '</span></p>' : '') +
+extraHtml(p, base, false) +
+(m.footnote ? '<p class="promo__foot">' + textHtml(m.footnote, p.handle) + '</p>' : '') +
+'<div class="promo__actions">' +
+'<button type="button" class="btn btn--promo" data-promo-action="cta" data-promo-id="' +
+esc(id) +
+'" data-fk="' +
+esc(base) +
+'-cta">' +
+'<span>' +
+esc(m.cta) +
+'</span>' +
+ui.icon('arrow-right', { size: 18 }) +
+'</button></div>' +
+'</article></li>'
+);
+}
+function whatsnewHtml() {
+var ids = list('whatsnew');
+var hidden = S().dismissed.filter(function (id) {
+return byId(id) && placed(byId(id), 'overview');
+}).length;
+var hiddenRow = hidden
+? '<p class="wn-hidden">' +
+'<span>' +
+esc(hidden === 1 ? t('promos.view.hidden1') : t('promos.view.hiddenN', { n: YES.fmt.count(hidden) })) +
+'</span> <button type="button" class="btn btn--link" data-promo-action="restore" data-fk="wn-restore">' +
+esc(t('promos.view.restore')) +
+'</button></p>'
+: '';
+return (
+'<header class="wn-head">' +
+'<h1 id="h-whatsnew" class="view-title" data-view-heading tabindex="-1" data-fk="wn-h1">' +
+esc(t('promos.view.title')) +
+'</h1>' +
+'<p class="view-lede wn-lede">' +
+esc(t('promos.view.lede')) +
+'</p>' +
+'<div class="notice notice--illustrative wn-note">' +
+ui.icon('info', { size: 20 }) +
+'<p>' +
+esc(t('promos.view.note')) +
+'</p></div>' +
+hiddenRow +
+'</header>' +
+(ids.length ? '<ul class="wn-list" aria-label="' + esc(t('promos.view.listLabel')) + '">' + ids.map(fullCardHtml).join('') + '</ul>' : '<p class="wn-empty">' + esc(t('promos.view.empty')) + '</p>')
+);
+}
+function renderView() {
+var el = doc.getElementById('whatsnew-root');
+if (el) ui.render(el, whatsnewHtml());
+}
+function syncPlacements() {
+ui.$$('[data-promo-slot="overview"]').forEach(function (el) {
+ui.render(el, overviewInner());
+});
+ui.$$('.promo-note[data-promo-place]').forEach(function (el) {
+var html = noteHtml(el.getAttribute('data-promo-place'), { txId: el.getAttribute('data-promo-tx') });
+if (!html) el.remove();
+else if (html !== el.outerHTML) el.outerHTML = html;
+});
+}
+function later(fn) {
+clearTimeout(focusTimer);
+focusTimer = setTimeout(fn, 0);
+}
+function focusItem(id) {
+var h = doc.getElementById('wn-' + id + '-title');
+var card = doc.getElementById('wn-' + id);
+if (!h || YES.state.view !== 'whatsnew') return;
+try {
+card.scrollIntoView({ block: 'start', behavior: ui.reducedMotion() ? 'auto' : 'smooth' });
+} catch (e) {
+card.scrollIntoView(true);
+}
+h.focus({ preventScroll: true });
+}
+function onRoute(r) {
+if (!r || r.view !== 'whatsnew' || !r.param || !byId(r.param)) return;
+var id = r.param;
+later(function () {
+focusItem(id);
+});
+}
+function next() {
+var q = queue();
+if (q.length < 2) return null;
+var cur = currentId();
+var id = q[(q.indexOf(cur) + 1) % q.length];
+var s = S();
+s.current = id;
+save(s);
+ui.announce(t('promos.showing', { a: YES.fmt.count(q.indexOf(id) + 1), b: YES.fmt.count(q.length), title: view(id).title }));
+return id;
+}
+function dismiss(id) {
+if (!known(id)) return null;
+var q = queue();
+var s = S();
+var at = q.indexOf(id);
+if (s.dismissed.indexOf(id) === -1) s.dismissed.push(id);
+var rest = q.filter(function (x) {
+return x !== id;
+});
+var nextId = rest.length ? rest[(at === -1 ? 0 : at) % rest.length] : null;
+s.current = nextId;
+cleared = !nextId;
+save(s);
+return nextId;
+}
+function restore() {
+cleared = false;
+save({ dismissed: [], current: null });
+}
+function cta(id) {
+var m = view(id);
+if (!m) return;
+count('clicks', id);
+ui.toast(t('promos.ctaToast', { feature: m.feature || m.title }));
+}
+function onClick(e) {
+var b = e.target.closest && e.target.closest('[data-promo-action]');
+if (!b) return;
+var act = b.getAttribute('data-promo-action');
+var id = b.getAttribute('data-promo-id');
+if (act === 'see') {
+if (known(id)) count('clicks', id);
+return;
+}
+e.preventDefault();
+if (act === 'cta') {
+cta(id);
+} else if (act === 'next') {
+next();
+} else if (act === 'dismiss') {
+var title = known(id) ? view(id).title : '';
+var nextId = dismiss(id);
+var target = doc.querySelector(nextId ? '#promo-ov-title' : '[data-fk="promo-ov-cleared"]');
+if (target) target.focus({ preventScroll: true });
+ui.announce(nextId ? t('promos.dismissedNext', { title: title, next: view(nextId).title }) : t('promos.dismissed', { title: title }));
+} else if (act === 'restore') {
+restore();
+var h = doc.getElementById('h-whatsnew');
+if (h) h.focus({ preventScroll: true });
+ui.announce(t('promos.view.restored'));
+}
+}
+YES.promos = {
+slotHtml: slotHtml,
+noteHtml: noteHtml,
+list: list,
+view: view,
+eligible: function (id) {
+var p = byId(id);
+return !!p && eligible(p);
+},
+current: currentId,
+next: next,
+dismiss: dismiss,
+restore: restore,
+cta: cta,
+facts: function () {
+var fees = feesOfKind('network_transfer');
+var tr = trust();
+return {
+networkFees: fees.total,
+networkFeeTxIds: fees.txIds.slice(),
+networkSendIds: fees.parentIds.slice(),
+sent: sentTotal(),
+closing: st().closing,
+trustLevel: tr ? tr.level : null,
+monthlySendLimit: tr && Number.isInteger(tr.monthlySendLimit) ? tr.monthlySendLimit : null
+};
+},
+metrics: function () {
+return JSON.parse(JSON.stringify(metrics));
+}
+};
+YES.register({
+name: 'promos',
+i18n: {
+en: {
+'promos.from': 'From YES',
+'promos.cardTitle': "What's new from YES",
+'promos.count': '{a} of {b}',
+'promos.see': "See what's new",
+'promos.next': 'Next update',
+'promos.dismiss': 'Not now',
+'promos.dismissLabel': 'Not now: hide {title} from your Overview',
+'promos.dismissed': "{title} is hidden. You can find every update in What's new.",
+'promos.dismissedNext': '{title} is hidden. Next update: {next}.',
+'promos.showing': 'Update {a} of {b}: {title}',
+'promos.cleared': "You're all caught up. Every update is in What's new.",
+'promos.clearedLink': "Open What's new",
+'promos.noteLink': 'See how',
+'promos.ctaToast': 'In the YES app, this would open {feature}. Nothing was sent.',
+'promos.forYou': 'For you',
+'promos.hiddenTag': 'Hidden from Overview',
+'promos.meter.label': 'Your trust level',
+'promos.meter.done': 'Reached',
+'promos.meter.current': "You're here",
+'promos.meter.next': 'Next',
+'promos.meter.later': 'Later',
+'promos.codes.label': 'Planned currencies',
+'promos.view.title': "What's new",
+'promos.view.lede': 'New features and developments from YES for your USBC account.',
+'promos.view.note': 'Updates are illustrative and subject to YES approval. They are not part of your statement, and they never appear in print, the PDF or the CSV file.',
+'promos.view.listLabel': 'Updates from YES',
+'promos.view.hidden1': 'You hid 1 update from your Overview.',
+'promos.view.hiddenN': 'You hid {n} updates from your Overview.',
+'promos.view.restore': 'Show dismissed updates again',
+'promos.view.restored': 'Dismissed updates are back on your Overview.',
+'promos.view.empty': 'There are no updates right now.'
+},
+es: {
+'promos.from': 'De YES',
+'promos.cardTitle': 'Novedades de YES',
+'promos.count': '{a} de {b}',
+'promos.see': 'Ver novedades',
+'promos.next': 'Siguiente novedad',
+'promos.dismiss': 'Ahora no',
+'promos.dismissLabel': 'Ahora no: ocultar {title} en tu resumen',
+'promos.dismissed': '{title} está oculta. Encontrarás todas las novedades en Novedades.',
+'promos.dismissedNext': '{title} está oculta. Siguiente novedad: {next}.',
+'promos.showing': 'Novedad {a} de {b}: {title}',
+'promos.cleared': 'Estás al día. Todas las novedades están en Novedades.',
+'promos.clearedLink': 'Abrir Novedades',
+'promos.noteLink': 'Ver cómo',
+'promos.ctaToast': 'En la app de YES, esto abriría {feature}. No se envió nada.',
+'promos.forYou': 'Para ti',
+'promos.hiddenTag': 'Oculta en el resumen',
+'promos.meter.label': 'Tu nivel de confianza',
+'promos.meter.done': 'Alcanzado',
+'promos.meter.current': 'Estás aquí',
+'promos.meter.next': 'Siguiente',
+'promos.meter.later': 'Después',
+'promos.codes.label': 'Monedas previstas',
+'promos.view.title': 'Novedades',
+'promos.view.lede': 'Nuevas funciones y novedades de YES para tu cuenta de USBC.',
+'promos.view.note': 'Las novedades son ilustrativas y están sujetas a la aprobación de YES. No forman parte de tu estado de cuenta y nunca aparecen al imprimir, en el PDF ni en el archivo CSV.',
+'promos.view.listLabel': 'Novedades de YES',
+'promos.view.hidden1': 'Ocultaste 1 novedad en tu resumen.',
+'promos.view.hiddenN': 'Ocultaste {n} novedades en tu resumen.',
+'promos.view.restore': 'Volver a mostrar las novedades ocultas',
+'promos.view.restored': 'Las novedades ocultas vuelven a tu resumen.',
+'promos.view.empty': 'No hay novedades por ahora.'
+}
+},
+init: function () {
+inited = true;
+S();
+doc.addEventListener('click', onClick);
+YES.on('route', onRoute);
+this.render();
+},
+render: function () {
+renderView();
+},
+onState: function (keys) {
+if (!inited || keys.indexOf('promos') === -1) return;
+renderView();
+syncPlacements();
 }
 });
 })(window);

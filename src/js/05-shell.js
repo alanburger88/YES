@@ -100,7 +100,7 @@
 
   /*
    * Phone menu (masthead under 45em, i.e. 720px at the default text size): a
-   * disclosure button opens a panel under the header with the four sections,
+   * disclosure button opens a panel under the header with the five sections,
    * Download or print, the language switch and the light/dark toggle.
    */
   function menuHtml() {

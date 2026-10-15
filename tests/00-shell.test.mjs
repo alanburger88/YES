@@ -131,7 +131,7 @@ export default async function (t) {
   t.assert((await rec.innerText()).includes(mobile ? 'Download or print' : 'Download or print'), 'shows "Download or print"');
   if (mobile) {
     const links = await page.$$eval('#mast-menu .mast-menu__link', (els) => els.map((e) => [e.getAttribute('data-nav'), e.textContent.trim(), e.getAttribute('aria-current')]));
-    t.eq(links, [['overview', 'Overview', 'page'], ['transactions', 'Transactions', null], ['understand', 'Understand', null], ['help', 'Help', null]], 'the four sections, the current one marked');
+    t.eq(links, [['overview', 'Overview', 'page'], ['transactions', 'Transactions', null], ['understand', 'Understand', null], ['help', 'Help', null], ['whatsnew', "What's new", null]], 'the five sections, the current one marked');
     t.eq(await page.locator('#mast-menu nav[aria-label="Statement sections"]').count(), 1, 'the sections are a named navigation landmark');
     await axeBad('phone menu open');
     await t.shot('menu-open');
@@ -444,14 +444,16 @@ export default async function (t) {
         const r = (s) => document.querySelector(s).getBoundingClientRect();
         const list = document.querySelector('.nav__list');
         const tabs = getComputedStyle(document.querySelector('#masthead .nav')).display !== 'none';
-        const help = document.querySelector('.nav__link[data-nav="help"]').getBoundingClientRect();
+        // The last tab (What's new) must be fully in view, as must every other one.
+        const tabRects = [...document.querySelectorAll('.nav__link')].map((a) => a.getBoundingClientRect());
+        const help = tabRects[tabRects.length - 1];
         const shown = [...document.querySelectorAll('.masthead__actions > *:not(.mast-wide), .mast-wide > *')].filter((e) => e.getClientRects().length);
         const wide = (sel) => !!document.querySelector(sel) && document.querySelector(sel).getBoundingClientRect().width > 1;
         return {
           oneRow: r('.masthead__actions').top < r('.brand').bottom - 4 && new Set(shown.map((e) => Math.round(e.getBoundingClientRect().top))).size === 1,
           inside: shown.every((e) => e.getBoundingClientRect().right <= window.innerWidth && e.getBoundingClientRect().left >= 0),
           tabs,
-          navFits: !tabs || (list.scrollWidth <= list.clientWidth + 1 && help.right <= window.innerWidth),
+          navFits: !tabs || (list.scrollWidth <= list.clientWidth + 1 && help.right <= window.innerWidth && tabRects.length === 5 && tabRects.every((r) => r.left >= 0 && r.width > 1)),
           cw: Math.round(document.getElementById('masthead').getBoundingClientRect().width),
           noBadge: !document.querySelector('#masthead .demo-badge'),
           noScroll: document.documentElement.scrollWidth <= window.innerWidth,
@@ -460,7 +462,7 @@ export default async function (t) {
         };
       });
       t.assert(m.oneRow && m.inside, `${lang} ${w}px: brand and every control share one row, on screen`);
-      t.assert(m.navFits, `${lang} ${w}px: Overview, Transactions, Understand and Help all visible`);
+      t.assert(m.navFits, `${lang} ${w}px: Overview, Transactions, Understand, Help and What's new all visible`);
       t.assert(m.noBadge, `${lang} ${w}px: no demo badge in the header`);
       t.assert(m.noScroll, `${lang} ${w}px: no horizontal scroll`);
       t.eq([m.menu, m.tabs], mobile ? [true, false] : [false, true], `${lang} ${w}px: ${mobile ? 'Menu, no tab row' : 'tab row, no Menu'}`);

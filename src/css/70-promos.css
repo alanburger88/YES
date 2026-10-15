@@ -1,0 +1,498 @@
+/*
+ * "From YES" promotions (70-promos.js): the Overview's "What's new from YES"
+ * card, the one-line notes (Fees card, transaction detail) and the What's new
+ * view. Marketing reads as marketing: a blue-edged card with a "From YES"
+ * label, an Illustrative tag and a restrained dot grid, set apart from the
+ * statement's facts, which stay black and white. Screen only (90-print.css
+ * hides every promotion); tokens only, so light, dark and forced colours work.
+ */
+.promo {
+  /* Derived from the tokens: the accent blue at low strength over the hairline. */
+  --promo-edge: color-mix(in srgb, var(--sel) 40%, var(--line));
+  position: relative;
+  background-color: var(--surface);
+  border: 1px solid var(--promo-edge);
+  border-radius: var(--radius-lg);
+  padding: var(--s5);
+  color: var(--ink);
+}
+.promo-slot {
+  margin-top: var(--s5);
+  container: promo / inline-size;
+}
+.promo-slot:empty {
+  display: none;
+}
+/* Dot-grid texture in the card's top right corner only (brand texture,
+   restrained); off in print and forced colours. */
+@media screen {
+  .promo--overview {
+    background-image: radial-gradient(ellipse 38% 150px at 100% 0, transparent 0, var(--surface) 100%), var(--dots);
+    background-size: auto, var(--dots-size);
+  }
+}
+
+/* ---------------------------------------------------- Shared pieces */
+.promo-from {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--primary-ink);
+  white-space: nowrap;
+}
+.promo__heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--primary-ink);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.promo__heading .promo-from {
+  font-size: inherit;
+  white-space: normal;
+}
+.promo__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2) var(--s3);
+}
+.promo__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+}
+.promo__count {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.promo__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--promo-edge);
+  background: var(--primary-wash);
+  color: var(--primary-ink);
+}
+.promo__eyebrow {
+  margin: 0 0 2px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.promo__title {
+  margin: 0 0 var(--s1);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.promo__title:focus {
+  outline: none;
+}
+.promo__title:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.promo__body {
+  margin: 0;
+  max-width: 72ch;
+  color: var(--ink-2);
+}
+.promo__personal {
+  color: var(--ink);
+  font-weight: 500;
+}
+.promo__personal--block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--s2);
+  margin: var(--s3) 0 0;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.promo__for {
+  flex: none;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.promo__foot {
+  margin: var(--s2) 0 0;
+  max-width: 80ch;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.promo-handle {
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.promo__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+/* The call to action: accent blue (white on #0004FF 8.53:1; dark: black on the
+   blue tint 6.91:1). */
+.btn--promo {
+  background: var(--sel);
+  border-color: var(--sel);
+  color: var(--on-sel);
+}
+.btn--promo:hover {
+  background: color-mix(in srgb, var(--sel) 86%, var(--ink));
+  border-color: color-mix(in srgb, var(--sel) 86%, var(--ink));
+}
+
+/* ------------------------------------------------- The Overview card */
+.promo--overview .promo__main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s3) var(--s4);
+  margin-top: var(--s3);
+}
+.promo--overview .promo__actions {
+  grid-column: 1 / -1;
+}
+.promo--overview .promo__actions .btn--promo {
+  flex: 1 1 100%;
+}
+.promo--overview .promo__actions .btn--ghost {
+  flex: 1 1 auto;
+  border-color: var(--line-strong);
+}
+@container promo (width >= 36em) {
+  .promo--overview .promo__actions {
+    grid-column: 2;
+  }
+  .promo--overview .promo__actions .btn--promo {
+    flex: 0 0 auto;
+  }
+  .promo--overview .promo__actions .btn--ghost {
+    flex: 0 0 auto;
+  }
+}
+/* With room, the actions take a column of their own beside the text, so the
+   card stays short and the balance journey stays close. */
+@container promo (width >= 52em) {
+  .promo--overview {
+    padding: var(--s5) var(--s6);
+  }
+  .promo--overview .promo__main {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+  }
+  .promo--overview .promo__actions {
+    grid-column: 3;
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 13rem;
+  }
+  .promo--overview .promo__actions .btn {
+    justify-content: flex-start;
+  }
+}
+
+/* The last update was dismissed: one quiet line (this page view only). */
+.promo-cleared {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--s2);
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+}
+.promo-cleared .icon {
+  color: var(--primary-ink);
+}
+.promo-cleared__link,
+.promo-note__link {
+  /* Inline, so it stays in the sentence; the padding (cancelled by the
+     negative margin) makes the target tall without moving any line. */
+  display: inline;
+  padding-block: 4px;
+  margin-block: -4px;
+  color: var(--primary-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  border-radius: 2px;
+}
+.promo-cleared__link:hover,
+.promo-note__link:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* --------------------------------- One-line notes (Fees, transaction) */
+.promo-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--s2);
+  margin: 6px 0 0;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--sel) 5%, var(--surface));
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+.promo-note .tag {
+  line-height: 1.4;
+}
+.promo-note__labels {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--s2);
+}
+.promo-note__msg {
+  min-width: 0;
+}
+.ov-minilist > li > .promo-note {
+  margin-inline: 4px;
+}
+.tx-dlg__section .promo-note {
+  margin-top: var(--s3);
+}
+@media (pointer: coarse) {
+  .promo-note__link,
+  .promo-cleared__link {
+    padding-block: 12px;
+    margin-block: -12px;
+  }
+}
+
+/* -------------------------------------------------------- Trust meter */
+.promo-meter {
+  margin: var(--s3) 0 0;
+  max-width: 30rem;
+}
+.promo-meter__label {
+  margin: 0 0 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.promo-meter__steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.promo-meter__step {
+  --t-fill: var(--tier-silver);
+  --t-line: var(--tier-silver-line);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: var(--fs-xs);
+}
+.promo-meter__step[data-tier='bronze'] {
+  --t-fill: var(--tier-bronze);
+  --t-line: var(--tier-bronze-line);
+}
+.promo-meter__step[data-tier='gold'] {
+  --t-fill: var(--tier-gold);
+  --t-line: var(--tier-gold-line);
+}
+/* Reached levels: the tier's colour with an outline of ≥3:1; the next ones:
+   a dashed outline only. The words carry the meaning too. */
+.promo-meter__bar {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px dashed var(--t-line);
+  background: transparent;
+}
+.promo-meter__step--done .promo-meter__bar,
+.promo-meter__step--current .promo-meter__bar {
+  border-style: solid;
+  background: var(--t-fill);
+}
+.promo-meter__step--current .promo-meter__bar {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--t-line);
+}
+.promo-meter__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.promo-meter__name .icon {
+  flex: none;
+  color: var(--t-line);
+}
+.promo-meter__state {
+  color: var(--muted);
+}
+.promo-meter__step--current .promo-meter__state {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------- Planned currencies */
+.promo-codes {
+  margin: var(--s3) 0 0;
+}
+.promo-codes__label {
+  margin: 0 0 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.promo-codes__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.promo-codes__list li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+}
+.promo-codes__code {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.promo-codes__name {
+  color: var(--ink-2);
+}
+
+/* ----------------------------------------------------- What's new view */
+#whatsnew-root {
+  container: wn / inline-size;
+}
+.wn-head {
+  margin-bottom: var(--s6);
+}
+.wn-lede {
+  margin-bottom: var(--s4);
+}
+.wn-note {
+  max-width: 72ch;
+}
+.wn-hidden {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--s2);
+  margin: var(--s3) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+}
+.wn-hidden .btn--link {
+  min-height: 24px;
+}
+.wn-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@container wn (width >= 50em) {
+  .wn-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.wn-item {
+  display: flex;
+  min-width: 0;
+}
+.promo--full {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  scroll-margin-top: calc(var(--masthead-h) + var(--s4));
+}
+@media (min-width: 720px) {
+  .promo--full {
+    padding: var(--s6);
+  }
+}
+.promo__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  margin-bottom: var(--s3);
+}
+.promo__tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.promo__tags .promo-from {
+  padding: 1px 8px;
+  border: 1px solid var(--promo-edge);
+  border-radius: 999px;
+  background: var(--primary-wash);
+  line-height: 1.6;
+}
+.promo--full .promo__actions {
+  margin-top: auto;
+  padding-top: var(--s5);
+}
+.wn-empty {
+  color: var(--ink-2);
+}
+
+/* ------------------------------------------------------ Forced colours */
+@media (forced-colors: active) {
+  .promo--overview {
+    background-image: none;
+  }
+  .promo,
+  .promo__icon,
+  .promo-note {
+    border: 1px solid CanvasText;
+  }
+  .promo-meter__bar {
+    border-color: CanvasText;
+  }
+  .promo-meter__step--done .promo-meter__bar,
+  .promo-meter__step--current .promo-meter__bar {
+    background: CanvasText;
+    forced-color-adjust: none;
+  }
+  .btn--promo {
+    border: 2px solid ButtonText;
+  }
+}

@@ -11,7 +11,8 @@ const QUESTIONS_EN = [
   'What is pending?',
   'Is my statement balance my live balance?',
   'Is each USBC always worth one US dollar?',
-  'Where did I send money on-chain?'
+  'Where did I send money on-chain?',
+  "What's new?"
 ];
 // Amounts may carry a no-break space; compare on plain spaces and plain apostrophes.
 const norm = (s) => String(s).replace(/ /g, ' ').replace(/’/g, "'");
@@ -330,7 +331,7 @@ export default async function (t) {
   t.assert((await latestTitle()).startsWith('Hello, Sam.'), 'welcome answer');
   t.assert((await latestText()).includes('as of Sep 30, 2026'), 'welcome names the statement "as of" time');
   const qs = await page.$$eval('#assistant-drawer .asst-sugg [data-asst-q]', (els) => els.map((e) => e.textContent.trim()));
-  t.eq(qs, QUESTIONS_EN, 'seven suggested questions');
+  t.eq(qs, QUESTIONS_EN, 'eight suggested questions (the eighth: What\'s new from YES)');
   const small = await page.evaluate(() =>
     Array.from(document.querySelectorAll('#assistant-drawer button, #assistant-drawer input, #assistant-drawer summary'))
       .filter((el) => el.getClientRects().length && !el.closest('.sr-only'))

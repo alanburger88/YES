@@ -48,7 +48,7 @@
   var ROW_PREVIEW = 6;
   var SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
   var ENTRY_ID = /^a\d{1,9}$/;
-  var QUESTIONS = ['why_balance', 'fees_paid', 'largest', 'pending', 'statement_vs_live', 'peg', 'onchain_sent'];
+  var QUESTIONS = ['why_balance', 'fees_paid', 'largest', 'pending', 'statement_vs_live', 'peg', 'onchain_sent', 'whats_new'];
   var Q_TOPIC = {
     why_balance: { topic: 'balance' },
     fees_paid: { topic: 'fees' },
@@ -56,10 +56,11 @@
     pending: { topic: 'pending' },
     statement_vs_live: { topic: 'edu', id: 'statement_vs_live' },
     peg: { topic: 'peg' },
-    onchain_sent: { topic: 'onchain_sent' }
+    onchain_sent: { topic: 'onchain_sent' },
+    whats_new: { topic: 'whatsnew' }
   };
   var EDU = ['token_units', 'usd_equivalent', 'onchain_vs_internal', 'tx_status', 'fees', 'redemption', 'statement_vs_live', 'transparency'];
-  var CONTEXT_TOPICS = { general: 1, balance: 1, step: 1, transaction: 1, fees: 1, edu: 1, chart: 1, pending: 1 };
+  var CONTEXT_TOPICS = { general: 1, balance: 1, step: 1, transaction: 1, fees: 1, edu: 1, chart: 1, pending: 1, whatsnew: 1 };
   var RAILS = ['internal', 'onchain', 'other'];
   var CP_STOP = { linked: 1, external: 1, debit: 1, yes: 1, cuenta: 1, monedero: 1, tarjeta: 1, comision: 1, bank: 1, card: 1, wallet: 1 };
 
@@ -426,7 +427,13 @@
     statusWeak: /\b(status|failed|fail|fails|failure|fallido|fallidos|fallo)\b|\bestado\b(?! de cuenta)/,
     balance: /\b(balance|saldo|went up|went down|net change|cambio neto)\b|\bhow much (money )?(do i have|have i got|is left|is (left )?in my)\b|\bcuanto (dinero )?(tengo|me queda|hay en mi)\b/,
     balanceWeak: /\b(change|changed|changes|closing|opening|net|final|inicial|neto|cambio|cambios|cambiado|cambia|cambiaron)\b/,
-    greet: /^(hi|hello|hey|hola|buenas|buenos dias|good morning|good afternoon|help|ayuda|start|menu|inicio)\b|\b(thanks|thank you|gracias)\b/
+    greet: /^(hi|hello|hey|hola|buenas|buenos dias|good morning|good afternoon|help|ayuda|start|menu|inicio)\b|\b(thanks|thank you|gracias)\b/,
+    /* "From YES" updates (What's new): the list, or one update by its theme. */
+    whatsnew: /\b(what s new|whats new|what is new|anything new|new features?|coming soon|news from yes|updates from yes|que hay de nuevo|que hay nuevo|novedad|novedades|nuevas funciones|nueva funcion|funciones nuevas|proximamente)\b/,
+    interest: /\b(interest|interes|intereses)\b/,
+    limits: /\b(limit|limits|send limit|sending limit|monthly limit|trust level|trust levels|limite|limites|nivel de confianza|niveles de confianza)\b/,
+    identity: /\b(yes identity|yes identities|yes handle|yes handles|identidad yes|identidades yes)\b/,
+    currencies: /\b(eubc|ukbc|mxbc|nzbc|new currencies|other currencies|more currencies|nuevas monedas|otras monedas|mas monedas)\b/
   };
 
   /*
@@ -517,6 +524,12 @@
     }
 
     if (RX.human.test(n)) return R('human');
+    // What's new from YES (promos module): never a rate or a projection (B.whatsnew).
+    if (RX.whatsnew.test(n)) return R('whatsnew');
+    if (RX.interest.test(n)) return R('whatsnew', 'interest');
+    if (RX.limits.test(n)) return R('whatsnew', 'trust');
+    if (RX.identity.test(n)) return R('whatsnew', 'identity');
+    if (RX.currencies.test(n)) return R('whatsnew', 'currencies');
     if (RX.liveStrong.test(n) || (RX.liveNow.test(n) && RX.liveWhat.test(n))) return R('edu', 'statement_vs_live');
     if (has(RX.pending, RX.pendingWeak, 'pending')) return R('pending');
     var def = RX.define.test(n) || (RX.defineGeneral.test(n) && !RX.mine.test(n));
@@ -1058,6 +1071,49 @@
     return { title: t('assistant.fallback.title'), paras: [P('assistant.fallback.p1'), P('assistant.fallback.p2')], policy: true, suggest: suggest.slice(0, 3) };
   };
 
+  /*
+   * What's new from YES: the illustrative updates from the promos module
+   * (YES.promos.view, in the answer's language), or one of them when `key`
+   * names an update id or theme (interest, trust, identity, currencies). The
+   * copy is YES's own (00-config.js promotions); an interest answer always
+   * carries its regulatory footnote and never a rate or a projection.
+   */
+  B.whatsnew = function (key) {
+    var ids = YES.promos.list('assistant');
+    var views = ids
+      .map(function (id) {
+        return YES.promos.view(id);
+      })
+      .filter(Boolean);
+    var one = key
+      ? views.filter(function (v) {
+          return v.id === key || v.theme === key;
+        })[0]
+      : null;
+    if (one) {
+      return {
+        title: one.title,
+        paras: [esc(one.body)].concat(one.personal ? [esc(one.personal)] : []),
+        after: one.footnote ? [esc(one.footnote)] : [],
+        illustrative: true,
+        fromYes: true,
+        whatsnew: one.id,
+        suggest: ['whats_new']
+      };
+    }
+    if (!views.length) return { title: t('assistant.whatsnew.title'), paras: [P('assistant.whatsnew.none')], fromYes: true, whatsnew: '' };
+    return {
+      title: t('assistant.whatsnew.title'),
+      paras: [P('assistant.whatsnew.p1')],
+      bullets: views.map(function (v) {
+        return '<strong>' + esc(v.title) + '.</strong> ' + esc(v.body) + (v.personal ? ' ' + esc(v.personal) : '') + (v.theme === 'interest' && v.footnote ? ' ' + esc(v.footnote) : '');
+      }),
+      illustrative: true,
+      fromYes: true,
+      whatsnew: ''
+    };
+  };
+
   /* ---------------------------- Education ---------------------------- */
   function example(x) {
     return P(x.amount < 0 ? 'assistant.example.out' : 'assistant.example.in', { date: dLong(x.postedAt), id: x.id }, { amount: amt(x.amount) });
@@ -1239,6 +1295,8 @@
         return B.advice();
       case 'human':
         return B.human();
+      case 'whatsnew':
+        return B.whatsnew(r.id);
       case 'fallback':
         return B.fallback(r.id);
       default:
@@ -1286,6 +1344,10 @@
         return { label: t('assistant.subject.advice') };
       case 'human':
         return { label: t('assistant.talk') };
+      case 'whatsnew': {
+        var w = r.id ? B.whatsnew(r.id) : null;
+        return { label: w && w.whatsnew ? w.title : t('assistant.subject.whatsnew') };
+      }
       case 'fallback':
         return { label: t('assistant.subject.fallback') };
       default:
@@ -1392,7 +1454,7 @@
   function answerHtml(e, m, s) {
     var id = 'asst-' + esc(e.id);
     var h = '<article class="asst-ans' + (m.policy ? ' asst-ans--policy' : '') + (m.plain ? ' asst-ans--welcome' : '') + '" aria-labelledby="' + id + '-h">';
-    h += '<p class="asst-ans__tags">' + demoTag(id + '-tag') + (m.policy ? '<span class="tag asst-tag-policy">' + ui.icon('shield', { size: 14 }) + '<span>' + esc(t('assistant.policyTag')) + '</span></span>' : '') + (m.illustrative ? ui.illustrativeTag('assistant.illustrativeTag') : '') + '</p>';
+    h += '<p class="asst-ans__tags">' + demoTag(id + '-tag') + (m.policy ? '<span class="tag asst-tag-policy">' + ui.icon('shield', { size: 14 }) + '<span>' + esc(t('assistant.policyTag')) + '</span></span>' : '') + (m.fromYes ? '<span class="tag asst-tag-yes">' + ui.icon('megaphone', { size: 14 }) + '<span>' + esc(t('assistant.fromYes')) + '</span></span>' : '') + (m.illustrative ? ui.illustrativeTag('assistant.illustrativeTag') : '') + '</p>';
     h += '<h3 id="' + id + '-h" class="asst-ans__title" tabindex="-1" data-fk="' + id + '-h" aria-describedby="' + id + '-tag">' + mask(m.title) + '</h3>';
     h += '<div class="asst-ans__text">';
     (m.paras || []).forEach(function (p) {
@@ -1447,6 +1509,20 @@
     }
 
     if (m.inquiry && calc.tx(m.inquiry)) h += inquiryHtml(id, m.inquiry);
+
+    // What's new from YES: open the view (or the one update) behind this answer.
+    if (m.whatsnew != null) {
+      h +=
+        '<div class="asst-sec__actions asst-whatsnew"><button type="button" class="btn" data-asst-whatsnew="' +
+        esc(m.whatsnew) +
+        '" data-fk="' +
+        id +
+        '-whatsnew">' +
+        ui.icon('megaphone', { size: 16 }) +
+        '<span>' +
+        esc(t(m.whatsnew ? 'assistant.whatsnew.openOne' : 'assistant.whatsnew.open')) +
+        '</span></button></div>';
+    }
 
     if (m.suggest && m.suggest.length) {
       h += '<div class="asst-inline-q"><p class="asst-inline-q__k">' + esc(t('assistant.tryThese')) + '</p><ul class="asst-qlist">' + m.suggest.map(function (q) {
@@ -1915,6 +1991,12 @@
         YES.understand.openTopic(topic);
       });
     });
+    ui.delegate(d, 'click', '[data-asst-whatsnew]', function (e, b) {
+      var param = b.getAttribute('data-asst-whatsnew') || null;
+      handOff(function () {
+        YES.nav.go('whatsnew', { param: param && SAFE_ID.test(param) ? param : null });
+      });
+    });
     ui.delegate(d, 'click', '[data-asst-clear]', function () {
       clearThread();
     });
@@ -2028,6 +2110,14 @@
         'assistant.q.statement_vs_live': 'Is my statement balance my live balance?',
         'assistant.q.peg': 'Is each USBC always worth one US dollar?',
         'assistant.q.onchain_sent': 'Where did I send money on-chain?',
+        'assistant.q.whats_new': "What's new?",
+        'assistant.fromYes': 'From YES',
+        'assistant.subject.whatsnew': "What's new from YES",
+        'assistant.whatsnew.title': "What's new from YES",
+        'assistant.whatsnew.p1': 'Here is what YES is working on. These updates are illustrative and subject to YES approval. They are not part of your statement.',
+        'assistant.whatsnew.none': 'There are no updates from YES right now.',
+        'assistant.whatsnew.open': "Open What's new",
+        'assistant.whatsnew.openOne': "See this update in What's new",
 
         'assistant.subject.general': 'Your statement for {period}',
         'assistant.subject.chart': 'Running balance',
@@ -2304,6 +2394,14 @@
         'assistant.q.statement_vs_live': '¿El saldo del estado de cuenta es mi saldo en vivo?',
         'assistant.q.peg': '¿Cada USBC vale siempre un dólar estadounidense?',
         'assistant.q.onchain_sent': '¿A dónde envié dinero en cadena?',
+        'assistant.q.whats_new': '¿Qué hay de nuevo?',
+        'assistant.fromYes': 'De YES',
+        'assistant.subject.whatsnew': 'Novedades de YES',
+        'assistant.whatsnew.title': 'Novedades de YES',
+        'assistant.whatsnew.p1': 'Esto es lo que prepara YES. Estas novedades son ilustrativas y están sujetas a la aprobación de YES. No forman parte de tu estado de cuenta.',
+        'assistant.whatsnew.none': 'Ahora mismo no hay novedades de YES.',
+        'assistant.whatsnew.open': 'Abrir Novedades',
+        'assistant.whatsnew.openOne': 'Ver esta novedad en Novedades',
 
         'assistant.subject.general': 'Tu estado de cuenta de {period}',
         'assistant.subject.chart': 'Saldo acumulado',

@@ -36,7 +36,13 @@
   dialog,
   .toast,
   #assistant-root,
-  [data-print-hide] {
+  [data-print-hide],
+  /* "From YES" promotions are screen only: the statement of record stays factual. */
+  [data-promo],
+  .promo-slot,
+  .promo-note,
+  .promo-cleared,
+  #view-whatsnew {
     display: none !important;
   }
   #print-root {

@@ -20,6 +20,7 @@ A YES-branded, mobile-first statement that tells the account story instead of pr
    6. Under **Understand**, look at the illustrative transparency panel.
    7. Choose **Download or print** in the header. It opens the **Download or print** section, where you can print the statement of record, download it as a PDF, or export a CSV.
    8. Try the **Dark mode** toggle in the header (on a phone, in **Menu**).
+   9. Below the balance card, read the **What's new from YES** card. Choose **Next update** to see the others, or **Not now** to hide one. Open the **What's new** tab (on a phone, in **Menu**) for all four updates, or ask Ask YES "What's new?".
 
 To see the reconciliation guard at work, open `dist/yes-statement.html#/overview?simulate=mismatch`, or use the link under **Help → Statement integrity**. It loads a copy of the data with one amount changed by 0.01. The statement is withheld instead of shown with numbers that don't reconcile.
 
@@ -27,7 +28,7 @@ To see the reconciliation guard at work, open `dist/yes-statement.html#/overview
 
 | PRD area | Where |
 | --- | --- |
-| 5.1 Header and brand system | Masthead (logo slot, period, language switch, light/dark toggle, **Download or print**, Ask YES), one row at every width. On phones it keeps the logo, period, Ask YES and a **Menu** whose dropdown holds the four sections, Download or print, the language switch and the light/dark toggle. Statement details panel, replacement slots in `src/js/00-config.js` |
+| 5.1 Header and brand system | Masthead (logo slot, period, language switch, light/dark toggle, **Download or print**, Ask YES), one row at every width. On phones it keeps the logo, period, Ask YES and a **Menu** whose dropdown holds the five sections, Download or print, the language switch and the light/dark toggle. Statement details panel, replacement slots in `src/js/00-config.js` |
 | 5.2 Interactive balance journey (signature) | Overview: bridge from opening to closing balance, selectable steps that list their contributing transactions, an equation and table equivalent, and a running-balance chart with a text alternative |
 | 5.3 Transaction explorer and query | Transactions: search with highlighting, combined filters, sorting with an explicit date basis, table and mobile cards, detail dialog, CSV export (complete and current view), print |
 | 5.4 Transaction inquiry | Multi-step demo inquiry started from a transaction: validation, review, a confirmation that nothing was sent, and the draft is kept |
@@ -36,6 +37,7 @@ To see the reconciliation guard at work, open `dist/yes-statement.html#/overview
 | 5.7 Personalized video | “Your statement in 60 seconds”: an animated player drawn in the page that follows the storyboard, with play/pause, narration, captions and a transcript. Its figures come from the statement. It never autoplays. |
 | 5.8 Language, accessibility, comfort | Full EN/ES with one language switch, in the header. Locale formatting, WCAG 2.2 AA patterns and reduced motion. A light/dark mode starts from the device setting and remembers the visitor's choice in this browser. Print and PDF always stay light. UserWay integration point, launcher bottom left |
 | 5.9 Help, feedback, statement record | Help: contact placeholders, session-only feedback, **Download or print** (print the statement of record, download it as a PDF, export CSV, record facts), integrity checks, accessibility status, about this demo |
+| "From YES" updates (What's new) | Illustrative promotions about new features and developments, from YES's own content (`YES.config.promotions`): one **What's new from YES** card on the Overview, a quiet note beside the network fee (Fees card and transaction detail), the **What's new** tab (`#/whatsnew`) and Ask YES ("What's new?"). Never in print, the PDF, the CSV or the no-JavaScript summary. See [What's new from YES](#whats-new-from-yes) |
 | 6 Data and reconciliation rules | `src/js/01-data.js` (integer minor units) and `src/js/02-calc.js`. The release gate runs in the browser and also in `build.mjs`, which refuses to build a statement that doesn't reconcile. |
 
 ### Illustrative figures
@@ -59,6 +61,22 @@ The fictional data is still marked:
 - the watermark on the printed statement of record and on every PDF page
 - the *Illustrative* tags on the fictional rate, the blockchain reference, the reserve panel and the transaction detail
 - the demo tags inside sections, such as Help's
+
+## What's new from YES
+
+Promotional updates about new features and developments in the YES network, personalised from Sam's own statement and clearly marked as marketing, not statement facts. Every update shows a **From YES** label and an **Illustrative** tag, and all of them are subject to YES approval.
+
+| Update | When it shows (rule) | Personalised with |
+| --- | --- | --- |
+| **Pay a YES identity** (e.g. `yes.danielk`, an example handle) | A network transfer fee was paid this period | The fee from the ledger: "You paid 1.00 USBC in network fees this month sending to external wallets." |
+| **Progressive trust** ("You're at Silver") | The (fictional, illustrative) trust level is below Gold | Outgoing transfers this period and the illustrative Silver limit, with a Bronze / Silver / Gold meter in the brand's progressive colours |
+| **More currencies** (EUBC, UKBC, MXBC, NZBC) | Always | Nothing: Sam's activity has no cross-border sending |
+| **Interest on USBC** | A positive balance | Only the statement balance. It never states a rate or a return, and always says "Subject to regulatory approval. Rates and terms to be confirmed." |
+
+- **Where.** The Overview shows one update at a time, below the balance card and the pending notice and before the balance journey. **Next update** rotates on request; nothing rotates on its own. **Not now** hides an update (also its notes), remembered in this browser (`localStorage`, key `yes.promos`). The **What's new** tab lists all four, with a deep link for each (`#/whatsnew/<id>`) and **Show dismissed updates again**.
+- **First screen.** With an update showing, the balance journey's heading starts just below the first screen at 1280×900. PRD 5.1 asks that a promotional module never displaces the balance and the reconciliation there, so `YES.config.promotions.overviewPosition: 'afterJourney'` moves the card below the journey with no code change (the default, `'afterBalance'`, is the approved plan).
+- **Calls to action** only show a toast ("In the YES app, this would open YES identities. Nothing was sent."). Nothing is tracked or sent; impressions and clicks are counted in memory for the demo only (`YES.promos.metrics()`).
+- **Content without code.** The copy (English and Spanish), order, icons, placements and eligibility rules live in `YES.config.promotions` in `src/js/00-config.js`. Figures are filled in from the statement, never typed.
 
 ## Download or print, PDF and light/dark
 
@@ -94,10 +112,11 @@ All brand, legal, support and integration values live in `src/js/00-config.js`:
 - **Video voiceover:** `VIDEO_VOICEOVER = { en, es }` holds the approved recorded narration for “Your statement in 60 seconds”, one per language, as `data:` audio URIs (for example `data:audio/mpeg;base64,…`), so the file still fetches nothing. When the current language has one, the player plays it in step with the animation. Otherwise (`null`, the default) it narrates with the device's built-in voice (Web Speech API). Captions and the transcript are available either way.
 - **Support destinations:** fictional placeholders for now.
 - **Feature flags**
+- **"From YES" promotions:** `promotions` (What's new): the updates' copy in English and Spanish, priority, icon, placements and eligibility rule, the Overview card's position (`overviewPosition`) and the storage key for dismissals. See [What's new from YES](#whats-new-from-yes).
 - **Locale tags:** Spanish defaults to `es-ES` formatting. Change it to `es-US` or `es-MX` for audiences in the Americas.
 - **UserWay integration point:** confirm with InfoSlips whether the viewer injects the widget centrally. If it does, set `enabled: false`. `position` picks the launcher's corner. The values are UserWay's `data-position` codes: 1 top right, 2 middle right, 3 bottom right, 4 bottom middle, 5 bottom left (the default here), 6 middle left, 7 top left, 8 top middle.
 
-The statement data lives in `src/js/01-data.js`.
+The statement data lives in `src/js/01-data.js`. Its `statement.customer.trust` (the progressive trust level and monthly send limit) is fictional and only feeds the trust update.
 
 ## Recorded voiceover (ElevenLabs)
 

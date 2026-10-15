@@ -143,7 +143,7 @@
   gap: var(--s1);
   list-style: none;
   margin-block: 0;
-  overflow-x: auto; /* safety only: em breakpoints keep the four tabs in view */
+  overflow-x: auto; /* safety only: em breakpoints keep the five tabs in view */
   scrollbar-width: none;
 }
 .nav__list::-webkit-scrollbar {

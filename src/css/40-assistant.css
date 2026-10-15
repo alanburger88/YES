@@ -227,6 +227,15 @@
 .asst-tag-policy .icon {
   color: var(--ai);
 }
+/* "From YES" (What's new answers): the promos' accent label, beside the demo tag. */
+.asst-tag-yes {
+  background: var(--primary-wash);
+  border-color: color-mix(in srgb, var(--sel) 40%, var(--line));
+  color: var(--primary-ink);
+}
+.asst-whatsnew {
+  margin-top: var(--s3);
+}
 .asst-ans__title {
   font-size: var(--fs-md);
   margin: 0 0 var(--s2);

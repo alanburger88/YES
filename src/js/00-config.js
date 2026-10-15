@@ -139,6 +139,15 @@
     promotions: {
       enabled: true,
       storageKey: 'yes.promos', // dismissed ids, in this browser only (localStorage)
+      /* Where the Overview's "What's new from YES" card sits:
+         'afterBalance'  below the balance card and its pending notice, before
+                         the balance journey (approved plan, 2026-10-15). At
+                         1280×900 the journey's heading then starts just below
+                         the first screen while an update is shown.
+         'afterJourney'  below the balance journey, so the balance and the
+                         reconciliation keep the whole first screen (PRD 5.1:
+                         a promotional module never displaces them). */
+      overviewPosition: 'afterBalance',
       items: [
         {
           id: 'pay-identity',

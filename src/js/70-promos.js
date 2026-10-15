@@ -313,7 +313,7 @@
     if (handle) h = h.split(esc(handle)).join('<span class="promo-handle" translate="no">' + esc(handle) + '</span>');
     return h;
   }
-  function seeLinkHtml(p, m, fk, cls, label) {
+  function seeLinkHtml(p, fk, cls, label) {
     return (
       '<a class="' +
       cls +
@@ -437,7 +437,7 @@
       (m.footnote ? '<p class="promo__foot">' + textHtml(m.footnote, p.handle) + '</p>' : '') +
       '</div>' +
       '<div class="promo__actions">' +
-      seeLinkHtml(p, m, 'promo-ov-see', 'btn btn--promo', '<span>' + esc(t('promos.see')) + '</span>' + ui.icon('arrow-right', { size: 18 })) +
+      seeLinkHtml(p, 'promo-ov-see', 'btn btn--promo', '<span>' + esc(t('promos.see')) + '</span>' + ui.icon('arrow-right', { size: 18 })) +
       (q.length > 1
         ? '<button type="button" class="btn btn--ghost promo__next" data-promo-action="next" data-fk="promo-ov-next">' + ui.icon('chevron', { size: 18 }) + '<span>' + esc(t('promos.next')) + '</span></button>'
         : '') +
@@ -470,10 +470,20 @@
     if (id) return overviewCardHtml(id);
     return cleared ? clearedHtml() : '';
   }
-  /** Markup for a placement slot owned by this module ('overview'). */
-  function slotHtml(place) {
+  /** Where the Overview card sits: 'afterBalance' (default) or 'afterJourney' (config). */
+  function overviewPosition() {
+    var c = conf();
+    return c && c.overviewPosition === 'afterJourney' ? 'afterJourney' : 'afterBalance';
+  }
+  /**
+   * Markup for a placement slot owned by this module: slotHtml('overview',
+   * position) gives the card only at the configured position (the overview
+   * offers both), so there is never more than one.
+   */
+  function slotHtml(place, position) {
     if (place !== 'overview' || !conf()) return '';
-    return '<div class="promo-slot" data-promo-slot="overview">' + overviewInner() + '</div>';
+    if ((position || 'afterBalance') !== overviewPosition()) return '';
+    return '<div class="promo-slot promo-slot--' + overviewPosition() + '" data-promo-slot="overview">' + overviewInner() + '</div>';
   }
 
   /** Does a note placement apply to this transaction? (identity: the send that paid the fee, or the fee itself) */
@@ -510,13 +520,15 @@
       '" data-promo-tx="' +
       esc(tx.id) +
       '">' +
+      // The labels first, then the message and its link (one line when there is room).
+      '<span class="promo-note__labels">' +
       fromHtml() +
-      '<span class="promo-note__text">' +
+      demoTag() +
+      '</span><span class="promo-note__msg"><span class="promo-note__text">' +
       textHtml(m.note, p.handle) +
       '</span> ' +
-      seeLinkHtml(p, m, fk, 'promo-note__link', esc(t('promos.noteLink')) + '<span class="sr-only">: ' + esc(m.title) + '</span>') +
-      (YES.config.demo ? ' ' + demoTag() : '') +
-      '</p>'
+      seeLinkHtml(p, fk, 'promo-note__link', esc(t('promos.noteLink')) + '<span class="sr-only">: ' + esc(m.title) + '</span>') +
+      '</span></p>'
     );
   }
 
@@ -588,10 +600,6 @@
       : '';
     return (
       '<header class="wn-head">' +
-      '<p class="wn-from">' +
-      fromHtml() +
-      demoTag() +
-      '</p>' +
       '<h1 id="h-whatsnew" class="view-title" data-view-heading tabindex="-1" data-fk="wn-h1">' +
       esc(t('promos.view.title')) +
       '</h1>' +

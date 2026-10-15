@@ -3735,10 +3735,19 @@
   /* ------------------------------------------------------------------ */
   function viewHtml() {
     var rec = YES.calc.reconcile(YES.data);
-    // "What's new from YES" (promos module): one illustrative update between the
-    // balance card (with its pending notice) and the balance journey; '' when
-    // there is none. The promos module owns that slot's markup and events.
-    return headerHtml() + balanceHtml() + YES.promos.slotHtml('overview') + journeySectionHtml(rec) + whyHtml(rec) + videoCardHtml(rec);
+    // "What's new from YES" (promos module): one illustrative update after the
+    // balance card (with its pending notice), before or after the balance
+    // journey as YES.config.promotions.overviewPosition says; '' elsewhere and
+    // when there is none. The promos module owns that slot's markup and events.
+    return (
+      headerHtml() +
+      balanceHtml() +
+      YES.promos.slotHtml('overview', 'afterBalance') +
+      journeySectionHtml(rec) +
+      YES.promos.slotHtml('overview', 'afterJourney') +
+      whyHtml(rec) +
+      videoCardHtml(rec)
+    );
   }
 
   function render() {
