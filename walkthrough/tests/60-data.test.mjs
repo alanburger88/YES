@@ -409,8 +409,8 @@ export default async function (ctx) {
     await page.keyboard.press(' ');
     assert.equal(await page.locator('#view-data .wt-jx__path-code').innerText(), 'statement.version', 'Space selects');
     assert.equal(await page.locator('#view-data [role="treeitem"][aria-selected="true"]').count(), 1, 'single selection');
-    // Multi-character type-ahead.
-    await page.keyboard.type('tr');
+    // Multi-character type-ahead ("tr" alone would stop at customer.trust, on the way to transactions[]).
+    await page.keyboard.type('tra');
     assert.equal(await key(), 'transactions[]', 'type-ahead with several letters');
     assert.equal(await page.evaluate(() => document.activeElement.querySelector('.wt-jx__brackets').textContent), '[]', 'arrays show []');
     assert.match(await page.evaluate(() => document.activeElement.querySelector('.wt-jx__type').textContent), /^List of records$/);

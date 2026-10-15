@@ -115,7 +115,7 @@
             '<p class="wt-lead">InfoSlips built this interactive statement for YES to show the art of the possible. Walk through it and, for each feature, tell us whether it belongs in the production statement, how important it is, and why. YES will use everyone’s answers to choose the features for the first release.</p>' +
             progressBlock +
             '<div class="wt-start__actions">' + primary + restart + tryIt + '</div>' +
-            '<p class="wt-start__meta">' + WT.icon('info', { size: 18 }) + '<span>About 40 minutes for all ' + N + ' features · You can stop and continue at any time on this browser.</span></p>' +
+            '<p class="wt-start__meta">' + WT.icon('info', { size: 18 }) + '<span>About 45 minutes for all ' + N + ' features · You can stop and continue at any time on this browser.</span></p>' +
             WT.brandNotice() +
           '</div>' +
           '<section class="wt-card wt-start__you" aria-labelledby="start-you-h">' +
@@ -142,7 +142,7 @@
             '<ol class="wt-steps" role="list">' +
               '<li class="wt-steps__item"><span class="wt-steps__n" aria-hidden="true">1</span><div>' +
                 '<h3 class="wt-steps__h">Take the guided walkthrough</h3>' +
-                '<p>About 40 minutes, ' + N + ' features. We highlight each part of the statement and explain what it does for YES and for your customers.</p></div></li>' +
+                '<p>About 45 minutes, ' + N + ' features. We highlight each part of the statement and explain what it does for YES and for your customers.</p></div></li>' +
               '<li class="wt-steps__item"><span class="wt-steps__n" aria-hidden="true">2</span><div>' +
                 '<h3 class="wt-steps__h">Give your view</h3>' +
                 '<p>For each feature, vote to include or exclude it, set a priority and comment. Your answers save as you go.</p></div></li>' +

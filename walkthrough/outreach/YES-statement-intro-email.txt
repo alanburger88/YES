@@ -16,7 +16,7 @@ TWO LINKS TO EXPLORE
    https://salesdemo.infoslipscloud.com/assets/_templates/Crypto/Yes/index.html
 
 HOW TO USE THE GUIDED TOUR
-About 40 minutes for all 22 features. You can stop at any time and continue later on the same browser.
+About 45 minutes for all 24 features. You can stop at any time and continue later on the same browser.
 1. Open the guided tour and add your name if you like. It appears next to your votes and comments.
 2. Select Start the walkthrough. Each step highlights a part of the statement and explains what it does and why it matters for YES and for your customers.
 3. Give your view on each feature: Include or Exclude (with a reason if you like), a priority of High, Medium or Low, and an optional comment. Your answers save automatically.

@@ -1,5 +1,5 @@
 /*
- * 31-steps.js — the 22 tour steps (SPEC section 6). Owner: steps.
+ * 31-steps.js — the 24 tour steps (SPEC section 6). Owner: steps.
  *
  * WT.steps[featureId] = {
  *   id,
@@ -117,7 +117,7 @@
     {
       id: 'why',
       what:
-        '“Explain this balance”, on the balance card, gives a short, plain-language account of what moved the balance: what added to it, what took away from it (including fees) and what is still pending and so not included, with the figures it used. Further down the Overview, the “Why it changed” section tells the same story with a chart, the fees and the largest movement. It is built from fixed templates, so it can ship without the AI service behind “Explain with AI” (step 11) or Ask YES (step 13).',
+        '“Explain this balance”, on the balance card, gives a short, plain-language account of what moved the balance: what added to it, what took away from it (including fees) and what is still pending and so not included, with the figures it used. Further down the Overview, the “Why it changed” section tells the same story with a chart, the fees and the largest movement. It is built from fixed templates, so it can ship without the AI service behind “Explain with AI” (step 13) or Ask YES (step 15).',
       valueYes: [
         'Answers “why is my balance different?” inside the statement, before it becomes a call or an email.',
         'Every sentence is built from the statement’s own figures, so the explanation always matches the record.',
@@ -199,6 +199,56 @@
       setup: [{ route: '#/overview' }],
       target: { desktop: ['#overview-root .ov-insight'], phone: ['#overview-root .ov-insight'] },
       shot: { pad: 16 }
+    },
+    {
+      id: 'whats-new',
+      what:
+        'A “What\'s new from YES” card on the Overview, just below the balance card, shows one update about new YES features at a time, personalised from the statement: here “Pay a YES identity”, because Sam paid 1.00 USBC in network fees sending to an external wallet. A fifth tab, “What\'s new”, lists all four updates (“Pay a YES identity”, “Progressive trust” with a meter of the customer’s trust level, “More currencies” and “Interest on USBC”, subject to regulatory approval), and Ask YES answers “What\'s new?”. Every update is labelled “From YES” and “Illustrative”, stays on screen and is never part of the statement of record.',
+      valueYes: [
+        'Cross-sells new YES features and drives their adoption inside a statement customers already open, at no extra mailing cost.',
+        'Personalised from the customer’s real activity, such as network fees paid, trust level, amount sent and balance, so it is more relevant than a generic banner.',
+        'Copy, order, eligibility rules, placements and dates are managed in one place, so YES can add, change or retire an update without touching the statement.',
+        'Kept honest: in this demo every update is illustrative, “Interest on USBC” is “Subject to regulatory approval” and never shows a rate, and the buttons send nothing.'
+      ],
+      valueCustomer: [
+        'Hear about genuinely useful features when they matter, such as paying a YES identity with no network fee after paying one.',
+        'See your own figures in each update, like your trust level, what you sent this month and your monthly send limit.',
+        '“Not now” hides an update from the Overview, and “Show dismissed updates again” in What\'s new brings it back.',
+        'Always clearly labelled “From YES”, and never in print, the PDF or the CSV.'
+      ],
+      tryIt:
+        'Just below the balance card, the “What\'s new from YES” card shows one update. Select “Next update” to see the next one, or “Not now” to hide it from your Overview. “See what\'s new” opens the “What\'s new” tab with all four updates, including the trust meter. In Ask YES, the suggested question “What\'s new?” gives the same updates. The buttons inside each update are demo-only: they show a message and send nothing.',
+      setup: [{ route: '#/overview' }, { call: 'promos.restore' }],
+      target: {
+        desktop: ['#overview-root .promo--overview', '#overview-root [data-promo-slot="overview"]'],
+        phone: ['#overview-root .promo--overview', '#overview-root [data-promo-slot="overview"]']
+      },
+      shot: { pad: 16 }
+    },
+    {
+      id: 'promo-notes',
+      what:
+        'A quiet one-line note from YES, shown only where it is relevant: in the Fees card, right under the 1.00 USBC fee for sending to an external wallet, it suggests paying a YES identity next time, with no network fee, and “See how” opens that update in What\'s new. The same note appears in the details of that send (TX-260909-2051) and of its fee line, and nowhere else. It is labelled “From YES” and “Illustrative”, and it goes away when the customer hides the update with “Not now”.',
+      valueYes: [
+        'Reaches the customer at the moment it matters: right beside the fee they paid, with the YES feature that avoids it.',
+        'Driven by rules on the statement’s own data (here, network fees paid this period), so only customers it applies to see it.',
+        'Uses the same managed content as the What\'s new card, so the note and the update always agree.',
+        'Quiet and clearly labelled, so it informs without crowding the statement or reading as part of the record.'
+      ],
+      valueCustomer: [
+        'Learn how to avoid a fee right where you see it: paying a YES identity has no network fee.',
+        'Only relevant notes: transactions the update does not apply to carry none.',
+        '“See how” opens the full update, and hiding it with “Not now” removes the note too.',
+        'Clearly labelled “From YES”, and never in print, the PDF or the CSV.'
+      ],
+      tryIt:
+        'In the Fees card on the Overview, look under “Fee for sending to an external wallet”: the note reads “Next time, pay a YES identity. No network fee.” Select “See how” to open the update in What\'s new. Select the fee, or open the send it belongs to in Transactions, to see the same note in the transaction details.',
+      setup: [{ route: '#/overview' }, { call: 'promos.restore' }],
+      target: {
+        desktop: ['#overview-root .ov-fees li:has(.promo-note)', '#overview-root .ov-fees .promo-note'],
+        phone: ['#overview-root .ov-fees li:has(.promo-note)', '#overview-root .ov-fees .promo-note']
+      },
+      shot: { pad: { top: 16, right: 16, bottom: 4, left: 16 }, selector: ['#overview-root .ov-fees .ov-cardtitle', '#overview-root .ov-fees .ov-fees__total', '#overview-root .ov-fees li:has(.promo-note)'] }
     },
     {
       id: 'explorer',
@@ -314,7 +364,7 @@
     {
       id: 'assistant',
       what:
-        'Ask YES answers questions about this statement: customers pick one of seven suggested questions or type their own. Every answer shows the figures and transactions it used, with “Show these rows in Transactions”, “Was this helpful?” and “Talk to a person”, and it says plainly that it can’t move money, give investment advice or see the live account. In this demo, typed questions are matched to a fixed set of topics.',
+        'Ask YES answers questions about this statement: customers pick one of eight suggested questions (including “What\'s new?”) or type their own. Every answer shows the figures and transactions it used, with “Show these rows in Transactions”, “Was this helpful?” and “Talk to a person”, and it says plainly that it can’t move money, give investment advice or see the live account. In this demo, typed questions are matched to a fixed set of topics.',
       valueYes: [
         'Handles routine statement questions at any hour, taking load off support.',
         'Grounded in the statement and honest about its limits, so it builds trust instead of risk.',

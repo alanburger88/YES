@@ -12,7 +12,7 @@ The statement itself (`../dist/yes-statement.html`) is shown **unchanged** insid
 
 > **Branding notice.** The statement now carries the YES brand: the YES logo, colours and typography from the YES brand book. The overall design and layout are still a starting point and may change after reviewer feedback and the design workshop. The app says so on the start page (full notice), and in a compact notice in the tour bar, the tour's All steps dialog, and on the results and data requirements pages.
 
-The build contract is [`docs/SPEC.md`](docs/SPEC.md). [`docs/STATEMENT-MAP.md`](docs/STATEMENT-MAP.md) maps each of the 22 features to the statement's UI and APIs.
+The build contract is [`docs/SPEC.md`](docs/SPEC.md). [`docs/STATEMENT-MAP.md`](docs/STATEMENT-MAP.md) maps each of the 24 features to the statement's UI and APIs.
 
 ---
 
@@ -91,7 +91,7 @@ They are taken from the built statement at 1280×900, light theme, English, and 
 3. If the statement's UI changed, run `node tests/run.mjs --only 30-steps` (every feature's setup and highlight target, at several sizes) and update `src/js/31-steps.js` / `docs/STATEMENT-MAP.md` if a target moved, then regenerate the screenshots (above).
 4. Run the full test suite, then deploy.
 
-The 22 feature ids in `shared/features.json` are frozen (answers and data requirements are keyed by them); only their titles and one-line summaries may change.
+The 24 feature ids in `shared/features.json` are frozen (answers and data requirements are keyed by them): the original 22, plus `whats-new` and `promo-notes` (steps 8 and 9, added on 2026-10-15 for the statement's "From YES" promotions). Existing ids are never renamed or removed, so answers already saved stay valid; only titles, one-line summaries and the order may change. A new feature needs its step (`31-steps.js`), data requirements (`32-datareq.js`) and screenshots.
 
 ### Deploy (Netlify, SPEC section 11)
 The live project is **`infoslips-yes-statement-review`** (https://infoslips-yes-statement-review.netlify.app). From `walkthrough/`, with the Netlify CLI (`npx netlify-cli@latest`):

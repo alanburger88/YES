@@ -113,7 +113,7 @@
   'use strict';
 
   var host = window; // timers and frames always come from here (G3)
-  var VIEWS = ['overview', 'transactions', 'understand', 'help'];
+  var VIEWS = ['overview', 'transactions', 'understand', 'help', 'whatsnew'];
   var NO_CLICK = '[data-help-print], [data-tx-print]';
   var OV_DISCLOSURES = ['details', 'journeyTable', 'chartTable', 'transcript'];
   var ABORT = {};

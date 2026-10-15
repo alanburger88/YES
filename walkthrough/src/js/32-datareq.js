@@ -32,6 +32,9 @@
   var FEE_KINDS = 'network_transfer|card_deposit|redemption';
   var EDU_TOPICS = 'token_units|usd_equivalent|onchain_vs_internal|tx_status|fees|redemption|statement_vs_live';
   var LANGS = 'en|es';
+  var PROMO_THEMES = 'identity|trust|currencies|interest';
+  var PROMO_RULES = 'always|network_fee_paid|trust_below|balance_at_least';
+  var TRUST_LEVELS = 'bronze|silver|gold';
 
   var CATALOGUE = {
     /* ---------------- Statement envelope ---------------- */
@@ -233,8 +236,49 @@
     'ai.guardrails.citeRows': ['boolean', true, true, 'Each answer lists the transaction IDs it used, so the statement can show the rows behind it.', S.ai],
     'ai.disclaimer.en': ['string', true, 'Answers use this statement only. They are not financial advice.', 'Approved disclaimer shown with every answer, in English.', S.content],
     'ai.disclaimer.es': ['string', false, 'Las respuestas usan solo este estado de cuenta. No son asesoramiento financiero.', 'Approved disclaimer in Spanish.', S.content],
-    'ai.suggestedQuestions': ['array', false, ['why_balance', 'fees_paid', 'largest', 'pending', 'statement_vs_live', 'peg', 'onchain_sent'], 'Approved starter questions, by ID, in display order.', S.content],
-    'ai.retentionDays': ['integer', false, 30, 'How long the AI service keeps a conversation for audit. 0 keeps nothing.', S.ai]
+    'ai.suggestedQuestions': ['array', false, ['why_balance', 'fees_paid', 'largest', 'pending', 'statement_vs_live', 'peg', 'onchain_sent', 'whats_new'], 'Approved starter questions, by ID, in display order.', S.content],
+    'ai.retentionDays': ['integer', false, 30, 'How long the AI service keeps a conversation for audit. 0 keeps nothing.', S.ai],
+
+    /* ---------------- "From YES" updates (promotions) ---------------- */
+    'content.promotions[].id': ['string', true, 'pay-identity', 'Stable ID of the update. It is also its deep link in What’s new (#/whatsnew/pay-identity).', S.content],
+    'content.promotions[].copyId': ['string', true, 'PRM-001-PAY-IDENTITY', 'Approved-copy ID, so every published update can be traced.', S.content],
+    'content.promotions[].theme': ['string<enum: ' + PROMO_THEMES + '>', true, 'identity', 'Kind of update. It sets the layout: the trust meter for trust, the list of planned currencies for currencies.', S.content],
+    'content.promotions[].priority': ['integer', true, 40, 'Order of the updates: the highest-priority eligible update shows first on the Overview.', S.content],
+    'content.promotions[].placements': ['array', true, ['overview', 'whatsnew', 'fees', 'txDetail', 'assistant'], 'Where the update may appear: the Overview card, the What’s new tab, the note in the Fees card, the note in a transaction’s details, and Ask YES.', S.content],
+    'content.promotions[].eligibility.kind': ['string<enum: ' + PROMO_RULES + '>', true, 'network_fee_paid', 'Rule that decides who sees the update, checked against this statement and the customer profile. An unknown rule is never eligible.', S.content],
+    'content.promotions[].eligibility.feeKind': ['string<enum: ' + FEE_KINDS + '>', false, 'network_transfer', 'For network_fee_paid: which kind of fee counts.', S.content],
+    'content.promotions[].eligibility.amount': ['integer<minor units>', false, 1, 'For network_fee_paid: the smallest total of those fees this period; for balance_at_least: the smallest closing balance. In minor units.', S.content],
+    'content.promotions[].eligibility.level': ['string<enum: ' + TRUST_LEVELS + '>', false, 'gold', 'For trust_below: the update shows while the customer is below this trust level.', S.content],
+    'content.promotions[].validity.from': ['string<date-time>', true, '2026-10-01T00:00:00-04:00', 'When the update may start showing.', S.content],
+    'content.promotions[].validity.to': ['string<date-time>', false, '2026-12-31T23:59:59-05:00', 'When it stops showing. Empty means no end date.', S.content],
+    'content.promotions[].eyebrow.en': ['string', false, 'New: YES identities', 'Short label above the title, in English.', S.content],
+    'content.promotions[].eyebrow.es': ['string', false, 'Novedad: identidades YES', 'The label in Spanish.', S.content],
+    'content.promotions[].title.en': ['string', true, 'Pay a YES identity', 'Title of the update in English.', S.content],
+    'content.promotions[].title.es': ['string', false, 'Paga a una identidad YES', 'Title in Spanish. Required when Spanish is offered.', S.content],
+    'content.promotions[].body.en': ['string', true, 'Send to a YES identity, like {handle}, instantly and with no network fee.', 'Approved message in English. Placeholders such as {fee}, {sent}, {limit}, {level}, {next} and {closing} are filled in by InfoSlips from the statement and the profile, never typed.', S.content],
+    'content.promotions[].body.es': ['string', false, 'Envía a una identidad YES, como {handle}, al instante y sin comisión de red.', 'The message in Spanish.', S.content],
+    'content.promotions[].personal.en': ['string', false, 'You paid {fee} in network fees this month sending to external wallets.', 'Personal line in English, shown only when the customer is eligible. A line whose figure is missing is left out.', S.content],
+    'content.promotions[].personal.es': ['string', false, 'Este mes pagaste {fee} en comisiones de red por envíos a monederos externos.', 'The personal line in Spanish.', S.content],
+    'content.promotions[].note.en': ['string', false, 'Next time, pay a YES identity. No network fee.', 'One-line note in English for the fees and txDetail placements: beside the fee in the Fees card and in the transaction’s details.', S.content],
+    'content.promotions[].note.es': ['string', false, 'La próxima vez, paga a una identidad YES. Sin comisión de red.', 'The note in Spanish.', S.content],
+    'content.promotions[].cta.label.en': ['string', true, 'Find a YES identity', 'Call to action in English.', S.content],
+    'content.promotions[].cta.label.es': ['string', false, 'Busca una identidad YES', 'Call to action in Spanish.', S.content],
+    'content.promotions[].cta.uri': ['string<uri>', false, 'https://app.example.com/yes/identities', 'Where the call to action goes in the YES app. In this demo the button only shows a message and sends nothing.', S.content],
+    'content.promotions[].footnote.en': ['string', false, '{handle} is an example handle. Network fees apply only when you send to a wallet outside YES.', 'Small print in English, always shown with the update. Required where the update needs it, such as “Subject to regulatory approval” for interest.', S.content],
+    'content.promotions[].footnote.es': ['string', false, '{handle} es un identificador de ejemplo. Las comisiones de red solo se aplican cuando envías a un monedero fuera de YES.', 'The small print in Spanish.', S.content],
+    'content.promotions[].handle': ['string', false, 'yes.danielk', 'For identity: the example YES identity named in the copy. It must not belong to a real customer.', S.content],
+    'content.promotions[].tiers[].id': ['string<enum: ' + TRUST_LEVELS + '>', false, 'silver', 'For trust: the trust levels in order, as the meter shows them.', S.content],
+    'content.promotions[].tiers[].label.en': ['string', false, 'Silver', 'Name of a trust level in English.', S.content],
+    'content.promotions[].tiers[].label.es': ['string', false, 'Plata', 'Name of a trust level in Spanish.', S.content],
+    'content.promotions[].codes[].code': ['string<currency>', false, 'EUBC', 'For currencies: a planned currency code.', S.content],
+    'content.promotions[].codes[].name.en': ['string', false, 'Euro', 'Name of the planned currency in English.', S.content],
+    'content.promotions[].codes[].name.es': ['string', false, 'Euro', 'Name of the planned currency in Spanish.', S.content],
+    'content.promotions[].responsibleEntity': ['string', true, 'YES Marketing', 'Team accountable for the update and its wording.', S.content],
+    'content.promotions[].approvedAt': ['string<date-time>', true, '2026-09-25T15:00:00-04:00', 'When the update was approved. Interest and currency updates also need compliance approval.', S.content],
+    'customer.trust.level': ['string<enum: ' + TRUST_LEVELS + '>', false, 'silver', 'The customer’s progressive-trust level. Used only to choose and personalise updates, never shown on the statement of record.', S.profile],
+    'customer.trust.monthlySendLimit': ['integer<minor units>', false, 100000, 'Monthly send limit at the current trust level, in minor units (100000 = 1,000.00 USBC).', S.profile],
+    'customer.trust.nextStep': ['string', false, 'verify_address', 'Code for what the customer must do to reach the next level, such as verify_address.', S.profile],
+    'preferences.promotions.enabled': ['boolean', false, true, 'Whether this customer may see YES updates in the statement, following their marketing preferences. When false, InfoSlips shows no card, note or What’s new update.', S.prefs]
   };
 
   function clone(v) {
@@ -286,6 +330,42 @@
     'transactions[].onchain.confirmations',
     'transactions[].onchain.verified'
   ];
+  var PROMO_CONTENT = [
+    'content.promotions[].id',
+    'content.promotions[].copyId',
+    'content.promotions[].theme',
+    'content.promotions[].priority',
+    'content.promotions[].placements',
+    'content.promotions[].eligibility.kind',
+    'content.promotions[].eligibility.feeKind',
+    'content.promotions[].eligibility.amount',
+    'content.promotions[].eligibility.level',
+    'content.promotions[].validity.from',
+    'content.promotions[].validity.to',
+    'content.promotions[].eyebrow.en',
+    'content.promotions[].eyebrow.es',
+    'content.promotions[].title.en',
+    'content.promotions[].title.es',
+    'content.promotions[].body.en',
+    'content.promotions[].body.es',
+    'content.promotions[].personal.en',
+    'content.promotions[].personal.es',
+    'content.promotions[].cta.label.en',
+    'content.promotions[].cta.label.es',
+    'content.promotions[].cta.uri',
+    'content.promotions[].footnote.en',
+    'content.promotions[].footnote.es',
+    'content.promotions[].handle',
+    'content.promotions[].tiers[].id',
+    'content.promotions[].tiers[].label.en',
+    'content.promotions[].tiers[].label.es',
+    'content.promotions[].codes[].code',
+    'content.promotions[].codes[].name.en',
+    'content.promotions[].codes[].name.es',
+    'content.promotions[].responsibleEntity',
+    'content.promotions[].approvedAt'
+  ];
+  var PROMO_TRUST = ['customer.trust.level', 'customer.trust.monthlySendLimit', 'customer.trust.nextStep'];
   /* What the customer types to the AI service is personal data too (see the notes). */
   var AI_QUESTION_NOTE =
     'The AI service receives only the fields in ai.inputFields and the customer’s own question. The question is sent as typed and may contain personal details, so it is covered by ai.retentionDays and the privacy notice. Descriptions must not include counterparty names.';
@@ -365,6 +445,52 @@
       'Fee lines and the transactions they belong to, linked both ways, plus a link to the fee schedule.',
       ['InfoSlips totals the fees and groups them by kind.', 'Fees in another asset are listed separately and never subtracted from the token balance.'],
       ['transactions[].id', 'transactions[].type', 'transactions[].status', 'transactions[].postedAt', 'transactions[].amount', 'transactions[].description.en'].concat(FEE_LINKS, ['content.feeSchedule.uri'])
+    ),
+
+    'whats-new': entry(
+      'The “From YES” updates from content management (copy in each language, call to action, small print, eligibility rule, placements and dates), the customer’s trust level, send limit and next step, and the statement figures that personalise them.',
+      [
+        'InfoSlips checks each update’s eligibility rule against the statement and the customer profile, and fills in its figures (network fees paid, amount sent this month, send limit, trust level, closing balance) from the data. The amount sent is the total of posted outgoing transfers and payments; no figure is typed into the copy.',
+        'Updates are screen only and never part of the statement of record: print, the PDF and the CSV leave them out. Interest copy never states a rate or projects earnings, and its footnote says it is subject to regulatory approval.',
+        'In this demo, dismissed updates are remembered in the browser only, and views and clicks are counted in the page and never sent. Storing or measuring them in production follows YES’s privacy and marketing-consent rules.'
+      ],
+      PROMO_CONTENT.concat(PROMO_TRUST, ['statement.closing', 'transactions[].id', 'transactions[].type', 'transactions[].status', 'transactions[].amount', 'transactions[].asset', 'transactions[].feeKind', 'preferences.promotions.enabled'])
+    ),
+
+    'promo-notes': entry(
+      'The one-line note of each update placed in the Fees card or in transaction details, its eligibility rule and dates, and the fee lines and linked transactions it is shown beside.',
+      [
+        'InfoSlips shows a note only beside the transactions its update applies to: for the YES identity update, a posted network fee in the statement asset and the send it was charged for. Every other transaction carries none.',
+        'The note shares its content with the What’s new update, so “See how” always opens the matching update. Hiding the update with “Not now” removes its notes too.',
+        'Notes are screen only: print, the PDF and the CSV leave them out.'
+      ],
+      [
+        'content.promotions[].id',
+        'content.promotions[].copyId',
+        'content.promotions[].theme',
+        'content.promotions[].priority',
+        'content.promotions[].placements',
+        'content.promotions[].eligibility.kind',
+        'content.promotions[].eligibility.feeKind',
+        'content.promotions[].eligibility.amount',
+        'content.promotions[].validity.from',
+        'content.promotions[].validity.to',
+        'content.promotions[].title.en',
+        'content.promotions[].title.es',
+        'content.promotions[].note.en',
+        'content.promotions[].note.es',
+        'transactions[].id',
+        'transactions[].type',
+        'transactions[].status',
+        'transactions[].amount',
+        'transactions[].asset',
+        'transactions[].parentId',
+        'transactions[].feeKind',
+        'transactions[].fees[].asset',
+        'transactions[].fees[].kind',
+        'transactions[].fees[].feeTxId',
+        'preferences.promotions.enabled'
+      ]
     ),
 
     largest: entry(

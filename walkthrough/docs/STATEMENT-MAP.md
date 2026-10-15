@@ -1,4 +1,4 @@
-# Statement map: the 22 features in `dist/yes-statement.html`
+# Statement map: the 24 features in `dist/yes-statement.html`
 
 Owner: explore (read-only on the statement). This is the reference that the steps (`30-driver.js`, `31-steps.js`, `scripts/shots.mjs`), tour and data-requirements modules build from. It maps every frozen feature id in `shared/features.json` to the statement's UI and APIs. Every setup and target below was **run and verified with Playwright** against `file:///home/user/YES/dist/yes-statement.html` (statement `1.0.0-showcase`; `dist` was rebuilt from `src` and is byte-identical).
 
@@ -7,6 +7,13 @@ Owner: explore (read-only on the statement). This is the reference that the step
 - 44/44 passed with reduced motion.
 - 44/44 passed **inside a same-origin iframe**, driven from the parent page as `WT.driver` will be. The parent pushed `#/tour/<id>` on every step, and the statement never moved it.
 - No console errors. The only outbound request is the UserWay script, which is aborted in tests.
+
+**Update, 2026-10-15: "From YES" promotions.** The statement gained illustrative, screen-only promotional content (`src/js/70-promos.js`, content in `YES.config.promotions`), and the review gained two features, **`whats-new`** (step 8) and **`promo-notes`** (step 9). The original 22 ids are unchanged; from `explorer` on, every step number moved up by two. What changed in the statement, and what it meant for the steps:
+- **Overview layout.** A "What's new from YES" card (`#overview-root .promo--overview`, inside `[data-promo-slot="overview"]`) now sits between the balance card and the balance journey. Everything below it moved down by the card's height plus a gap: at 1280×900 the card spans 805–1032 and the journey starts at 1056 (it was just inside the first screen before); at 390×844 the card is 450 tall. The `summary` target (`.ov-balance__grid`) and the balance card did not move.
+- **Masthead.** Five section tabs (Overview, Transactions, Understand, Help, **What's new**), and the phone Menu lists the five sections before Download or print, the language switch and Dark mode. The `language` and `theme` targets (`.mast-wide .seg--lang`, `.mast-wide [data-theme-toggle]`, `.mast-menu__pref`, `.mast-menu__theme`) are unchanged.
+- **Ask YES** offers eight suggested questions; the eighth is "What's new?" (`whats_new`).
+- **Driver.** `30-driver.js` knows the `whatsnew` view, so `{ route: '#/whatsnew' }` waits for the right view. The two new steps call `promos.restore()` in their setup (G19).
+- **Verified:** `tests/30-steps.test.mjs` passes for all 24 steps (880×900 light and dark, 390×844 light and dark, 1480×836, and in the iframe at 870×836 and 390×440 with reduced motion), and a separate run passed all 24 at 683×836, 1280×900 (dark) and 320×640. No existing setup or target had to change.
 
 Contents:
 1. [Feature → target table](#1-feature--target-table)
@@ -40,21 +47,23 @@ Conventions:
 | 5 | `running-balance` | Overview › Why it changed | route, scroll | `#overview-root .ov-chartcard` | same |
 | 6 | `fees` | Overview › Why it changed | route, scroll | `#overview-root .ov-fees` | same |
 | 7 | `largest` | Overview › Why it changed | route, scroll | `#overview-root .ov-insight` | same |
-| 8 | `explorer` | Transactions | route, `explorer.applyFilter({q:'Daniel'})` | `#transactions-root .tx-bar` | same |
-| 9 | `detail` | Transaction detail dialog | route, `explorer.openTx('TX-260920-0900')` | `#tx-dialog[open]` | same (full-screen sheet) |
-| 10 | `pending` | Overview, balance card notice | route, scroll | `#overview-root .ov-notin` | same |
-| 11 | `explain-ai` | Ask YES drawer, transaction answer | route, `assistant.open({topic:'transaction', id:'TX-260909-2051'})` | `#assistant-drawer[open] .asst-turn:last-child .asst-ans__text` | same |
-| 12 | `inquiry` | Inquiry dialog | route, `inquiry.start('TX-260924-1327')` | `#inquiry-dialog[open]` | same (sheet) |
-| 13 | `assistant` | Ask YES drawer | route, `assistant.ask('fees_paid')` | `#assistant-drawer[open]` | same (sheet) |
-| 14 | `basics` | Understand › Bank-issued digital dollar basics | `understand.openTopic('token_units')` | `#understand-root #und-basics` | `#understand-root #und-topic-token_units` |
-| 15 | `live-balance` | Understand › Statement vs live | route `#/understand/live` | `#understand-root #und-live` | same |
-| 16 | `transparency` | Understand › Reserves and transparency | route `#/understand/transparency` | `#understand-root #und-transparency` | same |
-| 17 | `download` | Help › Download or print | `help.open('record')` | `#help-root #help-record .help-dl` | same |
-| 18 | `help-record` | Help › Contact support | `help.open('contact')` | `#help-root #help-contact` | same |
-| 19 | `integrity` | Help › Statement integrity | `help.open('integrity')` | `#help-root #help-integrity` | same |
-| 20 | `language` | Masthead language switch (phone: Menu) | route, `{lang:'es'}`, `{menu:true}` | `#masthead .mast-wide .seg--lang` | `#mast-menu .mast-menu__pref` |
-| 21 | `theme` | Masthead Dark mode (phone: Menu) | route, `{theme:'dark'}`, `{menu:true}` | `#masthead .mast-wide [data-theme-toggle]` | `#mast-menu .mast-menu__theme` |
-| 22 | `accessibility` | Help › Accessibility | `help.open('accessibility')` | `#help-root #help-accessibility` | same |
+| 8 | `whats-new` | Overview, "What's new from YES" card (after the balance card); the What's new tab and Ask YES | route `#/overview`, `promos.restore()` | `#overview-root .promo--overview` | same |
+| 9 | `promo-notes` | Overview › Fees this period, the note under the network fee; also the detail of TX-260909-2051 and its fee | route `#/overview`, `promos.restore()` | `#overview-root .ov-fees li:has(.promo-note)` | same |
+| 10 | `explorer` | Transactions | route, `explorer.applyFilter({q:'Daniel'})` | `#transactions-root .tx-bar` | same |
+| 11 | `detail` | Transaction detail dialog | route, `explorer.openTx('TX-260920-0900')` | `#tx-dialog[open]` | same (full-screen sheet) |
+| 12 | `pending` | Overview, balance card notice | route, scroll | `#overview-root .ov-notin` | same |
+| 13 | `explain-ai` | Ask YES drawer, transaction answer | route, `assistant.open({topic:'transaction', id:'TX-260909-2051'})` | `#assistant-drawer[open] .asst-turn:last-child .asst-ans__text` | same |
+| 14 | `inquiry` | Inquiry dialog | route, `inquiry.start('TX-260924-1327')` | `#inquiry-dialog[open]` | same (sheet) |
+| 15 | `assistant` | Ask YES drawer | route, `assistant.ask('fees_paid')` | `#assistant-drawer[open]` | same (sheet) |
+| 16 | `basics` | Understand › Bank-issued digital dollar basics | `understand.openTopic('token_units')` | `#understand-root #und-basics` | `#understand-root #und-topic-token_units` |
+| 17 | `live-balance` | Understand › Statement vs live | route `#/understand/live` | `#understand-root #und-live` | same |
+| 18 | `transparency` | Understand › Reserves and transparency | route `#/understand/transparency` | `#understand-root #und-transparency` | same |
+| 19 | `download` | Help › Download or print | `help.open('record')` | `#help-root #help-record .help-dl` | same |
+| 20 | `help-record` | Help › Contact support | `help.open('contact')` | `#help-root #help-contact` | same |
+| 21 | `integrity` | Help › Statement integrity | `help.open('integrity')` | `#help-root #help-integrity` | same |
+| 22 | `language` | Masthead language switch (phone: Menu) | route, `{lang:'es'}`, `{menu:true}` | `#masthead .mast-wide .seg--lang` | `#mast-menu .mast-menu__pref` |
+| 23 | `theme` | Masthead Dark mode (phone: Menu) | route, `{theme:'dark'}`, `{menu:true}` | `#masthead .mast-wide [data-theme-toggle]` | `#mast-menu .mast-menu__theme` |
+| 24 | `accessibility` | Help › Accessibility | `help.open('accessibility')` | `#help-root #help-accessibility` | same |
 
 Section 5 has the full fallback lists and the measured sizes.
 
@@ -66,16 +75,17 @@ Everything is on `frameWin.YES`. The frame is same-origin, so `frame.contentWind
 
 ### 2.1 Readiness
 - **Ready** when `YES.ready === true`. `YES.on('ready', fn)` fires once at boot. Boot is synchronous at `DOMContentLoaded`, so the statement is ready almost as soon as the frame fires `load`.
-- A **frame reload** replaces `frameWin.YES` with a new object; this happens with the integrity preview (§5.19). Always read `frameWin.YES` again, and never cache it.
+- A **frame reload** replaces `frameWin.YES` with a new object; this happens with the integrity preview (§5.21). Always read `frameWin.YES` again, and never cache it.
 
 ### 2.2 Routes and views (`YES.nav`)
-- Views: `overview | transactions | understand | help`. Each view lives at `section#view-<view>` (the others are `hidden`), and its heading is `#h-<view>`.
+- Views: `overview | transactions | understand | help | whatsnew`. Each view lives at `section#view-<view>` (the others are `hidden`), and its heading is `#h-<view>`.
 - The current view is `YES.state.view`. `YES.nav.current()` returns `{ view, param, params }`.
 - Routes:
   - `#/overview[/<stepId>]`;
   - `#/transactions[/<txId>]`, which opens the detail;
   - `#/understand[/<topicId>|basics|live|onchain|transparency]`;
   - `#/help[/<contact|feedback|record|integrity|accessibility|about>]`, with the aliases `download`, `print` and `pdf` for `record`;
+  - `#/whatsnew[/<promotionId>]` (`pay-identity`, `trust`, `currencies`, `interest`): a known id scrolls to that update and focuses its heading;
   - the integrity preview `#/overview?simulate=mismatch`, which **reloads** the frame.
 - `YES.nav.go(view, { param, focus, replace })` navigates and **pushes** a history entry, unless `replace: true`. `YES.nav.setParam(p)` replaces the current entry's sub-route.
 - `{route: '#/…'}` driver action. The router listens to `hashchange`. Two safe ways to change the frame's hash from the parent:
@@ -94,7 +104,7 @@ Everything is on `frameWin.YES`. The frame is same-origin, so `frame.contentWind
 | Any `<dialog>` | – | `YES.ui.openDialog(dlg, opts)` | `YES.ui.closeDialog(dlg, { returnFocus:false })` | `YES.ui.anyModalOpen()`, `html.has-modal` |
 
 - **Assistant topics:** `general`, `balance`, `step` (id = step id), `transaction` (id = tx id), `fees`, `edu` (id = topic id), `chart` and `pending`.
-- **Curated question ids:** `why_balance`, `fees_paid`, `largest`, `pending`, `statement_vs_live`, `peg` and `onchain_sent`. `YES.assistant.questions()` lists them.
+- **Curated question ids:** `why_balance`, `fees_paid`, `largest`, `pending`, `statement_vs_live`, `peg`, `onchain_sent` and `whats_new`. `YES.assistant.questions()` lists them.
 - **Drawer presentation:**
   - **Docked** and non-modal at ≥ 1100px frame width. It adds `html.assistant-docked`, and the page reflows narrower.
   - A **modal side drawer** from 720 to 1099.
@@ -147,7 +157,7 @@ Everything is on `frameWin.YES`. The frame is same-origin, so `frame.contentWind
 
 ### 2.10 Phone Menu (no API)
 - **Phone layout** is active when `#masthead [data-mast-menu]` is displayed, which is below 720px of frame width.
-- **Open** by clicking it. The verified driver uses `{menu:true}`, which does `button.click()` when `aria-expanded="false"`. The panel is `#mast-menu`. It contains the four sections (`#mast-menu [data-nav]`), Download or print (`[data-mast-record]`), the language switch (`.mast-menu__pref`) and the theme row (`.mast-menu__theme`).
+- **Open** by clicking it. The verified driver uses `{menu:true}`, which does `button.click()` when `aria-expanded="false"`. The panel is `#mast-menu`. It contains the five sections (`#mast-menu [data-nav]`, What's new last), Download or print (`[data-mast-record]`), the language switch (`.mast-menu__pref`) and the theme row (`.mast-menu__theme`).
 - **Closes on:** a route change, a click outside, Escape, tabbing out within the frame, or leaving the phone layout.
 - **Stays open** on a language or theme switch, and when focus moves to the **parent** page (verified).
 - **Close** by clicking the button again while `aria-expanded="true"`.
@@ -159,10 +169,17 @@ Everything is on `frameWin.YES`. The frame is same-origin, so `frame.contentWind
 
 ### 2.12 Events, state and data
 - **Events:** `YES.on(evt, fn)` returns an off function. Events: `state` (changed keys), `route` ({ view, param, params }), `view`, `lang`, `theme`, `rendered`, `ready` and `userway`.
-- **State:** `YES.state` holds `lang`, `view`, `journeyStep`, `filters`, `sort`, `selectedTx`, `inquiry`, `assistant`, `feedback`, `overview` (disclosures, cc, muted), `explorer`, `understand` and `help`. Change it with `YES.set({ key: value })`, a shallow replace.
+- **State:** `YES.state` holds `lang`, `view`, `journeyStep`, `filters`, `sort`, `selectedTx`, `inquiry`, `assistant`, `feedback`, `overview` (disclosures, cc, muted), `explorer`, `understand`, `help` and `promos` (`{ dismissed: [ids], current }`). Change it with `YES.set({ key: value })`, a shallow replace.
 - **Data:** `YES.data` is the canonical statement. Amounts are **integer minor units**, precision 2: `114750` = 1,147.50.
 - **Figures:** `YES.calc` provides `posted`, `notInBalance`, `tx`, `categories`, `category`, `groups`, `journey`, `running`, `netChange`, `feesTotal`, `foreignFees`, `largest`, `fiatAvailable`, `fiat`, `feesFor`, `reconcile` and `simulateMismatch`. The release-gate result is `YES.integrity`.
 - **Formatters:** `YES.fmt.amount(minor, {sign, unit})` and `YES.fmt.date(iso, style)`. Dates always render in the statement's time zone (EDT), whatever the browser's time zone, so screenshots are deterministic.
+
+### 2.13 "From YES" promotions (`YES.promos`)
+- Content is `YES.config.promotions` (`items`: `pay-identity` 40, `trust` 30, `currencies` 20, `interest` 10, by priority), with eligibility rules evaluated against `YES.data` and `YES.calc`. In the demo statement all four are eligible, so the Overview card rotates through four (`YES.promos.list('overview')` = `["pay-identity","trust","currencies","interest"]`); `currencies` has no personal line.
+- `YES.promos.current()` is the update the Overview card shows; `next()` rotates it (the card's *Next update*), `dismiss(id)` hides one (*Not now*), `restore()` brings every dismissed update back and resets the rotation to the first. `view(id)` returns the copy in the current language with the figures filled in; `facts()` returns those figures (`networkFees` 100, `sent` 45000, `closing` 114750, `trustLevel` "silver", `monthlySendLimit` 100000).
+- `YES.promos.noteHtml('fees'|'txDetail', { txId })` gives the one-line note; it appears only for TX-260909-2051 (the external-wallet send) and its fee TX-260909-2052.
+- Calls to action (`cta(id)`) only show a toast ("In the YES app, this would open … Nothing was sent."). Impressions and clicks are counted in memory (`metrics()`), never stored or sent.
+- Everything is hidden in print and absent from the PDF, the CSV and the noscript summary.
 
 ---
 
@@ -298,6 +315,8 @@ So target sizes differ by width (section 5 gives them). All targets were verifie
 
 **G17. `{theme: 'dark'}` is invisible when the app is already dark.** The statement follows the app theme. For the `theme` step, apply the **opposite** of the app theme, for example by supporting `{ theme: 'toggle' }` or `'opposite'` in the driver, and reset to the app theme.
 
+**G19. Promotion dismissals persist on the shared origin.** *Not now* stores the dismissed ids in `localStorage['yes.promos']`, and *Next update* changes the card's current update in `YES.state.promos`. Both survive a reset, a reload and later visits (the reset deliberately leaves them alone: they are the visitor's choice, and no other target depends on them). The `whats-new` and `promo-notes` setups call `promos.restore()`, so the card shows its first update ("Pay a YES identity") and the network-fee note is back even after a reviewer hid them.
+
 **G18. Driver `{call}` details.** Call `fn.apply(parentObject, args)`. The statement APIs don't rely on `this`, but `video` and `help` are objects. Arguments built in the parent realm work: the statement uses `Array.isArray` and `JSON`, never `instanceof Array`.
 
 ---
@@ -314,7 +333,7 @@ Each feature lists:
 
 ### 5.1 `summary`: Balance at a glance (overview)
 - **What it is.** The first card on the Overview, under "Your September 2026 statement" and the greeting "Hello, Sam…". It shows the closing statement balance in token units, when it was taken, the net change since the opening balance, and an illustrative US-dollar equivalent with its rate, source and time. It has two actions: *Explore transactions* and *Explain this balance*.
-- **Where.** View `overview`, `#overview-root section.ov-balance` (the card). The target is its top grid `.ov-balance__grid`. The pending notice (`.ov-notin`, feature `pending`) and *Statement details* (`.ov-details`) sit below it, inside the same card.
+- **Where.** View `overview`, `#overview-root section.ov-balance` (the card). The target is its top grid `.ov-balance__grid`. The pending notice (`.ov-notin`, feature `pending`) and *Statement details* (`.ov-details`) sit below it, inside the same card. The "What's new from YES" card (§5.8) follows the balance card, before the journey.
 - **Setup:** `[{ "route": "#/overview" }]`
 - **Targets:** desktop `["#overview-root .ov-balance__grid", "#overview-root .ov-balance"]`; phone the same.
 - **Verified sizes:** 782×282 / 316×579 / 1022×268 / 316×579 / 609×362.
@@ -441,7 +460,31 @@ Each feature lists:
 - **Data shown:** `YES.calc.largest()` = `{ id:"TX-260901-0418", type:"deposit", amount:25000, postedAt:"2026-09-01T09:02:00-04:00", description.en:"Deposit from linked bank account", counterparty.en:"Linked bank account •••• 4821" }` → "The largest single movement this period was +250.00 USBC on September 1, 2026: Deposit from linked bank account."
 - **Try it:** "The statement picks out your biggest movement of the period. Select **View this transaction** to see its details."
 
-### 5.8 `explorer`: Transaction search and filters (transactions)
+### 5.8 `whats-new`: What's new from YES (overview)
+- **What it is.** One illustrative update at a time from YES about new features, personalised from the statement, in a card headed "What's new from YES" with a "From YES" megaphone, an *Illustrative* tag and a counter ("1 of 4"). Its actions are **See what's new** (opens `#/whatsnew/<id>`), **Next update** (only with two or more; rotates on request, never on its own) and **Not now** (dismisses; focus moves to the next update's title, or to "You're all caught up" with *Open What's new* after the last). The fifth tab, **What's new** (`#view-whatsnew`, `h1#h-whatsnew`), lists all four updates as cards with their call to action, an illustrative note and, when any are hidden, *Show dismissed updates again*. Ask YES answers the suggested question "What's new?" from the same content.
+- **Where.** View `overview`, `#overview-root [data-promo-slot="overview"] section.promo--overview`, right after the balance card (`overviewPosition: 'afterBalance'`). The tab is `#masthead .nav__list` → "What's new" (phone: Menu).
+- **Setup:** `[{ "route": "#/overview" }, { "call": "promos.restore" }]`
+- **Targets:** desktop `["#overview-root .promo--overview", "#overview-root [data-promo-slot=\"overview\"]"]`; phone the same.
+- **Verified sizes:** 832×249 / 358×450 / 1072×227 / 358×450 / 651×305. At 390×440 the card is taller than the frame, so it is aligned to the top.
+- **Reset and gotchas:** G19. The trust update's card includes a three-level meter (Bronze, Silver, Gold; Silver marked "You're here"). Calls to action only show a toast.
+- **Data shown:**
+  - `pay-identity` (eligible: `networkFeePaid` ≥ 1): eyebrow "New: YES identities", title "Pay a YES identity", body "Send to a YES identity, like yes.danielk, instantly and with no network fee.", personal "You paid 1.00 USBC in network fees this month sending to external wallets.", call to action "Find a YES identity", footnote "yes.danielk is an example handle. Network fees apply only when you send to a wallet outside YES.";
+  - `trust` (eligible: `trustBelow` gold; `statement.customer.trust` = `{ level:"silver", monthlySendLimit:100000, nextStep:"verify_address", illustrative:true }`): eyebrow "Progressive trust", title "You're at Silver", body "Verify your address to reach Gold and raise your monthly send limit.", personal "You sent 450.00 USBC this month. Your Silver limit is 1,000.00 USBC a month.", call to action "Verify your address";
+  - `currencies` (`always`): title "More currencies", body "Coming soon: hold EUBC, UKBC, MXBC and NZBC alongside USBC.", call to action "Notify me", footnote "Planned currencies are subject to regulatory approval.";
+  - `interest` (`balanceAtLeast` 1): title "Interest on USBC", body "Coming soon: earn interest on your USBC balance.", personal "Your statement balance: 1,147.50 USBC.", call to action "Notify me", footnote "Subject to regulatory approval. Rates and terms to be confirmed." (always shown, also in Ask YES; no rate, APY or projection).
+- **Try it:** "Just below the balance card, the **What's new from YES** card shows one update. Select **Next update** to see the next one, or **Not now** to hide it. **See what's new** opens the What's new tab with all four updates. In Ask YES, the suggested question **What's new?** gives the same updates."
+
+### 5.9 `promo-notes`: Personalised offers in context (overview)
+- **What it is.** A quiet one-line note ("From YES", *Illustrative*, then "Next time, pay a YES identity. No network fee." and a **See how** link to `#/whatsnew/pay-identity`) that appears only beside the transactions its update applies to: under the network fee in the Fees card, and in the Fees section of the detail of the external-wallet send (TX-260909-2051) and of that fee (TX-260909-2052). It goes away when the update is dismissed with *Not now*.
+- **Where.** View `overview`, `#overview-root .ov-fees .ov-minilist li` → `p.promo-note[data-promo-place="fees"]`, under "Fee for sending to an external wallet −1.00 USBC". In the detail: `#tx-dialog[open] .tx-dlg__section p.promo-note[data-promo-place="txDetail"]`.
+- **Setup:** `[{ "route": "#/overview" }, { "call": "promos.restore" }]`. For the detail instead: `[{ "call": "promos.restore" }, { "route": "#/transactions/TX-260909-2051" }, { "wait": "#tx-dialog[open] .promo-note" }]` (the Fees card gives the clearer highlight: no dialog over the page, and the fee the note refers to sits directly above it).
+- **Targets:** desktop `["#overview-root .ov-fees li:has(.promo-note)", "#overview-root .ov-fees .promo-note"]`; phone the same. The list item frames the fee row and its note together; the second selector is the fallback for browsers without `:has()`.
+- **Verified sizes:** 368×116 / 316×136 / 497×116 / 316×136 / 609×95.
+- **Reset and gotchas:** G19.
+- **Data shown:** `YES.promos.facts()` → `networkFees` 100, `networkFeeTxIds` `["TX-260909-2052"]`, `networkSendIds` `["TX-260909-2051"]`; the fee row `{ amount:-100, feeKind:"network_transfer", parentId:"TX-260909-2051" }` (see §5.6).
+- **Try it:** "In the Fees card, look under **Fee for sending to an external wallet**: the note reads *Next time, pay a YES identity. No network fee.* Select **See how** to open the update. Open the fee, or the send it belongs to, to see the same note in the transaction details."
+
+### 5.10 `explorer`: Transaction search and filters (transactions)
 - **What it is.** Every transaction for the period, posted or not (16), in a compact table or, on small screens, readable cards.
   - Free-text search covers description, counterparty, memo, type, status, rail, reference, transaction ID and amount.
   - Filters: date range on the posted date, direction, type, status, rail, and amount minimum and maximum. Each filter shows a count of matches.
@@ -470,7 +513,7 @@ Each feature lists:
   - The caption: "Order: Posted date, newest first · Dates: posted date · Amounts in USBC · Times in EDT (America/New_York)".
 - **Try it:** "Type a name, amount or reference into **Search transactions**; try *Daniel*. Open **Filters** to narrow by date, direction, type, status, rail or amount, and use **Sort by** to order by posted date, initiated date or amount. Each filter appears as a chip you can remove."
 
-### 5.9 `detail`: Transaction details (transactions)
+### 5.11 `detail`: Transaction details (transactions)
 - **What it is.** The detail for one transaction:
   - the signed amount and its unit, the status, and both dates (posted and initiated, in EDT);
   - the type, with the canonical event type;
@@ -509,7 +552,7 @@ Each feature lists:
   `YES.state.selectedTx` = "TX-260920-0900". On-chain example: `YES.calc.tx("TX-260909-2051").onchain` = `{ network.en:"Example Network (illustrative)", hashDisplay:"0xDE40…E19C", confirmations:64, verified:false, illustrative:true }`.
 - **Try it:** "Select any transaction to open its details: when it was started and when it posted, its reference (with **Copy**), the balance after it, and any fee as its own linked line. Account numbers are masked. Use the arrows to move to the previous or next transaction."
 
-### 5.10 `pending`: Pending transactions (transactions)
+### 5.12 `pending`: Pending transactions (transactions)
 - **What it is.** Movements that started but had not posted at the cut-off. They are listed, but never counted in the balance, the journey or the chart, and they are labelled explicitly.
   - On the Overview, a notice in the balance card: "1 pending transaction (−30.00 USBC) is not included in this balance." It has *View transaction* and *Explain with AI*.
   - In Transactions, the row is marked "Not included in statement balance", has no balance after ("—"), and a note sits above the list.
@@ -526,7 +569,7 @@ Each feature lists:
   - shown as "Pending · Redemption request awaiting bank settlement · initiated Sep 30, 2026, 10:47 PM".
 - **Try it:** "A redemption you requested on the last evening hadn't settled by the cut-off. The statement lists it but leaves it out of the balance, and says so. Select **View transaction** or **Explain with AI** to see why."
 
-### 5.11 `explain-ai`: Explain with AI (transactions)
+### 5.13 `explain-ai`: Explain with AI (transactions)
 - **What it is.** A plain-language explanation of any transaction. It covers what happened, the balance before and after, the rail, any linked fee and any illustrative network reference. It includes a *Figures used* table and the supporting rows (each one opens), *Ask about this transaction*, *Was this helpful?*, and *Talk to a person*.
 - **Entry points.** Every **Explain with AI** button (`[data-explain]`): on the transaction detail, the balance card, a journey step panel, the chart, fees, the pending notice, and Understand topics. In this demo the answer is computed in the browser from the statement and labelled "Demo explanation". Production would use a governed AI service.
 - **Where.** The Ask YES drawer `dialog#assistant-drawer`, a context answer for a transaction.
@@ -544,7 +587,7 @@ Each feature lists:
   - the thread `YES.state.assistant.thread[0]` = `{ topic:"transaction", tid:"TX-260909-2051", via:"context", id:"a1" }`.
 - **Try it:** "Open any transaction and select **Explain with AI**. You get a short explanation built from that transaction's own figures, with the rows it used and a way to ask about the transaction. In this demo it is worked out in your browser, and nothing is sent anywhere."
 
-### 5.12 `inquiry`: Ask about a transaction (transactions)
+### 5.14 `inquiry`: Ask about a transaction (transactions)
 - **What it is.** A four-step guided question about one transaction: **Transaction → Details → Review → Confirmation**.
   - The transaction and its reference are carried in.
   - Only the reasons that fit the transaction are offered. A pending one adds "It's still pending".
@@ -567,9 +610,9 @@ Each feature lists:
   - `YES.inquiry.draftFor(txId)` → `null` until the user touches the draft.
 - **Try it:** "In a transaction's details, select **Ask about this transaction**. Check the transaction, choose a reason, add a note if you like, pick how YES should reply, then review and send. In this demo nothing is sent; you get a demo reference."
 
-### 5.13 `assistant`: Ask YES assistant (everywhere)
+### 5.15 `assistant`: Ask YES assistant (everywhere)
 - **What it is.** A built-in assistant that answers questions about *this* statement.
-  - It offers seven suggested questions, or the customer can type their own (≤ 200 characters).
+  - It offers eight suggested questions (the eighth, "What's new?", answers from the "From YES" updates, §5.8), or the customer can type their own (≤ 200 characters).
   - Every answer shows the figures and transactions it used, with *Show these rows in Transactions*.
   - It has *Was this helpful?*, *Talk to a person*, *Read more in Understand* and a privacy notice ("Answers are computed in this browser… Nothing you ask is sent anywhere").
   - Questions outside the statement get an honest "can't answer" with suggestions.
@@ -582,13 +625,13 @@ Each feature lists:
 - **Verified sizes:** 440×900 (modal) / 390×844 (sheet) / 400×900 (**docked**) / 390×440 / 683×836.
 - **Reset and gotchas:** close, then `YES.set({assistant:null})`. G7 applies: when docked the page reflows, and when modal the page is inert. Escape closes a docked drawer.
 - **Data shown:**
-  - `YES.assistant.questions()` = `["why_balance","fees_paid","largest","pending","statement_vs_live","peg","onchain_sent"]` → "Why did my balance change?", "What did I pay in fees?", "What was my largest movement?", "What is pending?", "Is my statement balance my live balance?", "Is each USBC always worth one US dollar?", "Where did I send money on-chain?".
+  - `YES.assistant.questions()` = `["why_balance","fees_paid","largest","pending","statement_vs_live","peg","onchain_sent","whats_new"]` → "Why did my balance change?", "What did I pay in fees?", "What was my largest movement?", "What is pending?", "Is my statement balance my live balance?", "Is each USBC always worth one US dollar?", "Where did I send money on-chain?", "What's new?".
   - The `fees_paid` answer is titled "What you paid in fees", from `YES.calc.category('fees')` and the fee rows.
   - `YES.assistant.mode()` returns "modal" at 880 and "docked" at 1280.
   - `YES.state.assistant` = `{ open, seq, thread[], helpful{}, expanded{}, privacyOpen, draft }`.
 - **Try it:** "Select **Ask YES** at the top of the statement. Pick a suggested question or type your own, such as *What did I pay in fees?* Each answer shows the figures and transactions it used, and you can always choose **Talk to a person**."
 
-### 5.14 `basics`: Bank-issued digital dollar basics (understand)
+### 5.16 `basics`: Bank-issued digital dollar basics (understand)
 - **What it is.** Short, plain-language explanations of seven terms used in the statement. It acts as the statement's **glossary**. Each topic has an *In your statement* example built from the customer's own figures, an *Explain with AI* button, and its content record: copy ID, version, source, owner, validity and visibility rule, the way approved copy would be governed.
 - **Where.** View `understand`, `#understand-root section#und-basics`. The accordion is `.und-acc`, an item is `#und-topic-<id>` and a panel is `#und-panel-<id>`.
 - **Setup:** `[{ "call": "understand.openTopic", "args": ["token_units"] }]`. This navigates to `#/understand/token_units`, expands the topic and smooth-scrolls to it.
@@ -603,7 +646,7 @@ Each feature lists:
   - `YES.state.understand` = `{ expanded:["token_units"], fullHash:false, meta:{} }`.
 - **Try it:** "Open any topic, such as **Token units**, for a short explanation with an example from your own statement. **Expand all** opens every topic, and **Explain with AI** asks YES about it."
 
-### 5.15 `live-balance`: Statement balance versus live balance (understand)
+### 5.17 `live-balance`: Statement balance versus live balance (understand)
 - **What it is.** It explains why the statement balance can differ from the balance in the app today.
   - It sets the fixed *Statement snapshot* (closing balance, as-of time, period, "Fixed for this period — it does not change") beside a separate *Live account data* area. That area is "Not connected" in this demo; in production it would show the current balance and when it was checked.
   - A *Why the two could differ* list names the pending redemption, with a button to open it.
@@ -621,7 +664,7 @@ Each feature lists:
   - `YES.calc.notInBalance()` → "“Redemption request awaiting bank settlement” for −30.00 USBC was pending at the cut-off, so it is not in the statement balance…".
 - **Try it:** "Compare the statement balance, a fixed record as of 30 September, with the separate live balance area (not connected in this demo). The panel lists what explains the difference, such as the pending redemption."
 
-### 5.16 `transparency`: Reserves, transparency and on-chain reference (understand)
+### 5.18 `transparency`: Reserves, transparency and on-chain reference (understand)
 - **What it is.**
   - **Reserves and transparency:** where verified facts about the bank-issued digital dollar would appear, each with its source, date and owner. The facts are the approved issuer, reserve report, attestation date, redemption terms and source link. Today they are placeholders, clearly labelled "Illustrative layout; no reserve assertion".
   - It also gives three production rules, and an example of what a customer sees when evidence is unavailable.
@@ -638,7 +681,7 @@ Each feature lists:
   - `YES.calc.tx("TX-260909-2051").onchain` = `{ network.en:"Example Network (illustrative)", hash:"0xDE40…(64 hex)…E19C", hashDisplay:"0xDE40…E19C", confirmations:64, verified:false, illustrative:true }`.
 - **Try it:** "See where verified facts about reserves and the issuer would appear, each with its source and date. They are placeholders in this demo. **On-chain reference** shows a sample network reference with **Copy** and **Show full hash**. Nothing here links to a real blockchain explorer."
 
-### 5.17 `download`: Download, print, PDF and CSV (help)
+### 5.19 `download`: Download, print, PDF and CSV (help)
 - **What it is.** Every way to keep the statement of record, side by side:
   - **Print**: a dedicated print layout, always light, with the demo watermark;
   - **PDF file**: a statement of record drawn by the statement's own PDF writer, in the current language; Letter in English, A4 in Spanish;
@@ -661,7 +704,7 @@ Each feature lists:
   - The option titles are "Print", "PDF file" and "Spreadsheet (CSV)".
 - **Try it:** "Choose **Print statement**, **Download PDF** or **Download CSV — complete record**. The files are made on your device, and nothing is sent. You'll also find these under **Download or print** at the top of every page."
 
-### 5.18 `help-record`: Help and statement record (help)
+### 5.20 `help-record`: Help and statement record (help)
 - **What it is.** The Help page, "Help and statement record".
   - **Contact support:** phone, email and hours (placeholders, labelled), and chat status. It also explains the three routes: a *transaction inquiry*, a *formal dispute*, and *fraud or unauthorized activity*.
   - A one-question **Feedback** prompt: "How clear was this statement?" with four ratings and an optional comment. It is saved for this browser session only.
@@ -679,7 +722,7 @@ Each feature lists:
   - `YES.help.sections`.
 - **Try it:** "See how a customer would reach YES, and how an inquiry differs from a formal dispute or a fraud report. Further down, rate how clear the statement was, and check the statement's ID, version and dates."
 
-### 5.19 `integrity`: Built-in integrity check (everywhere)
+### 5.21 `integrity`: Built-in integrity check (everywhere)
 - **What it is.** Before anything is shown, the statement checks its own numbers. There are nine checks:
   - unique IDs;
   - exact precision;
@@ -708,7 +751,7 @@ Each feature lists:
   - In the preview, `YES.data.simulated` = `{ kind:"mismatch", txId:"TX-260903-1127" }`. The failed checks are `equation` and `running_balance`, the title is "This statement is being withheld", and the return link reads "Return to the valid demo statement".
 - **Try it:** "Read the checks the statement ran on its own numbers before you saw them. Select **Preview the exception state** to see what a customer would get if the numbers didn't add up: the statement is withheld rather than shown with wrong figures."
 
-### 5.20 `language`: English and Spanish (everywhere)
+### 5.22 `language`: English and Spanish (everywhere)
 - **What it is.** The whole statement in English or Spanish, switchable at any time from the header (on phones, from the Menu). It covers:
   - every label, explanation, date and number format ("1,147.50" / "1.147,50");
   - the video, with a recorded Spanish voiceover;
@@ -732,7 +775,7 @@ Each feature lists:
   - `YES.i18n.audit()` → `{}`: no missing strings.
 - **Try it:** "Switch between **English** and **Español** at the top (on a phone: **Menu**, then the language). Everything changes: labels, dates, numbers, explanations and the video. You stay exactly where you were."
 
-### 5.21 `theme`: Dark mode (everywhere)
+### 5.23 `theme`: Dark mode (everywhere)
 - **What it is.** A light and a dark version. Without a choice it follows the device setting, live; once the customer chooses, the choice is remembered on that device. Print and PDF are always light. Every component uses design tokens, so both themes keep WCAG contrast.
 - **Where.** The masthead **Dark mode** toggle: `#masthead .mast-wide [data-theme-toggle]`, a moon icon, `aria-pressed`. On phones: Menu → *Dark mode* switch, `#mast-menu .mast-menu__theme`.
 - **Setup:** `[{ "route": "#/overview" }, { "theme": "dark" }, { "menu": true }]`. If the app is already dark, use `"light"` instead (G17).
@@ -745,7 +788,7 @@ Each feature lists:
   - the brand slots `YES.config.slots` `{ YES_PRIMARY:"#000000", YES_PRIMARY_DARK:"#ffffff", YES_ACCENT:"#0004ff" }` (the YES brand book palette).
 - **Try it:** "Select the moon button at the top (on a phone: **Menu**, then **Dark mode**) to switch between light and dark. Until the customer chooses, the statement follows their device's setting."
 
-### 5.22 `accessibility`: Accessibility and mobile (everywhere)
+### 5.24 `accessibility`: Accessibility and mobile (everywhere)
 - **What it is.** It is built to WCAG 2.2 AA without add-ons:
   - keyboard operation and screen-reader support;
   - visible focus and reduced motion;
@@ -771,7 +814,7 @@ Each feature lists:
 
 ## 6. Coverage notes: capabilities to mention under a feature
 
-No customer-facing capability falls outside the 22 ids. The ones below have no id of their own, so the steps agent should mention each in the named feature's text.
+No customer-facing capability falls outside the 24 ids. The ones below have no id of their own, so the steps agent should mention each in the named feature's text.
 
 | Capability | Where in the statement | Mention under |
 |---|---|---|
@@ -797,6 +840,9 @@ No customer-facing capability falls outside the 22 ids. The ones below have no i
 | **Personal greeting**: "Hello, Sam. Here is your YES activity for September 1 – 30, 2026…" | Overview header | `summary` |
 | **About this demo**: what is connected, local, mock or illustrative, and the brand replacement slots (logo, colours, font, product name, issuer, video poster and voiceover, disclosures, support) | Help › About this demo | `help-record` (and `theme` for the brand slots) |
 | **Footer**: statement ID, version, generated time, the disclosures slot, the demo notice, "Interactive statement delivered via InfoSlips" | `#site-footer` | `help-record` |
+| **What's new tab**: all four updates, the trust meter, *Show dismissed updates again*, deep links `#/whatsnew/<id>` | `#view-whatsnew` | `whats-new` |
+| **Ask YES "What's new?"**: the eighth suggested question, and typed questions such as "new features", "interest", "limits", "EUBC", "YES identity" | Drawer | `whats-new` (and `assistant` for the count) |
+| **"From YES" notes in transaction details**: TX-260909-2051 and its fee | Detail dialog, Fees section | `promo-notes` |
 | **Inquiry resume and duplicate notices**: *Continue your inquiry*, *View your demo inquiry*, the Help draft card | Detail, assistant, Help | `inquiry` |
 
 ---
@@ -808,7 +854,7 @@ Location (scratchpad; not committed): `/tmp/claude-0/-home-user-YES/eafa4f48-be7
 | File | What it does |
 |---|---|
 | `driver.js` | The reference driver, `makeDriver(win, { lang, theme })` → `{ apply, target, reset, ready, withheld, isPhone, … }`. It implements the SPEC §6 actions and the reset in §3, including the G1–G3 fixes. It runs on the top window or, from a parent, on `frame.contentWindow`. **Port this into `30-driver.js`.** |
-| `features.mjs` | The 22 feature definitions (`setup`, `target`, alternate selectors, and an in-page `data()` reader). Section 5 is generated from these runs. |
+| `features.mjs` | The original 22 feature definitions (the two promotion features were verified with `tests/30-steps.test.mjs`; see the update at the top) (`setup`, `target`, alternate selectors, and an in-page `data()` reader). Section 5 is generated from these runs. |
 | `verify.mjs` | `node verify.mjs [--vp desktop,phone,shot,phoneFrame,tabletFrame,wide] [--only id,…] [--motion reduce]`. For each feature it runs reset → clean check → apply → target (non-zero rect) → stability → data → outlined screenshot (`shots/<vp>-NN-<id>.png`) → reset → clean check. The report goes to `verify-report-<motion>.json`. |
 | `iframe-verify.mjs` | The tour-realistic run. The parent page frames the statement (870×836 at 1280, and 390×440), runs the driver in the parent against `contentWindow`, pushes `#/tour/<id>` per step, and asserts the parent URL never moves. |
 | `iframe-history.mjs` | Reproduces G1 and G6 (and the mitigations) with joint session history. |

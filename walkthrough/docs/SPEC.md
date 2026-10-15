@@ -69,7 +69,7 @@ walkthrough/
 | `src/js/60-json.js`, `src/js/61-data.js`, `src/css/60-data.css`, `tests/60-data.test.mjs` | data view |
 | `tests/90-a11y.test.mjs`, `README.md` (and cross-module fixes after all modules land) | integration |
 
-**The 22 feature ids in `shared/features.json` are frozen** (`32-datareq.js` is already keyed by them). Only `title`/`short` wording may change (owner: steps). `src/brand/*` is approved artwork that nobody edits.
+**The feature ids in `shared/features.json` are frozen** (answers and `32-datareq.js` are keyed by them). There are 24: the original 22 and, since 2026-10-15, `whats-new` and `promo-notes` for the statement's "From YES" promotions (inserted at steps 8 and 9; the original 22 kept their ids and relative order). An existing id is never renamed or removed; only `title`/`short` wording and `order` may change (owner: steps). A new id is added only with its step, data requirements and screenshots. `src/brand/*` is approved artwork that nobody edits.
 
 ## 3. Front-end architecture (vanilla JS, no framework, no CDN)
 
@@ -142,9 +142,9 @@ walkthrough/
 
 ### 10-start.js (foundation): `#/start`
 - **Hero:** "Help shape the new YES statement", with an intro paragraph: "InfoSlips built this interactive statement for YES to show the art of the possible. Walk through it and, for each feature, tell us whether it belongs in the production statement, how important it is, and why. YES will use everyone's answers to choose the features for the first release."
-- **Timing line** under the actions: "About 40 minutes for all N features · You can stop and continue at any time on this browser."
+- **Timing line** under the actions: "About 45 minutes for all N features · You can stop and continue at any time on this browser."
 - **How it works:**
-  1. Take the guided walkthrough (about 40 minutes, N features).
+  1. Take the guided walkthrough (about 45 minutes, N features).
   2. For each feature, vote to include or exclude it, set a priority and comment.
   3. See what everyone thinks and the data each feature needs.
 - **Optional name field.** It saves on change (and on Enter).
@@ -294,7 +294,7 @@ Each activation carries a token, so a newer step change (or a View as switch) ca
 `[{ "id": "journey", "order": 3, "section": "overview", "title": "Balance journey", "short": "One-line summary" }]`.
 - Ids are kebab-case and stable; server validation uses them.
 - Sections are `overview`, `transactions`, `understand`, `help` and `everywhere`.
-- The list has 22 features that together cover every feature of the statement. The ids are frozen.
+- The list has 24 features that together cover every feature of the statement, including the "From YES" promotions (`whats-new`: the Overview card, the What's new tab and Ask YES's "What's new?"; `promo-notes`: the notes beside the network fee and in that transaction's details). The ids are frozen: the original 22 are unchanged, and new ids are only ever added.
 
 **`WT.steps`.** An object keyed by feature id, defined in `31-steps.js`:
 ```js

@@ -8,9 +8,9 @@
  * Marks are aria-hidden; each row's feature link carries its values in its
  * name ("Running balance chart: 6 include, 0 exclude, 100% include").
  *
- * Keyboard: only the Support chart's links are tab stops (22, one per
+ * Keyboard: only the Support chart's links are tab stops (one per
  * feature, each showing its tooltip on focus). The Priority mix and Score
- * labels lead to the same 22 pages, so they stay clickable and readable by
+ * labels lead to the same feature pages, so they stay clickable and readable by
  * screen readers but are left out of the tab order (tabindex="-1"); the
  * "Show as table" toggles, the tables' links and "Every feature, ranked" give
  * keyboard users the same data and destinations without 44 more stops.

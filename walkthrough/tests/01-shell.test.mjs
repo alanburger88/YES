@@ -486,8 +486,8 @@ export default async function (ctx) {
       assert.equal(await P.page.locator('#view-start progress').count(), 0);
       const text = await P.page.locator('#view-start').innerText();
       assert.match(text, /How it works/);
-      assert.match(text, new RegExp(`About 40 minutes for all ${N} features · You can stop and continue at any time on this browser\\.`));
-      assert.match(text, new RegExp(`about 40 minutes, ${N} features`, 'i'));
+      assert.match(text, new RegExp(`About 45 minutes for all ${N} features · You can stop and continue at any time on this browser\\.`));
+      assert.match(text, new RegExp(`about 45 minutes, ${N} features`, 'i'));
       assert.match(text, /YES will use everyone’s answers to choose the features for the first release\./);
       assert.doesNotMatch(text, /UserWay accessibility widget from a third party/);
       // "Try the statement on its own" opens the bare statement in a new tab.
