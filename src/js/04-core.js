@@ -58,14 +58,15 @@
 
   YES.state = {
     lang: 'en',
-    view: 'overview', // overview | transactions | understand | help
+    view: 'overview', // overview | transactions | understand | help | whatsnew
     journeyStep: null, // selected balance-journey step id
     filters: YES.defaultFilters(),
     sort: { key: 'posted', dir: 'desc' }, // key: posted | initiated | amount
     selectedTx: null, // id of the transaction open in the detail view
     inquiry: null, // draft owned by the inquiry module
     assistant: null, // conversation owned by the assistant module
-    feedback: {} // local-session-only feedback records
+    feedback: {}, // local-session-only feedback records
+    promos: null // "From YES" promotions: dismissed ids and the Overview's current update (promos module)
   };
 
   /**
@@ -183,11 +184,26 @@
   YES.understand = { openTopic: stub('understand', 'openTopic') };
   /* help.open('record') is also the masthead's "Download or print" destination. */
   YES.help = { open: stub('help', 'open'), downloadPdf: stub('help', 'downloadPdf') };
+  /* "From YES" promotions: without the promos module, no placement shows anything. */
+  YES.promos = {
+    slotHtml: function () {
+      return '';
+    },
+    noteHtml: function () {
+      return '';
+    },
+    list: function () {
+      return [];
+    },
+    view: function () {
+      return null;
+    }
+  };
 
   /* ------------------------------------------------------------------ */
   /* Router: #/view[/param][?key=value]                                  */
   /* ------------------------------------------------------------------ */
-  var VIEWS = ['overview', 'transactions', 'understand', 'help'];
+  var VIEWS = ['overview', 'transactions', 'understand', 'help', 'whatsnew'];
   YES.VIEWS = VIEWS;
 
   /* A truncated or hand-edited link ("#/transactions/100%") must never throw:
@@ -812,7 +828,14 @@
     eye: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>', // eye
     video: '<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>', // video
     accessibility: '<circle cx="16" cy="4" r="1"/><path d="m18 19 1-7-6 1"/><path d="m5 8 3-3 5.5 3-2.36 3.5"/><path d="M4.24 14.5a5 5 0 0 0 6.88 6"/><path d="M13.76 17.5a5 5 0 0 0-6.88-6"/>', // accessibility
-    calendar: '<path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>' // calendar
+    calendar: '<path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>', // calendar
+    /* "From YES" promotions (70-promos.js) */
+    send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>', // send
+    'shield-check': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>', // shield-check
+    'badge-check': '<path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m16 9-5.5 5.5L8 12"/>', // badge-check
+    coins: '<path d="M13.744 17.736a6 6 0 1 1-7.48-7.48"/><path d="M15 6h1v4"/><path d="m6.134 14.768.866-.5 2 3.464"/><circle cx="16" cy="8" r="6"/>', // coins
+    percent: '<line x1="19" x2="5" y1="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>', // percent
+    megaphone: '<path d="M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/><path d="M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14"/><path d="M8 6v8"/>' // megaphone
   };
   /**
    * Inline SVG icon. ui.icon('search') is decorative (aria-hidden);

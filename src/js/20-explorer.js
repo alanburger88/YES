@@ -1708,6 +1708,9 @@
     } else {
       body = '<p class="tx-dlg__muted">' + esc(t('explorer.dlg.noFees')) + '</p>';
     }
+    // A quiet "From YES" note for the send that paid a network fee, and for that
+    // fee (promos module; '' for every other transaction). Screen only.
+    body += YES.promos.noteHtml('txDetail', { txId: tx.id });
     return '<section class="tx-dlg__section" aria-labelledby="txd-fees-h"><h3 id="txd-fees-h">' + ui.icon('fee', { size: 18 }) + '<span>' + esc(t('explorer.dlg.fees')) + '</span></h3>' + body + '</section>';
   }
 

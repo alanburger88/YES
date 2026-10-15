@@ -99,6 +99,168 @@
     },
 
     /* Reconciliation tolerance is zero: amounts are integer minor units. */
-    reconciliation: { blockOnMismatch: true }
+    reconciliation: { blockOnMismatch: true },
+
+    /*
+     * "From YES" promotions (What's new): content YES can change without code.
+     * Rendered by the promos module (src/js/70-promos.js) on screen only: never
+     * in print, the PDF, the CSV or the noscript summary. Everything here is
+     * ILLUSTRATIVE and subject to YES approval; demo mode labels every
+     * promotion "From YES" and "Illustrative".
+     *
+     * Each item:
+     *   id          stable id, also the deep link #/whatsnew/<id>
+     *   theme       identity | trust | currencies | interest
+     *   priority    higher shows first on the Overview
+     *   icon        a key of the shared icon set (YES.ui.icon)
+     *   placements  where it may appear: overview (the What's new card),
+     *               whatsnew (the tab), fees (note in the Fees card),
+     *               txDetail (note in the transaction detail), assistant (Ask YES)
+     *   rule        eligibility, evaluated against YES.data and YES.calc:
+     *                 { kind: 'always' }
+     *                 { kind: 'networkFeePaid', feeKind, min }  posted fees of that
+     *                   kind this period total at least `min` minor units
+     *                 { kind: 'trustBelow', level }  the customer's illustrative
+     *                   trust level (statement.customer.trust) is below `level`
+     *                 { kind: 'balanceAtLeast', amount }  closing balance ≥ amount
+     *               An unknown kind is never eligible.
+     *   copy        { en, es } per field: eyebrow, title, body, personal (shown
+     *               only when eligible), note (one-line in-context note), cta,
+     *               feature (the toast names it), footnote (optional). Copy
+     *               may use {fee}, {handle}, {sent}, {limit}, {level}, {next},
+     *               {closing}: the module fills them from YES.calc and YES.fmt,
+     *               never from typed numbers. Short sentences; no em dashes.
+     *   handle      the example YES identity in the copy (illustrative)
+     *   tiers       trust levels in order, with labels (trust theme)
+     *   codes       planned currencies (currencies theme)
+     * Interest copy never states a rate, APY or return and never projects
+     * earnings; its footnote must say it is subject to regulatory approval.
+     */
+    promotions: {
+      enabled: true,
+      storageKey: 'yes.promos', // dismissed ids, in this browser only (localStorage)
+      items: [
+        {
+          id: 'pay-identity',
+          theme: 'identity',
+          priority: 40,
+          icon: 'send',
+          placements: ['overview', 'whatsnew', 'fees', 'txDetail', 'assistant'],
+          rule: { kind: 'networkFeePaid', feeKind: 'network_transfer', min: 1 },
+          handle: 'yes.danielk',
+          eyebrow: { en: 'New: YES identities', es: 'Novedad: identidades YES' },
+          title: { en: 'Pay a YES identity', es: 'Paga a una identidad YES' },
+          body: {
+            en: 'Send to a YES identity, like {handle}, instantly and with no network fee.',
+            es: 'Envía a una identidad YES, como {handle}, al instante y sin comisión de red.'
+          },
+          personal: {
+            en: 'You paid {fee} in network fees this month sending to external wallets.',
+            es: 'Este mes pagaste {fee} en comisiones de red por envíos a monederos externos.'
+          },
+          note: {
+            en: 'Next time, pay a YES identity. No network fee.',
+            es: 'La próxima vez, paga a una identidad YES. Sin comisión de red.'
+          },
+          cta: { en: 'Find a YES identity', es: 'Busca una identidad YES' },
+          feature: { en: 'YES identities', es: 'las identidades YES' },
+          footnote: {
+            en: '{handle} is an example handle. Network fees apply only when you send to a wallet outside YES.',
+            es: '{handle} es un identificador de ejemplo. Las comisiones de red solo se aplican cuando envías a un monedero fuera de YES.'
+          }
+        },
+        {
+          id: 'trust',
+          theme: 'trust',
+          priority: 30,
+          icon: 'shield-check',
+          placements: ['overview', 'whatsnew', 'assistant'],
+          rule: { kind: 'trustBelow', level: 'gold' },
+          tiers: [
+            { id: 'bronze', label: { en: 'Bronze', es: 'Bronce' } },
+            { id: 'silver', label: { en: 'Silver', es: 'Plata' } },
+            { id: 'gold', label: { en: 'Gold', es: 'Oro' } }
+          ],
+          eyebrow: { en: 'Progressive trust', es: 'Confianza progresiva' },
+          title: { en: "You're at {level}", es: 'Estás en el nivel {level}' },
+          body: {
+            en: 'Verify your address to reach {next} and raise your monthly send limit.',
+            es: 'Verifica tu dirección para llegar a {next} y aumentar tu límite mensual de envío.'
+          },
+          personal: {
+            en: 'You sent {sent} this month. Your {level} limit is {limit} a month.',
+            es: 'Este mes enviaste {sent}. Tu límite {level} es de {limit} al mes.'
+          },
+          note: {
+            en: 'Verify your address to reach {next}.',
+            es: 'Verifica tu dirección para llegar a {next}.'
+          },
+          cta: { en: 'Verify your address', es: 'Verifica tu dirección' },
+          feature: { en: 'address verification', es: 'la verificación de dirección' },
+          footnote: {
+            en: 'Trust levels and limits shown here are illustrative.',
+            es: 'Los niveles de confianza y los límites que se muestran son ilustrativos.'
+          }
+        },
+        {
+          id: 'currencies',
+          theme: 'currencies',
+          priority: 20,
+          icon: 'globe',
+          placements: ['overview', 'whatsnew', 'assistant'],
+          rule: { kind: 'always' },
+          codes: [
+            { code: 'EUBC', name: { en: 'Euro', es: 'Euro' } },
+            { code: 'UKBC', name: { en: 'British pound', es: 'Libra esterlina' } },
+            { code: 'MXBC', name: { en: 'Mexican peso', es: 'Peso mexicano' } },
+            { code: 'NZBC', name: { en: 'New Zealand dollar', es: 'Dólar neozelandés' } }
+          ],
+          eyebrow: { en: 'Coming soon', es: 'Próximamente' },
+          title: { en: 'More currencies', es: 'Más monedas' },
+          body: {
+            en: 'Coming soon: hold EUBC, UKBC, MXBC and NZBC alongside USBC.',
+            es: 'Próximamente: ten EUBC, UKBC, MXBC y NZBC junto a tus USBC.'
+          },
+          note: {
+            en: 'More currencies are coming to YES.',
+            es: 'Llegan más monedas a YES.'
+          },
+          cta: { en: 'Notify me', es: 'Avísame' },
+          feature: { en: 'currency updates', es: 'las novedades de monedas' },
+          footnote: {
+            en: 'Planned currencies are subject to regulatory approval.',
+            es: 'Las monedas previstas están sujetas a aprobación regulatoria.'
+          }
+        },
+        {
+          id: 'interest',
+          theme: 'interest',
+          priority: 10,
+          icon: 'percent',
+          placements: ['overview', 'whatsnew', 'assistant'],
+          rule: { kind: 'balanceAtLeast', amount: 1 },
+          eyebrow: { en: 'Coming soon', es: 'Próximamente' },
+          title: { en: 'Interest on USBC', es: 'Intereses en USBC' },
+          body: {
+            en: 'Coming soon: earn interest on your USBC balance.',
+            es: 'Próximamente: gana intereses sobre tu saldo en USBC.'
+          },
+          personal: {
+            en: 'Your statement balance: {closing}.',
+            es: 'Saldo de tu estado de cuenta: {closing}.'
+          },
+          note: {
+            en: 'Interest on USBC is coming soon.',
+            es: 'Pronto llegan los intereses en USBC.'
+          },
+          cta: { en: 'Notify me', es: 'Avísame' },
+          feature: { en: 'interest updates', es: 'las novedades sobre intereses' },
+          footnote: {
+            en: 'Subject to regulatory approval. Rates and terms to be confirmed.',
+            es: 'Sujeto a aprobación regulatoria. Tasas y condiciones por confirmar.'
+          }
+        }
+      ]
+    }
   };
 })(typeof window !== 'undefined' ? window : globalThis);

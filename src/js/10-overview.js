@@ -1495,7 +1495,9 @@
     );
   }
 
-  function miniRowHtml(tx, fk, extra) {
+  /* `after`: markup placed under the row's button, inside its list item (the
+     promos module's one-line note beside the network fee). */
+  function miniRowHtml(tx, fk, extra, after) {
     return (
       '<li><button type="button" class="ov-mini" data-ov-tx="' +
       esc(tx.id) +
@@ -1514,7 +1516,9 @@
       '</span>' +
       '<span class="sr-only">, ' +
       esc(t('overview.panel.open')) +
-      '</span></button></li>'
+      '</span></button>' +
+      (after || '') +
+      '</li>'
     );
   }
 
@@ -1601,7 +1605,8 @@
         '<ul class="ov-minilist">' +
         rows
           .map(function (tx) {
-            return miniRowHtml(tx, 'ov-fee-');
+            // Beside the network fee: a quiet "From YES" note (promos module), or ''.
+            return miniRowHtml(tx, 'ov-fee-', null, YES.promos.noteHtml('fees', { txId: tx.id }));
           })
           .join('') +
         '</ul>' +
@@ -3730,7 +3735,10 @@
   /* ------------------------------------------------------------------ */
   function viewHtml() {
     var rec = YES.calc.reconcile(YES.data);
-    return headerHtml() + balanceHtml() + journeySectionHtml(rec) + whyHtml(rec) + videoCardHtml(rec);
+    // "What's new from YES" (promos module): one illustrative update between the
+    // balance card (with its pending notice) and the balance journey; '' when
+    // there is none. The promos module owns that slot's markup and events.
+    return headerHtml() + balanceHtml() + YES.promos.slotHtml('overview') + journeySectionHtml(rec) + whyHtml(rec) + videoCardHtml(rec);
   }
 
   function render() {

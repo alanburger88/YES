@@ -35,7 +35,12 @@
       customer: {
         firstName: 'Sam',
         displayName: 'Sam Ortega',
-        address: ['100 Sample Avenue, Apt 4', 'Anytown, ST 00000']
+        address: ['100 Sample Avenue, Apt 4', 'Anytown, ST 00000'],
+        /* Progressive trust level (ILLUSTRATIVE, fictional): read only by the
+           "From YES" promotions (70-promos.js), never by the statement of
+           record. monthlySendLimit is in the statement asset's minor units
+           (1,000.00 USBC); nextStep is what reaches the next level. */
+        trust: { level: 'silver', monthlySendLimit: 100000, nextStep: 'verify_address', illustrative: true }
       },
       account: {
         label: { en: 'YES bank-issued digital dollar account', es: 'Cuenta YES de dólares digitales emitidos por un banco' },

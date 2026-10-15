@@ -321,6 +321,7 @@
       'nav.transactions': 'Transactions',
       'nav.understand': 'Understand',
       'nav.help': 'Help',
+      'nav.whatsnew': "What's new",
 
       'lang.label': 'Language',
       'lang.en': 'English',
@@ -494,6 +495,7 @@
       'nav.transactions': 'Movimientos',
       'nav.understand': 'Entender',
       'nav.help': 'Ayuda',
+      'nav.whatsnew': 'Novedades',
 
       'lang.label': 'Idioma',
       'lang.en': 'English',
