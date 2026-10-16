@@ -77,7 +77,28 @@
     );
   }
 
+  /*
+   * "From YES" (promos module): the What's new tab (and its Menu item) shows
+   * how many updates the customer has not seen yet; on a phone the Menu button
+   * carries a dot. Ask YES carries a dot until it is opened once. The words go
+   * into each control's accessible name, so the badge is never colour or a
+   * number alone. YES.promos.badges() is { whatsnew: 0, ask: false } without
+   * the module.
+   */
+  function promoBadges() {
+    var b = (YES.promos.badges && YES.promos.badges()) || {};
+    return { n: b.whatsnew > 0 ? b.whatsnew : 0, ask: !!b.ask };
+  }
+  function newUpdatesLabel(n) {
+    return t(n === 1 ? 'nav.newUpdates1' : 'nav.newUpdatesN', { label: t('nav.whatsnew'), n: YES.fmt.count(n) });
+  }
+  function badgeHtml(n) {
+    return '<span class="nav-badge" aria-hidden="true">' + esc(YES.fmt.count(n)) + '</span>';
+  }
+  var DOT = '<span class="mast-dot" aria-hidden="true"></span>';
+
   function navLinkHtml(v, cls, fk, extra) {
+    var n = v === 'whatsnew' ? promoBadges().n : 0;
     return (
       '<li><a class="' +
       cls +
@@ -90,12 +111,50 @@
       v +
       '"' +
       (v === YES.state.view ? ' aria-current="page"' : '') +
+      (n ? ' aria-label="' + esc(newUpdatesLabel(n)) + '"' : '') +
       '><span>' +
       esc(t('nav.' + v)) +
       '</span>' +
+      (n ? badgeHtml(n) : '') +
       (extra || '') +
       '</a></li>'
     );
+  }
+  function askLabel(dot) {
+    return dot ? t('ask.newMark', { label: t('ask.buttonLong') }) : t('ask.buttonLong');
+  }
+  /** Update the badges in place (no masthead re-render: focus and the open Menu stay as they are). */
+  function syncBadges() {
+    var b = promoBadges();
+    ui.$$('#masthead a[data-nav="whatsnew"]').forEach(function (a) {
+      var badge = a.querySelector('.nav-badge');
+      if (b.n) {
+        a.setAttribute('aria-label', newUpdatesLabel(b.n));
+        if (badge) badge.textContent = YES.fmt.count(b.n);
+        else a.firstElementChild.insertAdjacentHTML('afterend', badgeHtml(b.n));
+      } else {
+        a.removeAttribute('aria-label');
+        if (badge) badge.remove();
+      }
+    });
+    var menu = doc.querySelector('#masthead [data-mast-menu]');
+    if (menu) {
+      var md = menu.querySelector('.mast-dot');
+      if (b.n) {
+        menu.setAttribute('aria-label', t('menu.newUpdates'));
+        if (!md) menu.insertAdjacentHTML('beforeend', DOT);
+      } else {
+        menu.removeAttribute('aria-label');
+        if (md) md.remove();
+      }
+    }
+    var ask = doc.querySelector('#masthead [data-ask]');
+    if (ask) {
+      var ad = ask.querySelector('.mast-dot');
+      ask.setAttribute('aria-label', askLabel(b.ask));
+      if (b.ask && !ad) ask.insertAdjacentHTML('beforeend', DOT);
+      else if (!b.ask && ad) ad.remove();
+    }
   }
 
   /*
@@ -131,6 +190,7 @@
   }
 
   function renderMasthead() {
+    var badges = promoBadges();
     var navItems = YES.VIEWS.map(function (v) {
       return navLinkHtml(v, 'nav__link', 'nav-');
     }).join('');
@@ -157,21 +217,27 @@
       '<button type="button" class="btn btn--ai btn--ask" data-ask data-fk="ask-yes" aria-haspopup="dialog" aria-expanded="' +
       !!(YES.state.assistant && YES.state.assistant.open) +
       '" aria-label="' +
-      esc(t('ask.buttonLong')) +
+      esc(askLabel(badges.ask)) +
       '">' +
       ui.icon('chat', { size: 18 }) +
       '<span class="btn__label">' +
       esc(t('ask.button')) +
       '</span><span class="btn__label btn__label--short">' +
       esc(t('ask.buttonShort')) +
-      '</span></button>' +
+      '</span>' +
+      (badges.ask ? DOT : '') +
+      '</button>' +
       '<button type="button" class="btn mast-menu-btn" data-mast-menu data-fk="menu" aria-expanded="' +
       menuOpen +
-      '" aria-controls="mast-menu">' +
+      '" aria-controls="mast-menu"' +
+      (badges.n ? ' aria-label="' + esc(t('menu.newUpdates')) + '"' : '') +
+      '>' +
       ui.icon(menuOpen ? 'close' : 'menu', { size: 20 }) +
       '<span>' +
       esc(t('menu.button')) +
-      '</span></button>' +
+      '</span>' +
+      (badges.n ? DOT : '') +
+      '</button>' +
       '</div></div>' +
       '<nav class="nav" aria-label="' +
       esc(t('nav.label')) +
@@ -476,7 +542,10 @@
       YES.on('view', syncNav);
       YES.on('state', function (keys) {
         if (keys.indexOf('assistant') !== -1) syncAskExpanded();
+        if (keys.indexOf('promos') !== -1) syncBadges();
       });
+      // The promos module starts after the shell: show its badges once every module is up.
+      YES.on('ready', syncBadges);
       this.render();
       trackMasthead();
     },

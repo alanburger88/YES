@@ -11,7 +11,12 @@
  *              the balance journey (YES.promos.slotHtml('overview'), called by
  *              the overview module). The highest-priority eligible update that
  *              was not dismissed; "Next update" rotates, "Not now" dismisses.
- *              It never rotates on its own.
+ *              It never rotates on its own. When the update is personalised,
+ *              its hook (the customer's own figure) is the headline, with a
+ *              small preview (fee comparison, trust meter, currency chips).
+ *              It fades in once, the first time it scrolls into view.
+ *   teaser     one line inside the balance card, after the net change, for
+ *              the top update (YES.promos.teaserHtml(), called by the overview)
  *   fees       a one-line note beside the network fee in the Fees card
  *   txDetail   a one-line note in the transaction detail of that send (and of
  *              its fee line) (YES.promos.noteHtml(place, { txId }))
@@ -23,9 +28,12 @@
  * the noscript summary (those are built from the statement data alone);
  * calls to action show a toast and go nowhere; nothing is tracked or sent.
  * Impressions and clicks are counted in memory for the demo only
- * (YES.promos.metrics()). Dismissals live in YES.state.promos (so they survive
- * a language switch) and in localStorage 'yes.promos' (this browser only,
- * wrapped in try/catch: blocked storage never breaks the page).
+ * (YES.promos.metrics()). Dismissals, the updates already seen in What's new
+ * and whether Ask YES was opened live in YES.state.promos (so they survive a
+ * language switch) and in localStorage 'yes.promos' (this browser only,
+ * wrapped in try/catch: blocked storage never breaks the page). They drive the
+ * masthead's new-updates badge and the dot on Ask YES (YES.promos.badges(),
+ * rendered by the shell) and the New pills in What's new.
  */
 (function (root) {
   'use strict';
@@ -45,6 +53,10 @@
   var cleared = false; // the Overview just ran out of updates (this page view only)
   var inited = false;
   var focusTimer = null;
+  var inView = false; // the What's new view is showing (one visit)
+  var visitNew = []; // ids not seen yet when this visit began: their New pills stay for the visit
+  var entered = false; // the Overview card's one-time entrance has run (this page view)
+  var entranceIO = null;
 
   /* ------------------------------------------------------------------ */
   /* Content                                                             */
@@ -110,12 +122,13 @@
   function feeKindOf(p) {
     return (p && p.rule && p.rule.feeKind) || 'network_transfer';
   }
-  /** Posted fees of one kind in this statement's asset: { total (positive minor units), count, txIds, parentIds }. */
+  /** Posted fees of one kind in this statement's asset: { total (positive minor units), count, first (the first fee, one send's), txIds, parentIds }. */
   function feesOfKind(kind) {
-    var out = { total: 0, count: 0, txIds: [], parentIds: [] };
+    var out = { total: 0, count: 0, first: 0, txIds: [], parentIds: [] };
     calc.posted().forEach(function (x) {
       if (x.type !== 'fee' || x.feeKind !== kind || x.asset !== st().assetId) return;
       out.total += -x.amount;
+      if (!out.count) out.first = -x.amount;
       out.count += 1;
       out.txIds.push(x.id);
       if (x.parentId) out.parentIds.push(x.parentId);
@@ -192,38 +205,73 @@
   function known(id) {
     return typeof id === 'string' && !!byId(id);
   }
+  function ids(list) {
+    return Array.isArray(list) ? list.filter(known) : [];
+  }
+  /**
+   * What this browser remembers: { dismissed, seen, ask }. Version 1 stored
+   * only { v: 1, dismissed } and still loads (nothing seen, Ask YES not opened);
+   * a bare array of dismissed ids loads too.
+   */
   function readStored() {
+    var out = { dismissed: [], seen: [], ask: false };
     try {
       var raw = root.localStorage.getItem(storageKey());
-      if (!raw) return [];
+      if (!raw) return out;
       var o = JSON.parse(raw);
-      return Array.isArray(o && o.dismissed) ? o.dismissed.filter(known) : [];
+      if (Array.isArray(o)) {
+        out.dismissed = ids(o);
+      } else if (o && typeof o === 'object') {
+        out.dismissed = ids(o.dismissed);
+        out.seen = ids(o.seen);
+        out.ask = o.ask === true;
+      }
     } catch (e) {
-      return []; // storage blocked or unreadable: nothing dismissed
+      /* storage blocked or unreadable: nothing dismissed or seen */
     }
+    return out;
   }
-  function writeStored(list) {
+  function writeStored(s) {
     try {
-      if (list.length) root.localStorage.setItem(storageKey(), JSON.stringify({ v: 1, dismissed: list }));
+      if (s.dismissed.length || s.seen.length || s.ask) root.localStorage.setItem(storageKey(), JSON.stringify({ v: 2, dismissed: s.dismissed, seen: s.seen, ask: !!s.ask }));
       else root.localStorage.removeItem(storageKey());
     } catch (e) {
       /* storage unavailable: the choice still applies to this page view (YES.state) */
     }
   }
-  /** A copy of YES.state.promos, seeded once from this browser's storage. */
+  /** A copy of YES.state.promos ({ dismissed, current, seen, ask }), seeded once from this browser's storage. */
   function S() {
     var s = YES.state.promos;
     if (!s || typeof s !== 'object') {
       // First read (the overview may render before this module's init): seed
       // the state silently, without a 'state' event in the middle of a render.
-      s = { dismissed: readStored(), current: null };
+      var stored = readStored();
+      s = { dismissed: stored.dismissed, current: null, seen: stored.seen, ask: stored.ask };
       YES.state.promos = s;
     }
-    return { dismissed: Array.isArray(s.dismissed) ? s.dismissed.filter(known) : [], current: known(s.current) ? s.current : null };
+    return { dismissed: ids(s.dismissed), current: known(s.current) ? s.current : null, seen: ids(s.seen), ask: s.ask === true };
   }
   function save(next) {
-    writeStored(next.dismissed);
-    YES.set({ promos: { dismissed: next.dismissed.slice(), current: next.current || null } });
+    var s = { dismissed: next.dismissed.slice(), current: next.current || null, seen: (next.seen || []).slice(), ask: !!next.ask };
+    writeStored(s);
+    YES.set({ promos: s });
+  }
+  /** Mark updates as seen (What's new opened, or a deep link to one). True when something changed. */
+  function markSeen(list) {
+    var s = S();
+    var add = list.filter(function (id) {
+      return known(id) && s.seen.indexOf(id) === -1;
+    });
+    if (!add.length) return false;
+    s.seen = s.seen.concat(add);
+    save(s);
+    return true;
+  }
+  function markAsked() {
+    var s = S();
+    if (s.ask) return;
+    s.ask = true;
+    save(s);
   }
   function isDismissed(id) {
     return S().dismissed.indexOf(id) !== -1;
@@ -249,7 +297,12 @@
   /* ------------------------------------------------------------------ */
   /* Public model (also used by Ask YES)                                  */
   /* ------------------------------------------------------------------ */
-  /** A promotion in the current language: { id, theme, icon, eyebrow, title, body, personal, note, cta, feature, footnote, eligible, dismissed }. */
+  /**
+   * A promotion in the current language: { id, theme, icon, eyebrow, title,
+   * body, personal, hook, support, teaser, note, cta, feature, footnote,
+   * eligible, dismissed, seen }. `personal` and `hook` are '' unless eligible;
+   * `support` falls back to the body.
+   */
   function view(id) {
     var p = byId(id);
     if (!p) return null;
@@ -263,12 +316,16 @@
       title: copy(p, 'title', v),
       body: copy(p, 'body', v),
       personal: ok ? copy(p, 'personal', v) : '',
+      hook: ok ? copy(p, 'hook', v) : '',
+      support: copy(p, 'support', v) || copy(p, 'body', v),
+      teaser: copy(p, 'teaser', v),
       note: copy(p, 'note', v),
       cta: copy(p, 'cta', v),
       feature: copy(p, 'feature', v),
       footnote: copy(p, 'footnote', v),
       eligible: ok,
-      dismissed: isDismissed(p.id)
+      dismissed: isDismissed(p.id),
+      seen: S().seen.indexOf(p.id) !== -1
     };
   }
   /**
@@ -298,6 +355,23 @@
     count('impressions', id);
   }
 
+  /**
+   * For the masthead (05-shell.js): { whatsnew: the eligible updates in What's
+   * new that were not dismissed and not seen yet, ask: show the dot on Ask YES
+   * (until it is opened once, while an update is eligible) }.
+   */
+  function badges() {
+    if (!inited || !conf()) return { whatsnew: 0, ask: false };
+    var s = S();
+    var any = false;
+    var n = all().filter(function (p) {
+      var ok = eligible(p);
+      if (ok && placed(p, 'assistant')) any = true;
+      return ok && placed(p, 'whatsnew') && s.dismissed.indexOf(p.id) === -1 && s.seen.indexOf(p.id) === -1;
+    }).length;
+    return { whatsnew: n, ask: any && !s.ask };
+  }
+
   /* ------------------------------------------------------------------ */
   /* Markup                                                              */
   /* ------------------------------------------------------------------ */
@@ -313,11 +387,13 @@
     if (handle) h = h.split(esc(handle)).join('<span class="promo-handle" translate="no">' + esc(handle) + '</span>');
     return h;
   }
-  function seeLinkHtml(p, fk, cls, label) {
+  function seeLinkHtml(p, fk, cls, label, name) {
     return (
       '<a class="' +
       cls +
-      '" href="#/whatsnew/' +
+      '"' +
+      (name ? ' aria-label="' + esc(name) + '"' : '') +
+      ' href="#/whatsnew/' +
       esc(p.id) +
       '" data-nav="whatsnew" data-nav-param="' +
       esc(p.id) +
@@ -390,10 +466,84 @@
       '</ul></div>'
     );
   }
+  /**
+   * Identity: one external send's network fee beside a YES identity's (none,
+   * the stated promise, formatted with YES.fmt like every figure). The figures
+   * are text; the check mark is decorative.
+   */
+  function compareHtml(p, idBase) {
+    var f = feesOfKind(feeKindOf(p));
+    if (!f.count) return '';
+    function row(cls, who, minor, mark) {
+      return (
+        '<li class="promo-compare__row' +
+        cls +
+        '"><span class="promo-compare__who">' +
+        (mark ? '<span class="promo-compare__mark" aria-hidden="true">' + ui.icon('check', { size: 14 }) + '</span>' : '') +
+        '<span>' +
+        esc(who) +
+        '</span></span><span class="sr-only">: </span><span class="promo-compare__fee">' +
+        esc(t('promos.compare.fee', { amount: YES.fmt.amount(minor) })) +
+        '</span></li>'
+      );
+    }
+    return (
+      '<div class="promo-compare"><p class="promo-compare__label" id="' +
+      esc(idBase) +
+      '-compare">' +
+      esc(t('promos.compare.label')) +
+      '</p><ul class="promo-compare__rows" aria-labelledby="' +
+      esc(idBase) +
+      '-compare">' +
+      row('', t('promos.compare.external'), f.first, false) +
+      row(' promo-compare__row--yes', t('promos.compare.yes'), 0, true) +
+      '</ul></div>'
+    );
+  }
+  /** Currencies: the statement's asset today, the planned ones (config codes) beside it. */
+  function chipsHtml(p, idBase) {
+    if (!Array.isArray(p.codes) || !p.codes.length) return '';
+    var a = calc.asset();
+    function group(key, cls, list) {
+      return (
+        '<p class="promo-chips__label" id="' +
+        esc(idBase) +
+        '-chips-' +
+        key +
+        '">' +
+        esc(t('promos.chips.' + key)) +
+        '</p><ul class="promo-chips__list" aria-labelledby="' +
+        esc(idBase) +
+        '-chips-' +
+        key +
+        '">' +
+        list
+          .map(function (code) {
+            return '<li class="promo-chip' + cls + '">' + (cls ? ui.icon('check', { size: 14 }) : '') + '<span translate="no">' + esc(code) + '</span></li>';
+          })
+          .join('') +
+        '</ul>'
+      );
+    }
+    return (
+      '<div class="promo-chips">' +
+      group('now', ' promo-chip--now', [a.symbol]) +
+      group(
+        'planned',
+        '',
+        p.codes.map(function (c) {
+          return c.code;
+        })
+      ) +
+      '</div>'
+    );
+  }
+  /** The small preview beside an update: the Overview card (compact) or a What's new card. */
   function extraHtml(p, idBase, compact) {
     if (p.theme === 'trust') return meterHtml(idBase);
-    if (p.theme === 'currencies' && !compact) return codesHtml(p, idBase);
-    return '';
+    if (p.theme === 'identity') return eligible(p) ? compareHtml(p, idBase) : '';
+    if (p.theme === 'currencies') return compact ? chipsHtml(p, idBase) : codesHtml(p, idBase);
+    return ''; // interest: no figures, no preview
   }
 
   /** The Overview card: one update at a time. */
@@ -404,8 +554,17 @@
     var pos = q.indexOf(id);
     impression('overview', id);
     var counter = q.length > 1 ? '<span class="promo__count">' + esc(t('promos.count', { a: YES.fmt.count(pos + 1), b: YES.fmt.count(q.length) })) + '</span>' : '';
+    // Personalised: the customer's own figure leads (the hook), and the
+    // supporting line says what to do. Otherwise the title and the body.
+    var lead = m.hook
+      ? '<p class="promo__body promo__support">' + textHtml(m.support, p.handle) + '</p>'
+      : '<p class="promo__body">' + textHtml(m.body, p.handle) + (m.personal ? ' <span class="promo__personal">' + textHtml(m.personal, p.handle) + '</span>' : '') + '</p>';
+    var visual = extraHtml(p, 'promo-ov', true);
     return (
-      '<section class="promo promo--overview" aria-labelledby="promo-ov-h" data-promo="' +
+      '<section class="promo promo--overview' +
+      (visual ? ' promo--visual' : '') +
+      (m.hook ? ' promo--hook' : '') +
+      '" aria-labelledby="promo-ov-h" data-promo="' +
       esc(id) +
       '" data-promo-theme="' +
       esc(p.theme) +
@@ -427,15 +586,12 @@
       '<div class="promo__text">' +
       (m.eyebrow ? '<p class="promo__eyebrow">' + esc(m.eyebrow) + '</p>' : '') +
       '<h3 class="promo__title" id="promo-ov-title" tabindex="-1" data-fk="promo-ov-title">' +
-      esc(m.title) +
+      esc(m.hook || m.title) +
       '</h3>' +
-      '<p class="promo__body">' +
-      textHtml(m.body, p.handle) +
-      (m.personal ? ' <span class="promo__personal">' + textHtml(m.personal, p.handle) + '</span>' : '') +
-      '</p>' +
-      extraHtml(p, 'promo-ov', true) +
+      lead +
       (m.footnote ? '<p class="promo__foot">' + textHtml(m.footnote, p.handle) + '</p>' : '') +
       '</div>' +
+      (visual ? '<div class="promo__visual">' + visual + '</div>' : '') +
       '<div class="promo__actions">' +
       seeLinkHtml(p, 'promo-ov-see', 'btn btn--promo', '<span>' + esc(t('promos.see')) + '</span>' + ui.icon('arrow-right', { size: 18 })) +
       (q.length > 1
@@ -483,7 +639,87 @@
   function slotHtml(place, position) {
     if (place !== 'overview' || !conf()) return '';
     if ((position || 'afterBalance') !== overviewPosition()) return '';
+    armEntranceSoon();
     return '<div class="promo-slot promo-slot--' + overviewPosition() + '" data-promo-slot="overview">' + overviewInner() + '</div>';
+  }
+
+  /**
+   * The top update for the balance card's teaser: the highest-priority
+   * eligible update placed on the Overview. None when it was dismissed (the
+   * teaser then hides), when nothing is eligible or promotions are off.
+   */
+  function teaserId() {
+    if (!conf()) return null;
+    var top = sorted(
+      all().filter(function (p) {
+        return placed(p, 'overview') && eligible(p);
+      })
+    )[0];
+    return top && !isDismissed(top.id) && YES.L(top.teaser) ? top.id : null;
+  }
+  function teaserInner() {
+    var id = teaserId();
+    var m = id && view(id);
+    if (!m || !m.teaser) return '';
+    var p = byId(id);
+    impression('teaser', id);
+    // Set apart from the statement's figures: a hairline, the "From YES" label
+    // and the Illustrative tag. The link opens the update in What's new.
+    return (
+      '<div class="promo-teaser" data-promo="' +
+      esc(id) +
+      '" data-promo-place="teaser">' +
+      '<p class="promo-teaser__msg"><span class="promo-teaser__labels">' +
+      fromHtml() +
+      demoTag() +
+      '</span> <span class="promo-teaser__text">' +
+      textHtml(m.teaser, p.handle) +
+      '</span> ' +
+      // Named in full ("See what's new: Pay a YES identity"); the visible words come first.
+      seeLinkHtml(p, 'promo-teaser-see', 'promo-teaser__link', '<span>' + esc(t('promos.see')) + '</span>' + ui.icon('arrow-right', { size: 16 }), t('promos.see') + ': ' + m.title) +
+      '</p></div>'
+    );
+  }
+  /** The balance card's one-line teaser (the overview places it after the net change), or ''. */
+  function teaserHtml() {
+    if (!conf()) return '';
+    return '<div class="promo-teaser-slot" data-promo-slot="teaser">' + teaserInner() + '</div>';
+  }
+
+  /*
+   * One-time entrance: the first time the Overview card scrolls into view in
+   * this page view, it fades in and lifts (CSS, about 300ms). The card is
+   * visible from the start: the class is added only as it enters, never under
+   * reduced motion, never again after a re-render.
+   */
+  function armEntranceSoon() {
+    if (entered) return;
+    setTimeout(armEntrance, 0);
+  }
+  function armEntrance() {
+    if (entranceIO) {
+      entranceIO.disconnect();
+      entranceIO = null;
+    }
+    if (entered) return;
+    var card = doc.querySelector('#overview-root .promo--overview');
+    if (!card) return;
+    if (typeof root.IntersectionObserver !== 'function' || ui.reducedMotion()) {
+      entered = true; // nothing to animate: the card simply shows
+      return;
+    }
+    entranceIO = new root.IntersectionObserver(function (entries) {
+      if (entered) return;
+      for (var i = 0; i < entries.length; i++) {
+        if (!entries[i].isIntersecting) continue;
+        entered = true;
+        if (entranceIO) entranceIO.disconnect();
+        entranceIO = null;
+        if (!ui.reducedMotion() && entries[i].target.isConnected) entries[i].target.classList.add('promo--enter');
+        return;
+      }
+    });
+    entranceIO.observe(card);
   }
 
   /** Does a note placement apply to this transaction? (identity: the send that paid the fee, or the fee itself) */
@@ -555,6 +791,8 @@
       '<p class="promo__tags">' +
       fromHtml() +
       demoTag() +
+      // New: not seen yet when this visit to What's new began (kept for the visit).
+      (visitNew.indexOf(id) !== -1 ? '<span class="promo-new">' + esc(t('promos.new')) + '</span>' : '') +
       (m.dismissed ? '<span class="tag promo__hidden">' + esc(t('promos.hiddenTag')) + '</span>' : '') +
       '</p></div>' +
       (m.eyebrow ? '<p class="promo__eyebrow">' + esc(m.eyebrow) + '</p>' : '') +
@@ -629,6 +867,11 @@
     ui.$$('[data-promo-slot="overview"]').forEach(function (el) {
       ui.render(el, overviewInner());
     });
+    ui.$$('[data-promo-slot="teaser"]').forEach(function (el) {
+      var html = teaserInner();
+      if (html !== el.innerHTML) ui.render(el, html);
+    });
+    armEntranceSoon();
     ui.$$('.promo-note[data-promo-place]').forEach(function (el) {
       var html = noteHtml(el.getAttribute('data-promo-place'), { txId: el.getAttribute('data-promo-tx') });
       if (!html) el.remove();
@@ -652,9 +895,28 @@
     }
     h.focus({ preventScroll: true });
   }
+  /**
+   * Seen: opening What's new marks every update in it as seen; a deep link
+   * (#/whatsnew/<id>) marks only that update. The New pills are those not seen
+   * when the visit began, and they stay until the customer leaves the view.
+   */
   function onRoute(r) {
-    if (!r || r.view !== 'whatsnew' || !r.param || !byId(r.param)) return;
-    var id = r.param;
+    if (!r || r.view !== 'whatsnew') {
+      inView = false;
+      return;
+    }
+    var id = r.param && byId(r.param) ? r.param : null;
+    var entering = !inView;
+    if (entering) {
+      inView = true;
+      var s = S();
+      visitNew = list('whatsnew').filter(function (x) {
+        return s.seen.indexOf(x) === -1;
+      });
+    }
+    // A change re-renders the view (onState); otherwise refresh this visit's pills.
+    if (!markSeen(id ? [id] : list('whatsnew')) && entering) renderView();
+    if (!id) return;
     later(function () {
       focusItem(id);
     });
@@ -691,7 +953,8 @@
   }
   function restore() {
     cleared = false;
-    save({ dismissed: [], current: null });
+    var s = S();
+    save({ dismissed: [], current: null, seen: s.seen, ask: s.ask }); // what was seen stays seen
   }
   function cta(id) {
     var m = view(id);
@@ -736,7 +999,9 @@
   /* ------------------------------------------------------------------ */
   YES.promos = {
     slotHtml: slotHtml,
+    teaserHtml: teaserHtml,
     noteHtml: noteHtml,
+    badges: badges,
     list: list,
     view: view,
     eligible: function (id) {
@@ -789,6 +1054,13 @@
         'promos.ctaToast': 'In the YES app, this would open {feature}. Nothing was sent.',
         'promos.forYou': 'For you',
         'promos.hiddenTag': 'Hidden from Overview',
+        'promos.new': 'New',
+        'promos.compare.label': 'Network fee per send',
+        'promos.compare.external': 'External wallet',
+        'promos.compare.yes': 'YES identity',
+        'promos.compare.fee': 'Network fee {amount}',
+        'promos.chips.now': 'Now',
+        'promos.chips.planned': 'Planned',
         'promos.meter.label': 'Your trust level',
         'promos.meter.done': 'Reached',
         'promos.meter.current': "You're here",
@@ -822,6 +1094,13 @@
         'promos.ctaToast': 'En la app de YES, esto abriría {feature}. No se envió nada.',
         'promos.forYou': 'Para ti',
         'promos.hiddenTag': 'Oculta en el resumen',
+        'promos.new': 'Nuevo',
+        'promos.compare.label': 'Comisión de red por envío',
+        'promos.compare.external': 'Monedero externo',
+        'promos.compare.yes': 'Identidad YES',
+        'promos.compare.fee': 'Comisión de red {amount}',
+        'promos.chips.now': 'Ahora',
+        'promos.chips.planned': 'Previstas',
         'promos.meter.label': 'Tu nivel de confianza',
         'promos.meter.done': 'Alcanzado',
         'promos.meter.current': 'Estás aquí',
@@ -854,7 +1133,10 @@
     },
 
     onState: function (keys) {
-      if (!inited || keys.indexOf('promos') === -1) return;
+      if (!inited) return;
+      // Ask YES opened once: its dot goes (kept in this browser).
+      if (keys.indexOf('assistant') !== -1 && YES.state.assistant && YES.state.assistant.open && conf()) markAsked();
+      if (keys.indexOf('promos') === -1) return;
       renderView();
       syncPlacements();
     }

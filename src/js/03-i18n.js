@@ -322,6 +322,8 @@
       'nav.understand': 'Understand',
       'nav.help': 'Help',
       'nav.whatsnew': "What's new",
+      'nav.newUpdates1': '{label}, 1 new update',
+      'nav.newUpdatesN': '{label}, {n} new updates',
 
       'lang.label': 'Language',
       'lang.en': 'English',
@@ -332,6 +334,7 @@
       'ask.button': 'Ask YES',
       'ask.buttonShort': 'Ask',
       'ask.buttonLong': 'Ask YES about this statement',
+      'ask.newMark': '{label} (new)',
 
       /* Masthead: light/dark toggle, Download or print (help 'record'), phone menu. */
       'theme.dark': 'Dark mode',
@@ -340,6 +343,7 @@
       'record.button': 'Download or print',
       'record.buttonShort': 'Download',
       'menu.button': 'Menu',
+      'menu.newUpdates': 'Menu (new updates)',
       'explain.button': 'Explain with AI',
       'explain.buttonFor': 'Explain with AI: {topic}',
 
@@ -496,6 +500,8 @@
       'nav.understand': 'Entender',
       'nav.help': 'Ayuda',
       'nav.whatsnew': 'Novedades',
+      'nav.newUpdates1': '{label}, 1 novedad nueva',
+      'nav.newUpdatesN': '{label}, {n} novedades nuevas',
 
       'lang.label': 'Idioma',
       'lang.en': 'English',
@@ -506,6 +512,7 @@
       'ask.button': 'Pregunta a YES',
       'ask.buttonShort': 'Pregunta',
       'ask.buttonLong': 'Pregunta a YES sobre este estado de cuenta',
+      'ask.newMark': '{label} (nuevo)',
 
       'theme.dark': 'Modo oscuro',
       'theme.on': 'Activado',
@@ -513,6 +520,7 @@
       'record.button': 'Descargar o imprimir',
       'record.buttonShort': 'Descargar',
       'menu.button': 'Menú',
+      'menu.newUpdates': 'Menú (novedades)',
       'explain.button': 'Explicar con IA',
       'explain.buttonFor': 'Explicar con IA: {topic}',
 

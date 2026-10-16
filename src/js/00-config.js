@@ -126,7 +126,11 @@
      *               An unknown kind is never eligible.
      *   copy        { en, es } per field: eyebrow, title, body, personal (shown
      *               only when eligible), note (one-line in-context note), cta,
-     *               feature (the toast names it), footnote (optional). Copy
+     *               feature (the toast names it), footnote (optional),
+     *               teaser (the one line inside the balance card, for the top
+     *               update), hook (optional: the Overview card's headline when
+     *               eligible, the customer's own figure) and support (the line
+     *               under the hook; without it the body is used). Copy
      *               may use {fee}, {handle}, {sent}, {limit}, {level}, {next},
      *               {closing}: the module fills them from YES.calc and YES.fmt,
      *               never from typed numbers. Short sentences; no em dashes.
@@ -138,7 +142,7 @@
      */
     promotions: {
       enabled: true,
-      storageKey: 'yes.promos', // dismissed ids, in this browser only (localStorage)
+      storageKey: 'yes.promos', // dismissed and seen ids, Ask YES opened; this browser only (localStorage)
       /* Where the Overview's "What's new from YES" card sits:
          'afterBalance'  below the balance card and its pending notice, before
                          the balance journey (approved plan, 2026-10-15). At
@@ -170,6 +174,18 @@
           note: {
             en: 'Next time, pay a YES identity. No network fee.',
             es: 'La próxima vez, paga a una identidad YES. Sin comisión de red.'
+          },
+          teaser: {
+            en: 'Pay a YES identity next time. No network fee.',
+            es: 'La próxima vez, paga a una identidad YES. Sin comisión de red.'
+          },
+          hook: {
+            en: 'You paid {fee} in network fees this month',
+            es: 'Este mes pagaste {fee} en comisiones de red'
+          },
+          support: {
+            en: 'Pay a YES identity, like {handle}, instantly and with no network fee.',
+            es: 'Paga a una identidad YES, como {handle}, al instante y sin comisión de red.'
           },
           cta: { en: 'Find a YES identity', es: 'Busca una identidad YES' },
           feature: { en: 'YES identities', es: 'las identidades YES' },
@@ -204,6 +220,18 @@
             en: 'Verify your address to reach {next}.',
             es: 'Verifica tu dirección para llegar a {next}.'
           },
+          teaser: {
+            en: 'Verify your address to reach {next}.',
+            es: 'Verifica tu dirección para llegar a {next}.'
+          },
+          hook: {
+            en: 'You sent {sent} of your {limit} monthly limit',
+            es: 'Enviaste {sent} de tu límite mensual de {limit}'
+          },
+          support: {
+            en: 'Verify your address to reach {next} and raise your limit.',
+            es: 'Verifica tu dirección para llegar a {next} y aumentar tu límite.'
+          },
           cta: { en: 'Verify your address', es: 'Verifica tu dirección' },
           feature: { en: 'address verification', es: 'la verificación de dirección' },
           footnote: {
@@ -234,6 +262,10 @@
             en: 'More currencies are coming to YES.',
             es: 'Llegan más monedas a YES.'
           },
+          teaser: {
+            en: 'More currencies are coming: EUBC, UKBC, MXBC and NZBC.',
+            es: 'Llegan más monedas: EUBC, UKBC, MXBC y NZBC.'
+          },
           cta: { en: 'Notify me', es: 'Avísame' },
           feature: { en: 'currency updates', es: 'las novedades de monedas' },
           footnote: {
@@ -259,6 +291,10 @@
             es: 'Saldo de tu estado de cuenta: {closing}.'
           },
           note: {
+            en: 'Interest on USBC is coming soon.',
+            es: 'Pronto llegan los intereses en USBC.'
+          },
+          teaser: {
             en: 'Interest on USBC is coming soon.',
             es: 'Pronto llegan los intereses en USBC.'
           },

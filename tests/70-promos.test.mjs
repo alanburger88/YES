@@ -6,6 +6,11 @@
 // action, and the statement of record kept factual (print, PDF, CSV,
 // noscript). Also EN/ES parity, axe in light and dark, 320px reflow and the
 // masthead fitting five tabs at every width, in both languages, at 200% text.
+// What makes it stand out: the new-updates badge on the What's new tab (the
+// Menu's dot and count on a phone) and the dot on Ask YES, with their
+// accessible names and storage; the teaser inside the balance card; the
+// tinted card led by the customer's own figure (the hook) with its preview;
+// the one-time entrance; "What's new?" first in Ask YES; the New pills.
 import { readFileSync, mkdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
@@ -151,9 +156,10 @@ export default async function (t) {
   });
   t.eq([ov.count, ov.id, ov.order, ov.afterNotice], [1, 'pay-identity', true, true], 'one card, below the balance card and its pending notice, above the journey');
   t.eq([ov.heading, ov.labelled, ov.tag], ["What's new from YES", 'promo-ov-h', true], 'labelled "What\'s new from YES" with an Illustrative tag');
-  t.eq([ov.title, ov.count2, ov.see, ov.inInk], ['Pay a YES identity', '1 of 4', '#/whatsnew/pay-identity', false], 'title, counter, deep link; outside the statement\'s ink field');
+  t.eq([nb(ov.title), ov.count2, ov.see, ov.inInk], ['You paid 1.00 USBC in network fees this month', '1 of 4', '#/whatsnew/pay-identity', false], 'the hook (the customer\'s own figure) as the title, counter, deep link; outside the statement\'s ink field');
+  t.eq(nb(await text('.promo--overview .promo__support')), 'Pay a YES identity, like yes.danielk, instantly and with no network fee.', 'the supporting line under the hook');
   const card = nb(await text('.promo--overview'));
-  t.assert(card.includes('You paid 1.00 USBC in network fees this month sending to external wallets.'), 'personalised line on the card');
+  t.assert(!card.includes('sending to external wallets.'), 'the hook replaces the personal line (no figure said twice)');
 
   t.step('never rotates on its own');
   await page.waitForTimeout(3200);
@@ -240,7 +246,7 @@ export default async function (t) {
   t.assert((await text('.wn-hidden')).includes('You hid 4 updates from your Overview.'), 'the view says how many are hidden');
   t.eq(await page.locator('#whatsnew-root .promo__hidden').count(), 4, 'each hidden update is marked');
   await page.click('[data-fk="wn-restore"]');
-  t.eq(await state(() => [YES.state.promos.dismissed, localStorage.getItem('yes.promos'), document.activeElement.id, document.querySelectorAll('.wn-hidden').length]), [[], null, 'h-whatsnew', 0], 'restored: state and storage cleared, focus on the heading');
+  t.eq(await state(() => [YES.state.promos.dismissed, JSON.parse(localStorage.getItem('yes.promos')).dismissed, document.activeElement.id, document.querySelectorAll('.wn-hidden').length]), [[], [], 'h-whatsnew', 0], 'restored: dismissals cleared in state and storage, focus on the heading');
   await page.click(desktop ? '.nav__link[data-nav="overview"]' : '.brand');
   t.eq(await state(() => YES.promos.current()), 'pay-identity', 'the Overview shows updates again');
 
@@ -390,7 +396,7 @@ export default async function (t) {
   t.eq([ans.title, ans.bullets, ans.from, ans.tag, ans.btn], ["What's new from YES", 4, true, true, "Open What's new"], 'the answer lists the four updates, From YES and Illustrative, with a link to the view');
   t.assert(ans.text.includes('You paid 1.00 USBC in network fees') && ans.text.includes('Subject to regulatory approval. Rates and terms to be confirmed.'), 'personalised and with the interest footnote');
   t.assert(ans.text.includes('subject to YES approval'), 'says the updates are illustrative and subject to approval');
-  t.eq(await state(() => [...document.querySelectorAll('#assistant-drawer .asst-sugg [data-asst-q]')].map((b) => b.textContent.trim()).pop()), "What's new?", 'suggested question "What\'s new?"');
+  t.eq(await state(() => [...document.querySelectorAll('#assistant-drawer .asst-sugg [data-asst-q]')].map((b) => b.textContent.trim()).shift()), "What's new?", 'suggested question "What\'s new?", first');
   await state(() => YES.assistant.askText('Will I earn interest on my USBC?'));
   const interest = await state((sel) => document.querySelector(sel + ' .asst-ans').textContent.replace(/\u00a0/g, ' '), LATEST);
   t.assert(interest.includes('Interest on USBC') && interest.includes('Subject to regulatory approval. Rates and terms to be confirmed.') && !/%|APY/.test(interest), 'interest: footnote, no rate: ' + interest);
@@ -407,6 +413,474 @@ export default async function (t) {
   await state(() => YES.setLang('en'));
 
   /* ------------------------------------------------------------------ */
+  // Contrast of an element's text against the first opaque background behind
+  // `bgSel` (or behind the element itself). Colours from color-mix() come back
+  // as color(srgb …), in 0–1.
+  const contrast = (fgSel, bgSel) =>
+    state(
+      ([f, b]) => {
+        const parse = (c) => {
+          const n = c.match(/[\d.]+/g).map(Number);
+          const k = c.startsWith('color(') ? 255 : 1;
+          return { rgb: n.slice(0, 3).map((v) => v * k), a: n.length > 3 ? n[3] : 1 };
+        };
+        const lum = (c) => {
+          const g = (x) => ((x /= 255) <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4);
+          const m = parse(c).rgb;
+          return 0.2126 * g(m[0]) + 0.7152 * g(m[1]) + 0.0722 * g(m[2]);
+        };
+        const bgOf = (el) => {
+          for (let e = el; e; e = e.parentElement) {
+            const c = getComputedStyle(e).backgroundColor;
+            if (parse(c).a > 0) return c;
+          }
+          return 'rgb(255, 255, 255)';
+        };
+        const fe = document.querySelector(f);
+        const [x, y] = [lum(getComputedStyle(fe).color), lum(bgOf(b ? document.querySelector(b) : fe))].sort((p, q) => q - p);
+        return +((x + 0.05) / (y + 0.05)).toFixed(2);
+      },
+      [fgSel, bgSel]
+    );
+  const badge = () =>
+    state(() => {
+      const tab = document.querySelector('.nav__link[data-nav="whatsnew"]');
+      const item = document.querySelector('#mast-menu .mast-menu__link[data-nav="whatsnew"]');
+      const menu = document.querySelector('#masthead [data-mast-menu]');
+      const ask = document.querySelector('#masthead [data-ask]');
+      const num = (el) => (el.querySelector('.nav-badge') ? el.querySelector('.nav-badge').textContent : null);
+      const vis = (el) => !!(el && el.getClientRects().length);
+      return {
+        api: YES.promos.badges(),
+        tab: [num(tab), tab.getAttribute('aria-label')],
+        item: [num(item), item.getAttribute('aria-label')],
+        menu: [!!menu.querySelector('.mast-dot'), menu.getAttribute('aria-label')],
+        ask: [!!ask.querySelector('.mast-dot'), ask.getAttribute('aria-label')],
+        shown: { tabBadge: vis(tab.querySelector('.nav-badge')), menuDot: vis(menu.querySelector('.mast-dot')), askDot: vis(ask.querySelector('.mast-dot')) },
+        hidden: [...document.querySelectorAll('#masthead .nav-badge, #masthead .mast-dot')].every((e) => e.getAttribute('aria-hidden') === 'true')
+      };
+    });
+  const backToOverview = async () => {
+    await page.click(desktop ? '.nav__link[data-nav="overview"]' : '.brand');
+    await page.waitForFunction(() => YES.state.view === 'overview');
+  };
+  const goWhatsnew = async () => {
+    await state(() => YES.nav.go('whatsnew'));
+    await page.waitForFunction(() => YES.state.view === 'whatsnew');
+  };
+
+  t.step('new-updates badge: the count, the accessible names, the Menu dot on a phone');
+  await clearStore();
+  await fresh('');
+  let bd = await badge();
+  t.eq(bd.api, { whatsnew: 4, ask: true }, 'nothing seen yet: 4 new updates, Ask YES not opened');
+  t.eq([bd.tab, bd.item], [['4', "What's new, 4 new updates"], ['4', "What's new, 4 new updates"]], 'the What\'s new tab and its Menu item: a "4" badge, named "What\'s new, 4 new updates"');
+  t.eq([bd.menu, bd.ask, bd.hidden], [[true, 'Menu (new updates)'], [true, 'Ask YES about this statement (new)'], true], 'Menu and Ask YES carry a dot, said in their names; the badge and dots themselves are hidden from assistive technology');
+  t.eq(bd.shown, desktop ? { tabBadge: true, menuDot: false, askDot: true } : { tabBadge: false, menuDot: true, askDot: true }, desktop ? 'desktop: the badge on the tab, a dot on Ask YES' : 'phone: a dot on Menu and on Ask');
+  t.eq(await page.getByRole('button', { name: 'Ask YES about this statement (new)', exact: true }).count(), 1, 'Ask YES: its accessible name');
+  if (desktop) {
+    t.eq(await page.getByRole('link', { name: "What's new, 4 new updates", exact: true }).count(), 1, 'the tab: its accessible name');
+    const bc = await contrast('.nav__link[data-nav="whatsnew"] .nav-badge');
+    t.assert(bc >= 4.5, 'the badge\'s number is at least 4.5:1 on its blue: ' + bc);
+    const geo = await state(() => {
+      const a = document.querySelector('.nav__link[data-nav="whatsnew"]');
+      const l = a.querySelector('span').getBoundingClientRect();
+      const b = a.querySelector('.nav-badge').getBoundingClientRect();
+      return { after: b.left >= l.right, inside: b.right <= a.getBoundingClientRect().right, middle: Math.abs((b.top + b.bottom) / 2 - (l.top + l.bottom) / 2) <= 2 };
+    });
+    t.eq(geo, { after: true, inside: true, middle: true }, 'the badge sits right after the label, inside the tab, centred on it');
+  } else {
+    t.eq(await page.getByRole('button', { name: 'Menu (new updates)', exact: true }).count(), 1, 'Menu: its accessible name');
+    const dot = await state(() => {
+      const m = document.querySelector('#masthead [data-mast-menu]').getBoundingClientRect();
+      const d = document.querySelector('#masthead [data-mast-menu] .mast-dot').getBoundingClientRect();
+      return d.left >= m.left && d.right <= m.right && d.top >= m.top && d.bottom <= m.bottom && d.width >= 8;
+    });
+    t.assert(dot, 'the Menu dot sits on the button, inside its box');
+    await page.click('#masthead [data-mast-menu]');
+    await page.locator('#mast-menu').waitFor({ state: 'visible' });
+    const it = await state(() => {
+      const a = document.querySelector('#mast-menu .mast-menu__link[data-nav="whatsnew"]');
+      const l = a.querySelector('span').getBoundingClientRect();
+      const b = a.querySelector('.nav-badge').getBoundingClientRect();
+      return { shown: b.width > 0, after: b.left >= l.right && b.left - l.right <= 12, text: a.querySelector('.nav-badge').textContent };
+    });
+    t.eq(it, { shown: true, after: true, text: '4' }, 'the Menu item shows "4" right after its label');
+    t.eq(await page.getByRole('link', { name: "What's new, 4 new updates", exact: true }).count(), 1, 'the Menu item: its accessible name');
+    await page.keyboard.press('Escape');
+  }
+
+  t.step('badge: a deep link marks one update seen; singular and plural in English and Spanish');
+  await fresh('#/whatsnew/trust');
+  t.eq(await state(() => [YES.state.promos.seen, JSON.parse(localStorage.getItem('yes.promos')).seen]), [['trust'], ['trust']], 'a deep link marks only that update as seen (state and localStorage)');
+  bd = await badge();
+  t.eq([bd.api.whatsnew, bd.tab], [3, ['3', "What's new, 3 new updates"]], 'the count goes down to 3');
+  await state(() => {
+    YES.promos.dismiss('currencies');
+    YES.promos.dismiss('interest');
+  });
+  bd = await badge();
+  t.eq([bd.tab, bd.item, bd.menu], [['1', "What's new, 1 new update"], ['1', "What's new, 1 new update"], [true, 'Menu (new updates)']], 'dismissed updates are not counted; one left: "1 new update"');
+  await state(() => YES.setLang('es'));
+  bd = await badge();
+  t.eq([bd.tab, bd.menu, bd.ask], [['1', 'Novedades, 1 novedad nueva'], [true, 'Menú (novedades)'], [true, 'Pregunta a YES sobre este estado de cuenta (nuevo)']], 'Spanish, one: "Novedades, 1 novedad nueva", Menú (novedades), Pregunta a YES … (nuevo)');
+  await state(() => YES.promos.restore());
+  bd = await badge();
+  t.eq([bd.tab, bd.item], [['3', 'Novedades, 3 novedades nuevas'], ['3', 'Novedades, 3 novedades nuevas']], 'Spanish, three: "Novedades, 3 novedades nuevas"');
+  await state(() => YES.setLang('en'));
+
+  t.step('badge: opening What\'s new clears it, and that persists');
+  await fresh('');
+  if (desktop) await page.click('.nav__link[data-nav="whatsnew"]');
+  else {
+    await page.click('#masthead [data-mast-menu]');
+    await page.click('#mast-menu .mast-menu__link[data-nav="whatsnew"]');
+  }
+  await page.waitForFunction(() => YES.state.view === 'whatsnew');
+  bd = await badge();
+  t.eq([bd.api.whatsnew, bd.tab, bd.item, bd.menu], [0, [null, null], [null, null], [false, null]], 'visited: no badge, no Menu dot, plain names');
+  t.eq(await state(() => [document.activeElement.id, JSON.parse(localStorage.getItem('yes.promos')).seen.slice().sort()]), ['h-whatsnew', IDS.slice().sort()], 'focus on the view heading as before; every update stored as seen');
+  await fresh('');
+  t.eq((await badge()).api.whatsnew, 0, 'after a reload: still no badge (localStorage)');
+
+  t.step('storage: the old format (dismissed ids only) still loads');
+  for (const [raw, dismissed] of [
+    [JSON.stringify({ v: 1, dismissed: ['trust'] }), ['trust']],
+    [JSON.stringify(['currencies']), ['currencies']],
+    [JSON.stringify({ v: 1, dismissed: ['nope', 'interest'] }), ['interest']],
+    ['not json', []]
+  ]) {
+    await state((r) => localStorage.setItem('yes.promos', r), raw);
+    await fresh('');
+    t.eq(await state(() => [YES.state.promos.dismissed, YES.state.promos.seen, YES.state.promos.ask, YES.promos.badges().whatsnew]), [dismissed, [], false, 4 - dismissed.length], `stored ${raw}: dismissed ${JSON.stringify(dismissed)}, nothing seen, the badge counts ${4 - dismissed.length}`);
+  }
+  await clearStore();
+
+  t.step('no badge, dots or teaser when promotions are off or nothing is eligible');
+  await fresh('');
+  const off = await state(() => {
+    const c = YES.config.promotions;
+    const q = () => ({
+      badge: !!document.querySelector('#masthead .nav-badge'),
+      dots: document.querySelectorAll('#masthead .mast-dot').length,
+      teaser: !!document.querySelector('.promo-teaser'),
+      api: YES.promos.badges(),
+      first: YES.assistant.questions()[0],
+      last: YES.assistant.questions().slice(-1)[0]
+    });
+    c.enabled = false;
+    YES.renderAll();
+    const disabled = q();
+    c.enabled = true;
+    const rules = c.items.map((p) => p.rule);
+    c.items.forEach((p) => (p.rule = { kind: 'never' }));
+    YES.renderAll();
+    const none = q();
+    c.items.forEach((p, i) => (p.rule = rules[i]));
+    YES.renderAll();
+    return { disabled, none, back: q() };
+  });
+  t.eq(off.disabled, { badge: false, dots: 0, teaser: false, api: { whatsnew: 0, ask: false }, first: 'why_balance', last: 'whats_new' }, 'promotions off: no badge, no dots, no teaser; "What\'s new?" back to the end of the suggestions');
+  t.eq([off.none.badge, off.none.dots, off.none.teaser, off.none.api], [false, 0, false, { whatsnew: 0, ask: false }], 'nothing eligible: no badge, no dots, no teaser');
+  t.eq([off.back.badge, off.back.dots, off.back.teaser, off.back.first], [true, 2, true, 'whats_new'], 'back on: the badge, both dots and the teaser; "What\'s new?" first');
+
+  /* ------------------------------------------------------------------ */
+  t.step('teaser: one line inside the balance card, after the net change');
+  await clearStore();
+  await fresh('');
+  const tz = await state(() => {
+    const el = document.querySelector('#overview-root .promo-teaser');
+    const r = (e) => e.getBoundingClientRect();
+    const link = el.querySelector('a');
+    return {
+      count: document.querySelectorAll('.promo-teaser').length,
+      place: [!!el.closest('.ov-balance.ink-field .ov-balance__side'), r(document.querySelector('.ov-change')).bottom <= r(el).top, r(el).bottom <= r(document.querySelector('.ov-balance__side .ov-actions')).top],
+      labels: [el.querySelector('.promo-from').textContent.trim(), !!el.querySelector('.promo-from .icon'), !!el.querySelector('.tag--illustrative')],
+      text: el.querySelector('.promo-teaser__text').textContent,
+      link: [link.getAttribute('href'), link.getAttribute('aria-label'), link.textContent.trim()],
+      divider: [getComputedStyle(el).borderTopStyle, parseFloat(getComputedStyle(el).borderTopWidth)],
+      id: el.getAttribute('data-promo'),
+      target: r(link).height >= 24
+    };
+  });
+  t.eq(tz.count, 1, 'one teaser');
+  t.eq(tz.place, [true, true, true], 'inside the balance card\'s net-change column: after the net change, before the actions');
+  t.eq(tz.labels, ['From YES', true, true], 'labelled "From YES" (megaphone) and Illustrative');
+  t.eq([tz.id, nb(tz.text)], ['pay-identity', 'Pay a YES identity next time. No network fee.'], 'the top update\'s teaser');
+  t.eq(tz.link, ['#/whatsnew/pay-identity', "See what's new: Pay a YES identity", "See what's new"], 'its link, "See what\'s new" (named in full), opens that update in What\'s new');
+  t.eq([tz.divider, tz.target], [['solid', 1], true], 'a hairline sets it apart from the figures; the link is at least 24px tall');
+  t.eq(await page.getByRole('link', { name: "See what's new: Pay a YES identity", exact: true }).count(), 1, 'the link\'s accessible name');
+  const tc = [await contrast('.promo-teaser__text', '.ov-balance'), await contrast('.promo-teaser__link', '.ov-balance'), await contrast('.promo-teaser .promo-from', '.ov-balance')];
+  t.assert(tc.every((x) => x >= 4.5), 'teaser text, link and label are at least 4.5:1 on the black card: ' + JSON.stringify(tc));
+  await page.locator('[data-fk="promo-teaser-see"]').focus();
+  const tf = await state(() => {
+    const a = document.activeElement;
+    const s = getComputedStyle(a);
+    return [a.getAttribute('data-fk'), a.matches(':focus-visible'), s.outlineStyle, parseFloat(s.outlineWidth) >= 2];
+  });
+  t.eq(tf, ['promo-teaser-see', true, 'solid', true], 'keyboard focus on the link is visible');
+  const tfc = await state(() => {
+    const parse = (c) => c.match(/[\d.]+/g).map(Number);
+    const lum = (c) => {
+      const g = (x) => ((x /= 255) <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4);
+      const m = parse(c);
+      return 0.2126 * g(m[0]) + 0.7152 * g(m[1]) + 0.0722 * g(m[2]);
+    };
+    const [x, y] = [lum(getComputedStyle(document.activeElement).outlineColor), lum(getComputedStyle(document.querySelector('.ov-balance')).backgroundColor)].sort((p, q) => q - p);
+    return +((x + 0.05) / (y + 0.05)).toFixed(2);
+  });
+  t.assert(tfc >= 3, 'the focus outline is at least 3:1 on the black card: ' + tfc);
+  await state(() => document.activeElement.blur());
+  await state(() => YES.setLang('es'));
+  t.eq(nb(await text('.promo-teaser__text')), 'La próxima vez, paga a una identidad YES. Sin comisión de red.', 'Spanish teaser');
+  t.eq(await state(() => [document.querySelector('.promo-teaser__link').textContent.trim(), document.querySelector('.promo-teaser__link').getAttribute('aria-label')]), ['Ver novedades', 'Ver novedades: Paga a una identidad YES'], 'Spanish link');
+  await state(() => YES.setLang('en'));
+  const trustTeaser = await state(() => {
+    const p = YES.config.promotions.items[0];
+    const rule = p.rule;
+    p.rule = { kind: 'never' };
+    YES.renderAll();
+    const el = document.querySelector('.promo-teaser');
+    const out = el && [el.getAttribute('data-promo'), el.querySelector('.promo-teaser__text').textContent];
+    p.rule = rule;
+    YES.renderAll();
+    return out;
+  });
+  t.eq(trustTeaser, ['trust', 'Verify your address to reach Gold.'], 'no network fee paid: the trust update leads, with the next level from the data');
+  if (desktop) {
+    for (const lang of ['en', 'es']) {
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await fresh('');
+      await state((l) => YES.setLang(l), lang);
+      const fold = await state(() => {
+        const r = document.querySelector('.promo-teaser').getBoundingClientRect();
+        return { top: Math.round(r.top + scrollY), bottom: Math.round(r.bottom + scrollY), vh: innerHeight, card: Math.round(document.querySelector('.promo--overview').getBoundingClientRect().top + scrollY) };
+      });
+      t.assert(fold.bottom <= fold.vh, `${lang}: the teaser is on the first screen at 1280×800: ` + JSON.stringify(fold));
+      // It fills the room above the actions: the balance, the pending notice and Statement details stay put.
+      const pos = await state(() => {
+        const y = () =>
+          ['.ov-hero', '.ov-change', '.ov-balance__side .ov-actions .btn', '.ov-notin', '.ov-details', '.ov-balance'].map((s) => {
+            const r = document.querySelector(s).getBoundingClientRect();
+            return [Math.round(r.top + scrollY), Math.round(r.bottom + scrollY)];
+          });
+        const c = YES.config.promotions;
+        const on = y();
+        c.enabled = false;
+        YES.renderAll();
+        const offPos = y();
+        c.enabled = true;
+        YES.renderAll();
+        return { on, off: offPos };
+      });
+      t.eq(pos.on, pos.off, `${lang}: at 1280×800 the teaser moves nothing (balance, net change, actions, pending notice, Statement details, the card's bottom)`);
+    }
+    await state(() => YES.setLang('en'));
+    await page.setViewportSize({ width: 1280, height: 900 });
+  }
+
+  t.step('teaser: the link, and hidden when the top update is dismissed');
+  await fresh('');
+  await page.click('[data-fk="promo-teaser-see"]');
+  await page.waitForFunction(() => YES.state.view === 'whatsnew');
+  await page.waitForFunction(() => document.activeElement && document.activeElement.id === 'wn-pay-identity-title', null, { timeout: 3000 }).catch(() => {});
+  t.eq(await state(() => [location.hash, document.activeElement.id, YES.state.promos.seen, YES.promos.metrics().clicks['pay-identity']]), ['#/whatsnew/pay-identity', 'wn-pay-identity-title', ['pay-identity'], 1], 'the link opens the update in What\'s new and focuses it; it is marked seen; the click is counted in memory');
+  await fresh('');
+  await page.click('[data-fk="promo-ov-dismiss"]');
+  t.eq(await state(() => [YES.promos.current(), document.querySelectorAll('.promo-teaser').length, document.querySelectorAll('.promo-teaser-slot').length]), ['trust', 0, 1], 'the top update dismissed: the card moves on, the teaser goes (its empty slot is not shown)');
+  t.eq(await state(() => getComputedStyle(document.querySelector('.promo-teaser-slot')).display), 'none', 'the empty slot takes no room');
+  await fresh('');
+  t.eq(await state(() => document.querySelectorAll('.promo-teaser').length), 0, 'after a reload: still no teaser');
+  await state(() => YES.promos.restore());
+  t.eq(await state(() => document.querySelector('.promo-teaser') && document.querySelector('.promo-teaser').getAttribute('data-promo')), 'pay-identity', 'restored: the teaser is back');
+
+  /* ------------------------------------------------------------------ */
+  t.step('the card: tinted, led by the customer\'s own figure, with a preview');
+  await clearStore();
+  await fresh('');
+  const cardOf = () =>
+    state(() => {
+      const c = document.querySelector('.promo--overview');
+      const strip = c.cloneNode(true);
+      strip.querySelectorAll('.promo__count, .sr-only').forEach((e) => e.remove());
+      return {
+        id: c.getAttribute('data-promo'),
+        h3: c.querySelector('h3').textContent,
+        support: c.querySelector('.promo__support') ? c.querySelector('.promo__support').textContent : null,
+        visual: !!c.querySelector('.promo__visual'),
+        compare: [...c.querySelectorAll('.promo-compare__row')].map((r) => [r.querySelector('.promo-compare__who').textContent.trim(), r.querySelector('.promo-compare__fee').textContent, !!r.querySelector('.promo-compare__mark')]),
+        chips: [...c.querySelectorAll('.promo-chips__list')].map((u) => [document.getElementById(u.getAttribute('aria-labelledby')).textContent, [...u.querySelectorAll('.promo-chip')].map((x) => x.textContent.trim())]),
+        text: strip.textContent.replace(/ /g, ' ')
+      };
+    });
+  const expect = await state(() => {
+    const f = YES.promos.facts();
+    return {
+      fee: YES.fmt.amount(-YES.calc.tx(f.networkFeeTxIds[0]).amount),
+      zero: YES.fmt.amount(0),
+      sent: YES.fmt.amount(f.sent),
+      limit: YES.fmt.amount(f.monthlySendLimit),
+      codes: YES.config.promotions.items.find((p) => p.theme === 'currencies').codes.map((c) => c.code),
+      asset: YES.calc.asset().symbol
+    };
+  });
+  let k = await cardOf();
+  t.eq([k.id, nb(k.h3), nb(k.support)], ['pay-identity', `You paid ${nb(expect.fee)} in network fees this month`, 'Pay a YES identity, like yes.danielk, instantly and with no network fee.'], 'identity: the hook "You paid 1.00 USBC in network fees this month" leads, the supporting line follows');
+  t.eq(k.compare.map((r) => [r[0], nb(r[1]), r[2]]), [['External wallet', `Network fee ${nb(expect.fee)}`, false], ['YES identity', `Network fee ${nb(expect.zero)}`, true]], 'identity: the comparison, figures from YES.calc and YES.fmt (1.00 and 0.00 USBC), a check mark on the YES row');
+  t.eq([nb(expect.fee), nb(expect.zero)], ['1.00 USBC', '0.00 USBC'], 'the comparison\'s figures');
+  if (desktop) {
+    const look = await state(() => {
+      const c = getComputedStyle(document.querySelector('.promo--overview'));
+      const i = getComputedStyle(document.querySelector('.promo--overview .promo__icon'));
+      return { border: [c.borderTopStyle, c.borderTopWidth], bg: c.backgroundColor, tile: [i.backgroundColor, i.color] };
+    });
+    t.eq(look.border, ['solid', '2px'], 'a 2px accent edge');
+    {
+      const n = look.bg.match(/[\d.]+/g).map(Number).slice(0, 3).map((v) => (look.bg.startsWith('color(') ? v * 255 : v));
+      t.assert([242, 242, 255].every((v, i) => Math.abs(n[i] - v) <= 1.5), 'a light accent tint (#0004FF at 5% on white, about #F2F2FF): ' + look.bg);
+    }
+    t.eq(look.tile, ['rgb(0, 4, 255)', 'rgb(255, 255, 255)'], 'a solid #0004FF icon tile with a white icon');
+    const cc = [await contrast('.promo--overview .promo__eyebrow', '.promo--overview'), await contrast('.promo--overview .promo__support', '.promo--overview'), await contrast('.promo--overview .promo__foot', '.promo--overview'), await contrast('.promo--overview .promo__count', '.promo--overview')];
+    t.assert(cc.every((x) => x >= 4.5), 'text on the tint is at least 4.5:1: ' + JSON.stringify(cc));
+    const h = await state(() => Math.round(document.querySelector('.promo--overview').getBoundingClientRect().height));
+    t.assert(h <= 240, 'the card stays compact at 1280px with its preview: ' + h + 'px');
+  }
+  await page.click('[data-fk="promo-ov-next"]');
+  k = await cardOf();
+  t.eq([k.id, nb(k.h3), nb(k.support)], ['trust', `You sent ${nb(expect.sent)} of your ${nb(expect.limit)} monthly limit`, 'Verify your address to reach Gold and raise your limit.'], 'trust: the hook "You sent 450.00 USBC of your 1,000.00 USBC monthly limit", then the supporting line');
+  t.eq([nb(expect.sent), nb(expect.limit)], ['450.00 USBC', '1,000.00 USBC'], 'the real figures from the data');
+  t.eq([k.visual, await page.locator('.promo--overview .promo__visual .promo-meter__step').count()], [true, 3], 'trust: the Bronze, Silver and Gold meter on the card');
+  await page.click('[data-fk="promo-ov-next"]');
+  k = await cardOf();
+  t.eq([k.id, k.h3, k.support], ['currencies', 'More currencies', null], 'currencies: no hook, the title stays');
+  t.eq(k.chips, [['Now', [expect.asset]], ['Planned', expect.codes]], 'currencies: chips for USBC now and EUBC, UKBC, MXBC and NZBC planned (from the config codes)');
+  t.eq(expect.codes, ['EUBC', 'UKBC', 'MXBC', 'NZBC'], 'the planned codes');
+  await page.click('[data-fk="promo-ov-next"]');
+  k = await cardOf();
+  t.eq([k.id, k.h3, k.support, k.visual], ['interest', 'Interest on USBC', null, false], 'interest: no hook, no preview');
+  t.eq(k.text.match(/\d[\d.,]*\d|\d/g), ['1,147.50'], 'interest: no figure but the closing balance: ' + k.text);
+  t.assert(!/%|\bAPY\b|\bTAE\b|per year|a year|annual/i.test(k.text), 'interest: no "%", rate, APY or return on the card');
+  if (desktop) {
+    const loud = await state(() => {
+      const fw = (s) => +getComputedStyle(document.querySelector(s)).fontWeight;
+      const fs = (s) => parseFloat(getComputedStyle(document.querySelector(s)).fontSize);
+      return { title: fs('.promo--overview h3'), hero: fs('.ov-hero__num'), w: fw('.promo--overview h3') };
+    });
+    t.assert(loud.title < loud.hero / 2, 'never louder than the balance: the card\'s headline is far smaller than the balance figure: ' + JSON.stringify(loud));
+  }
+  await state(() => YES.setLang('es'));
+  await page.click('[data-fk="promo-ov-next"]');
+  t.eq(nb(await text('.promo--overview h3')), 'Este mes pagaste 1,00 USBC en comisiones de red', 'Spanish identity hook');
+  t.eq(await page.locator('.promo--overview .promo-compare__fee').allInnerTexts().then((a) => a.map(nb)), ['Comisión de red 1,00 USBC', 'Comisión de red 0,00 USBC'], 'Spanish comparison');
+  await page.click('[data-fk="promo-ov-next"]');
+  t.eq(nb(await text('.promo--overview h3')), 'Enviaste 450,00 USBC de tu límite mensual de 1.000,00 USBC', 'Spanish trust hook');
+  t.eq(nb(await text('.promo--overview .promo__support')), 'Verifica tu dirección para llegar a Oro y aumentar tu límite.', 'Spanish supporting line');
+  await state(() => YES.setLang('en'));
+
+  t.step('the card\'s one-time entrance');
+  await fresh('');
+  const pre = await state(() => {
+    const c = document.querySelector('.promo--overview');
+    return { cls: c.classList.contains('promo--enter'), op: getComputedStyle(c).opacity, below: c.getBoundingClientRect().top > innerHeight };
+  });
+  // Below the first screen (phones), the card waits fully visible; on a tall
+  // screen it is already entering as the page loads.
+  if (pre.below) t.eq([pre.cls, pre.op], [false, '1'], 'below the first screen: no entrance yet, and the card is visible (never hidden while it waits)');
+  await page.locator('.promo--overview').scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => document.querySelector('.promo--overview').classList.contains('promo--enter'), null, { timeout: 3000 }).catch(() => {});
+  const anim = await state(() => {
+    const c = document.querySelector('.promo--overview');
+    const s = getComputedStyle(c);
+    let from = null;
+    for (const sh of document.styleSheets) {
+      for (const r of sh.cssRules) {
+        if (r.type === CSSRule.KEYFRAMES_RULE && r.name === 'promo-enter') from = [r.cssRules[0].style.opacity, r.cssRules[0].style.transform];
+      }
+    }
+    return { cls: c.classList.contains('promo--enter'), name: s.animationName, dur: s.animationDuration, n: s.animationIterationCount, from };
+  });
+  t.eq(anim, { cls: true, name: 'promo-enter', dur: '0.3s', n: '1', from: ['0', 'translateY(10px)'] }, 'in view: it fades in and lifts 10px over 300ms, once');
+  await page.click('[data-fk="promo-ov-next"]');
+  await page.evaluate(() => scrollTo(0, 0));
+  await page.waitForTimeout(150);
+  await page.locator('.promo--overview').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(350);
+  t.eq(await state(() => [document.querySelector('.promo--overview').getAttribute('data-promo'), document.querySelector('.promo--overview').classList.contains('promo--enter')]), ['trust', false], 'never again: not after Next update, not on scrolling back');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await fresh('');
+  await page.locator('.promo--overview').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(400);
+  t.eq(await state(() => [document.querySelector('.promo--overview').classList.contains('promo--enter'), getComputedStyle(document.querySelector('.promo--overview')).animationName, getComputedStyle(document.querySelector('.promo--overview')).opacity]), [false, 'none', '1'], 'reduced motion: no entrance class, no animation, the card simply shows');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+
+  /* ------------------------------------------------------------------ */
+  t.step('Ask YES: "What\'s new?" first, and a dot until it is opened once');
+  await clearStore();
+  await fresh('');
+  t.eq((await badge()).ask, [true, 'Ask YES about this statement (new)'], 'a dot on Ask YES, said in its name');
+  await page.click('#masthead [data-ask]');
+  await page.locator('#assistant-drawer[open]').waitFor();
+  const qids = await state(() => [...document.querySelectorAll('#assistant-drawer .asst-sugg [data-asst-q]')].map((b) => b.getAttribute('data-asst-q')));
+  t.eq([qids[0], qids.length, await state(() => YES.assistant.questions()[0])], ['whats_new', 8, 'whats_new'], '"What\'s new?" is the first of the eight suggested questions');
+  t.eq(await state(() => [YES.state.promos.ask, JSON.parse(localStorage.getItem('yes.promos')).ask]), [true, true], 'opened once: kept in YES.state and localStorage');
+  await state(() => YES.assistant.close());
+  t.eq((await badge()).ask, [false, 'Ask YES about this statement'], 'the dot is gone, and "(new)" with it');
+  t.eq((await badge()).api.whatsnew, 4, 'opening Ask YES does not count as seeing What\'s new');
+  await fresh('');
+  t.eq((await badge()).ask, [false, 'Ask YES about this statement'], 'after a reload: no dot');
+  await state(() => YES.setLang('es'));
+  t.eq((await badge()).ask, [false, 'Pregunta a YES sobre este estado de cuenta'], 'Spanish: no "(nuevo)" either');
+  await state(() => YES.setLang('en'));
+
+  t.step('What\'s new: New pills on the first visit, gone on the next');
+  await clearStore();
+  await fresh('#/whatsnew');
+  const pills = () => state(() => [...document.querySelectorAll('#whatsnew-root .promo--full')].filter((a) => a.querySelector('.promo-new')).map((a) => a.getAttribute('data-promo')));
+  t.eq(await pills(), IDS, 'first visit: every update is New');
+  const pill = await state(() => {
+    const p = document.querySelector('#whatsnew-root .promo-new');
+    return { text: p.textContent, prev: p.previousElementSibling && p.previousElementSibling.className, inTags: !!p.closest('.promo__tags') };
+  });
+  t.eq(pill, { text: 'New', prev: 'tag tag--illustrative', inTags: true }, 'a "New" pill with the From YES and Illustrative labels');
+  const pc = await contrast('#whatsnew-root .promo-new');
+  t.assert(pc >= 4.5, 'the pill\'s word is at least 4.5:1: ' + pc);
+  t.eq(await state(() => YES.state.promos.seen.slice().sort()), IDS.slice().sort(), 'entering marked every update seen');
+  await state(() => YES.setLang('es'));
+  t.eq([await pills(), (await text('#whatsnew-root .promo-new')).trim()], [IDS, 'Nuevo'], 'the pills stay for this visit, also after a language switch (Nuevo)');
+  await state(() => YES.setLang('en'));
+  await backToOverview();
+  await goWhatsnew();
+  t.eq(await pills(), [], 'the next visit: no New pills');
+  await fresh('#/whatsnew');
+  t.eq(await pills(), [], 'after a reload: none either');
+  await clearStore();
+  await fresh('#/whatsnew/trust');
+  t.eq(await pills(), IDS, 'a deep link: all four were new when the visit began');
+  t.eq(await state(() => YES.state.promos.seen), ['trust'], 'the deep link marked only that update seen');
+  await backToOverview();
+  await goWhatsnew();
+  t.eq(await pills(), ['pay-identity', 'currencies', 'interest'], 'the next visit: the three not seen yet are still New');
+  await backToOverview();
+  await goWhatsnew();
+  t.eq(await pills(), [], 'and then none');
+
+  if (desktop) {
+    t.step('forced colours: the badge, the card and the dots keep a visible system-colour edge');
+    await clearStore();
+    await fresh('');
+    await page.emulateMedia({ forcedColors: 'active' });
+    const fc = await state(() => {
+      const b = getComputedStyle(document.querySelector('.nav__link[data-nav="whatsnew"] .nav-badge'));
+      const c = getComputedStyle(document.querySelector('.promo--overview'));
+      const d = getComputedStyle(document.querySelector('[data-ask] .mast-dot'));
+      return { badge: [b.borderTopStyle, parseFloat(b.borderTopWidth) >= 1], card: [c.borderTopStyle, c.borderTopWidth, c.backgroundImage], dot: [d.forcedColorAdjust, d.backgroundColor !== 'rgba(0, 0, 0, 0)'] };
+    });
+    t.eq(fc, { badge: ['solid', true], card: ['solid', '2px', 'none'], dot: ['none', true] }, 'forced colours: a bordered badge, a 2px card edge without texture, a system-colour dot');
+    await page.emulateMedia({ forcedColors: 'none' });
+  }
+  await clearStore();
+
+  /* ------------------------------------------------------------------ */
   t.step('EN/ES parity, every string translated, no em dashes');
   const parity = await state(() => {
     const out = { missing: [], same: [], dashes: [], fields: 0 };
@@ -421,11 +895,11 @@ export default async function (t) {
         if (o && typeof o === 'object') Object.keys(o).forEach((k) => walk(o[k], path + '.' + k));
       };
       walk(p, p.id);
-      ['eyebrow', 'title', 'body', 'note', 'cta', 'feature', 'footnote'].forEach((f) => {
+      ['eyebrow', 'title', 'body', 'note', 'cta', 'feature', 'footnote', 'teaser', 'hook', 'support'].forEach((f) => {
         if (p[f] && p[f].en === p[f].es) out.same.push(p.id + '.' + f);
       });
     });
-    const keys = Object.keys(YES.i18n.dict.en).filter((k) => /^promos\.|^nav\.whatsnew$|^assistant\.(q\.whats_new|fromYes|subject\.whatsnew|whatsnew\.)/.test(k));
+    const keys = Object.keys(YES.i18n.dict.en).filter((k) => /^promos\.|^nav\.(whatsnew|newUpdates1|newUpdatesN)$|^menu\.newUpdates$|^ask\.newMark$|^assistant\.(q\.whats_new|fromYes|subject\.whatsnew|whatsnew\.)/.test(k));
     out.keys = keys.length;
     keys.forEach((k) => {
       ['en', 'es'].forEach((l) => {
@@ -457,13 +931,13 @@ export default async function (t) {
   /* ------------------------------------------------------------------ */
   t.step('the statement of record stays factual: print, PDF, CSV, noscript');
   const promoStrings = await state((ids) => {
-    const out = new Set(['From YES', "What's new from YES", 'yes.danielk', 'EUBC', 'YES identity', 'Interest on USBC', 'Rates and terms']);
+    const out = new Set(['From YES', "What's new from YES", 'yes.danielk', 'EUBC', 'YES identity', 'Interest on USBC', 'Rates and terms', 'new updates', 'new update', 'novedades nuevas', '(new)', '(nuevo)', 'Network fee per send', 'Comisión de red por envío', 'Identidad YES']);
     ['en', 'es'].forEach((l) => {
       const keep = YES.i18n.lang;
       YES.i18n.lang = l;
       ids.forEach((id) => {
         const m = YES.promos.view(id);
-        [m.title, m.body, m.note, m.cta, m.footnote, m.personal].filter(Boolean).forEach((s) => out.add(s.replace(/\u00a0/g, ' ')));
+        [m.title, m.body, m.note, m.cta, m.footnote, m.personal, m.teaser, m.hook, m.support].filter(Boolean).forEach((s) => out.add(s.replace(/\u00a0/g, ' ')));
       });
       YES.i18n.lang = keep;
     });
@@ -474,7 +948,7 @@ export default async function (t) {
     await fresh('');
     await page.emulateMedia({ media: 'print' });
     const pr = await state(() => ({
-      shown: [...document.querySelectorAll('[data-promo], .promo-slot, .promo-note, #view-whatsnew')].filter((e) => getComputedStyle(e).display !== 'none').length,
+      shown: [...document.querySelectorAll('[data-promo], .promo-slot, .promo-note, .promo-teaser-slot, .promo-teaser, .nav-badge, .mast-dot, #view-whatsnew')].filter((e) => getComputedStyle(e).display !== 'none').length,
       record: document.getElementById('print-root').innerText
     }));
     t.eq(pr.shown, 0, 'print: every promotion is hidden');
@@ -506,6 +980,8 @@ export default async function (t) {
   /* ------------------------------------------------------------------ */
   t.step('axe: no violations, light and dark');
   for (const theme of ['light', 'dark']) {
+    // Nothing seen yet: the badge, the dots, the teaser and (in What's new) the New pills all show.
+    await clearStore();
     await fresh('');
     await state((th) => YES.theme.set(th), theme);
     await axeOk(`${theme}, Overview`);
@@ -530,6 +1006,7 @@ export default async function (t) {
     for (const lang of ['en', 'es']) {
       for (const size of ['100%', '200%']) {
         for (const hash of ['', '#/whatsnew']) {
+          await clearStore(); // nothing seen: the masthead with its badge and dots, New pills
           await fresh(hash);
           await state((l) => YES.setLang(l, { silent: true }), lang);
           await state((s) => (document.documentElement.style.fontSize = s), size);
@@ -537,7 +1014,7 @@ export default async function (t) {
           if (!hash) await page.click('[data-fk="promo-ov-next"]'); // the trust meter, the widest content
           const r = await state(() => {
             const vw = document.documentElement.clientWidth;
-            const out = [...document.querySelectorAll('.promo-slot *, .promo-note *, #view-whatsnew *')]
+            const out = [...document.querySelectorAll('.promo-slot *, .promo-note *, .promo-teaser-slot *, #masthead *, #view-whatsnew *')]
               .filter((e) => !e.closest('.sr-only') && !e.ownerSVGElement && e.getClientRects().length)
               .filter((e) => {
                 const b = e.getBoundingClientRect();
@@ -584,8 +1061,11 @@ export default async function (t) {
       return m;
     };
     for (const lang of ['en', 'es']) {
+      // Nothing seen yet: the What's new tab carries its badge, Menu and Ask YES their dots.
+      await clearStore();
       await fresh('');
       await state((l) => YES.setLang(l, { silent: true }), lang);
+      t.eq(await state(() => [YES.promos.badges().whatsnew, !!document.querySelector('.nav__link[data-nav="whatsnew"] .nav-badge'), !!document.querySelector('[data-mast-menu] .mast-dot'), !!document.querySelector('[data-ask] .mast-dot')]), [4, true, true, true], `${lang}: the masthead is checked with its badge and dots`);
       for (const w of [320, 390, 720, 880, 992, 1100, 1280]) {
         await page.setViewportSize({ width: w, height: 900 });
         await page.waitForTimeout(150);

@@ -489,6 +489,9 @@
       // under the balance and the net change and actions take the second column.
       '<div class="ov-balance__side">' +
       changeHtml() +
+      // "From YES" (promos module): one line for the top update, set apart from
+      // the figures; it fills the room above the actions ('' when there is none).
+      YES.promos.teaserHtml() +
       '<div class="ov-actions">' +
       '<button type="button" class="btn btn--primary" data-ov-explore data-fk="ov-explore"><span>' +
       esc(t('overview.actions.explore')) +

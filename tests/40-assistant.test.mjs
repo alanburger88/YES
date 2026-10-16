@@ -4,15 +4,16 @@ export const meta = { name: 'assistant', viewports: ['desktop', 'mobile', 'narro
 
 const BAD = ['serious', 'critical'];
 const TRANSFERS_OUT = ['TX-260903-1127', 'TX-260909-2051', 'TX-260918-2011', 'TX-260924-1327', 'TX-260929-1952'];
+// "What's new?" (From YES) leads while the promos module has updates for Ask YES.
 const QUESTIONS_EN = [
+  "What's new?",
   'Why did my balance change?',
   'What did I pay in fees?',
   'What was my largest movement?',
   'What is pending?',
   'Is my statement balance my live balance?',
   'Is each USBC always worth one US dollar?',
-  'Where did I send money on-chain?',
-  "What's new?"
+  'Where did I send money on-chain?'
 ];
 // Amounts may carry a no-break space; compare on plain spaces and plain apostrophes.
 const norm = (s) => String(s).replace(/ /g, ' ').replace(/’/g, "'");
@@ -331,7 +332,7 @@ export default async function (t) {
   t.assert((await latestTitle()).startsWith('Hello, Sam.'), 'welcome answer');
   t.assert((await latestText()).includes('as of Sep 30, 2026'), 'welcome names the statement "as of" time');
   const qs = await page.$$eval('#assistant-drawer .asst-sugg [data-asst-q]', (els) => els.map((e) => e.textContent.trim()));
-  t.eq(qs, QUESTIONS_EN, 'eight suggested questions (the eighth: What\'s new from YES)');
+  t.eq(qs, QUESTIONS_EN, 'eight suggested questions (the first: What\'s new from YES)');
   const small = await page.evaluate(() =>
     Array.from(document.querySelectorAll('#assistant-drawer button, #assistant-drawer input, #assistant-drawer summary'))
       .filter((el) => el.getClientRects().length && !el.closest('.sr-only'))
@@ -937,7 +938,7 @@ export default async function (t) {
   t.eq(await page.inputValue('#asst-input'), 'draft question', 'draft survives the switch');
   t.eq(await page.getAttribute(`[data-fk="asst-${fid2}-fb-no"]`, 'aria-pressed'), 'true', 'feedback survives the switch');
   const qsEs = await page.$$eval('#assistant-drawer .asst-sugg [data-asst-q]', (els) => els.map((e) => e.textContent.trim()));
-  t.eq(qsEs[5], '¿Cada USBC vale siempre un dólar estadounidense?', 'suggestions translated');
+  t.eq([qsEs[0], qsEs[6]], ['¿Qué hay de nuevo?', '¿Cada USBC vale siempre un dólar estadounidense?'], 'suggestions translated');
   t.assert(norm(await page.locator('#assistant-drawer [data-asst-ctx]').innerText()).includes('Sobre:'), 'context chip translated');
   await typeAsk('¿Debería comprar más?');
   t.eq(await latestTitle(), 'No puedo darte consejos de inversión', 'Spanish refusal');

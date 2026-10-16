@@ -42,6 +42,9 @@
   .promo-slot,
   .promo-note,
   .promo-cleared,
+  .promo-teaser-slot,
+  .nav-badge,
+  .mast-dot,
   #view-whatsnew {
     display: none !important;
   }

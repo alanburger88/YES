@@ -23,12 +23,53 @@
 .promo-slot:empty {
   display: none;
 }
-/* Dot-grid texture in the card's top right corner only (brand texture,
-   restrained); off in print and forced colours. */
+/*
+ * The Overview card stands out, calmly: a light accent tint (#0004FF at 5% on
+ * white, about #F2F2FF; on dark the blue tint at 10% over the surface), a 2px
+ * accent edge, a dot grid a little stronger than the balance card's (in the
+ * accent, in the top right corner only) and a solid accent icon tile. Every
+ * text token keeps 4.5:1 on the tint (light: --muted #5E5E5E 5.9:1; dark:
+ * --muted #A8A8A8 7.3:1). Off in print; forced colours use a system border.
+ */
+.promo--overview {
+  --promo-tint: color-mix(in srgb, var(--sel) 5%, var(--surface));
+  --promo-dots: radial-gradient(circle, color-mix(in srgb, var(--sel) 26%, transparent) 1.3px, transparent 1.7px);
+  background-color: var(--promo-tint);
+  border: 2px solid var(--sel);
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .promo--overview {
+    --promo-tint: color-mix(in srgb, var(--sel) 10%, var(--surface));
+    --promo-dots: radial-gradient(circle, color-mix(in srgb, var(--sel) 34%, transparent) 1.3px, transparent 1.7px);
+    border-color: color-mix(in srgb, var(--sel) 75%, var(--surface));
+  }
+}
 @media screen {
+  :root[data-theme='dark'] .promo--overview {
+    --promo-tint: color-mix(in srgb, var(--sel) 10%, var(--surface));
+    --promo-dots: radial-gradient(circle, color-mix(in srgb, var(--sel) 34%, transparent) 1.3px, transparent 1.7px);
+    border-color: color-mix(in srgb, var(--sel) 75%, var(--surface));
+  }
   .promo--overview {
-    background-image: radial-gradient(ellipse 38% 150px at 100% 0, transparent 0, var(--surface) 100%), var(--dots);
+    background-image: radial-gradient(ellipse 46% 190px at 100% 0, transparent 0, var(--promo-tint) 100%), var(--promo-dots);
     background-size: auto, var(--dots-size);
+  }
+}
+/* One-time entrance (70-promos.js adds the class as the card first scrolls
+   into view, never under reduced motion): a fade and an 10px lift. */
+@media screen and (prefers-reduced-motion: no-preference) {
+  .promo--overview.promo--enter {
+    animation: promo-enter 300ms var(--ease);
+  }
+}
+@keyframes promo-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 
@@ -167,14 +208,39 @@
 }
 
 /* ------------------------------------------------- The Overview card */
+.promo--overview .promo__icon {
+  background: var(--sel);
+  border-color: var(--sel);
+  color: var(--on-sel);
+}
 .promo--overview .promo__main {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'icon text'
+    'visual visual'
+    'actions actions';
   gap: var(--s3) var(--s4);
   margin-top: var(--s3);
 }
+.promo--overview .promo__icon {
+  grid-area: icon;
+}
+.promo--overview .promo__text {
+  grid-area: text;
+  min-width: 0;
+}
+.promo--overview .promo__visual {
+  grid-area: visual;
+  min-width: 0;
+}
 .promo--overview .promo__actions {
-  grid-column: 1 / -1;
+  grid-area: actions;
+}
+/* The hook (the customer's own figure) is the headline; the line under it
+   says what to do. */
+.promo--hook .promo__support {
+  color: var(--ink-2);
 }
 .promo--overview .promo__actions .btn--promo {
   flex: 1 1 100%;
@@ -184,8 +250,11 @@
   border-color: var(--line-strong);
 }
 @container promo (width >= 36em) {
-  .promo--overview .promo__actions {
-    grid-column: 2;
+  .promo--overview .promo__main {
+    grid-template-areas:
+      'icon text'
+      '. visual'
+      '. actions';
   }
   .promo--overview .promo__actions .btn--promo {
     flex: 0 0 auto;
@@ -194,25 +263,130 @@
     flex: 0 0 auto;
   }
 }
-/* With room, the actions take a column of their own beside the text, so the
-   card stays short and the balance journey stays close. */
+/* With room, the preview takes a column of its own beside the text and the
+   actions sit under the text, so the card stays short and the balance
+   journey stays close. */
 @container promo (width >= 52em) {
   .promo--overview {
     padding: var(--s5) var(--s6);
   }
   .promo--overview .promo__main {
-    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: start;
+    grid-template-areas:
+      'icon text'
+      '. actions';
+    column-gap: var(--s6);
+    margin-top: var(--s2);
   }
-  .promo--overview .promo__actions {
-    grid-column: 3;
-    flex-direction: column;
-    align-items: stretch;
-    min-width: 13rem;
+  .promo--overview.promo--visual .promo__main {
+    grid-template-columns: auto minmax(0, 1fr) minmax(15rem, 20rem);
+    grid-template-areas:
+      'icon text visual'
+      '. actions visual';
   }
-  .promo--overview .promo__actions .btn {
-    justify-content: flex-start;
-  }
+}
+
+/* ------------------------------------------- Previews on the Overview card */
+.promo-compare__label,
+.promo-chips__label {
+  margin: 0 0 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.promo-compare__rows {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Identity: two rows, an external wallet's fee and a YES identity's. The YES
+   row is marked by a check mark, an accent outline and its 0.00 figure. */
+.promo-compare__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px var(--s3);
+  padding: 6px var(--s3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--fs-xs);
+}
+.promo-compare__who {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.promo-compare__who,
+.promo-compare__fee {
+  min-width: 0;
+}
+.promo-compare__fee {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.promo-compare__row--yes {
+  border: 2px solid var(--sel);
+  padding: 5px calc(var(--s3) - 1px);
+}
+.promo-compare__row--yes .promo-compare__fee {
+  color: var(--ink);
+  font-weight: 600;
+}
+.promo-compare__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--sel);
+  color: var(--on-sel);
+}
+/* Currencies: the asset today, the planned ones beside it (words, not colour). */
+.promo-chips {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s2) var(--s3);
+}
+.promo-chips__label {
+  margin: 0;
+  line-height: 24px;
+}
+.promo-chips__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.promo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px dashed var(--field-line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.promo-chip--now {
+  border: 1px solid var(--sel);
+  background: var(--sel);
+  color: var(--on-sel);
+}
+.promo--overview .promo-meter {
+  margin-top: 0;
 }
 
 /* The last update was dismissed: one quiet line (this page view only). */
@@ -244,6 +418,82 @@
 .promo-cleared__link:hover,
 .promo-note__link:hover {
   text-decoration-thickness: 2px;
+}
+
+/* ----------------------------- The balance card's teaser (ink field) */
+/* One line for the top update, in the room above the balance card's actions.
+   A hairline, the "From YES" label and the Illustrative tag set it apart from
+   the figures. It sits on the black ink field and reads its tokens: text
+   --ink-2 #D1D1D1 (13.75:1), label and link --primary-ink #8587FF (6.91:1). */
+.promo-teaser-slot:empty {
+  display: none;
+}
+.promo-teaser {
+  margin-top: var(--s3);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--line-strong);
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+}
+/* One flowing line (two when the column is narrow): the labels first, then
+   the message and its link, so it fits the room above the actions. */
+.promo-teaser__msg {
+  margin: 0;
+  line-height: 24px;
+}
+.promo-teaser__labels {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--s2);
+  margin-inline-end: var(--s1);
+  vertical-align: top;
+}
+.promo-teaser__labels .tag {
+  line-height: 1.4;
+}
+.promo-teaser__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  vertical-align: middle;
+  color: var(--primary-ink);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: 4px;
+}
+.promo-teaser__link > span:first-child {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.promo-teaser__link:hover > span:first-child {
+  text-decoration-thickness: 2px;
+}
+.promo-teaser__link .icon {
+  flex: none;
+}
+/* A wide column (1280px screens): the labels get a line of their own and the
+   message and its link share the next. */
+@container (min-width: 25rem) {
+  .promo-teaser__labels {
+    display: flex;
+    width: fit-content;
+    margin-bottom: 2px;
+  }
+}
+/* Two columns: the teaser takes the room above the actions, which move up a
+   little to make it (10-overview.css gives them --s5 above). */
+@container ov-balance (min-width: 38rem) {
+  .ov-balance__side:has(.promo-teaser) .ov-actions {
+    padding-top: var(--s4);
+  }
+}
+@media (pointer: coarse) {
+  .promo-teaser__link {
+    min-height: 32px;
+  }
 }
 
 /* --------------------------------- One-line notes (Fees, transaction) */
@@ -392,6 +642,21 @@
   color: var(--ink-2);
 }
 
+/* ----------------------------------------------- New (What's new view) */
+/* Not seen yet when this visit began: an accent pill with the word. */
+.promo-new {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border: 1px solid var(--sel);
+  border-radius: 999px;
+  background: var(--sel);
+  color: var(--on-sel);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  line-height: 1.6;
+}
+
 /* ----------------------------------------------------- What's new view */
 #whatsnew-root {
   container: wn / inline-size;
@@ -439,6 +704,12 @@
   flex-direction: column;
   width: 100%;
   scroll-margin-top: calc(var(--masthead-h) + var(--s4));
+  /* A lighter version of the Overview card's tint. */
+  background-color: color-mix(in srgb, var(--sel) 2.5%, var(--surface));
+}
+.promo--full .promo-compare {
+  margin-top: var(--s3);
+  max-width: 30rem;
 }
 @media (min-width: 720px) {
   .promo--full {
@@ -481,8 +752,18 @@
   }
   .promo,
   .promo__icon,
-  .promo-note {
+  .promo-note,
+  .promo-new,
+  .promo-chip,
+  .promo-compare__row {
     border: 1px solid CanvasText;
+  }
+  .promo--overview,
+  .promo-compare__row--yes {
+    border: 2px solid CanvasText;
+  }
+  .promo-teaser {
+    border-top-color: CanvasText;
   }
   .promo-meter__bar {
     border-color: CanvasText;

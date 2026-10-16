@@ -189,8 +189,15 @@
     slotHtml: function () {
       return '';
     },
+    teaserHtml: function () {
+      return '';
+    },
     noteHtml: function () {
       return '';
+    },
+    /* The masthead's new-updates badge and the dot on Ask YES (05-shell.js). */
+    badges: function () {
+      return { whatsnew: 0, ask: false };
     },
     list: function () {
       return [];

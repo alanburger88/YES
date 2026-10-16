@@ -49,6 +49,17 @@
   var SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
   var ENTRY_ID = /^a\d{1,9}$/;
   var QUESTIONS = ['why_balance', 'fees_paid', 'largest', 'pending', 'statement_vs_live', 'peg', 'onchain_sent', 'whats_new'];
+  /**
+   * The suggested questions in order. "What's new?" comes first while the
+   * promos module has updates for Ask YES (YES.promos.list('assistant')), and
+   * last otherwise.
+   */
+  function questions() {
+    var rest = QUESTIONS.filter(function (q) {
+      return q !== 'whats_new';
+    });
+    return YES.promos.list('assistant').length ? ['whats_new'].concat(rest) : rest.concat('whats_new');
+  }
   var Q_TOPIC = {
     why_balance: { topic: 'balance' },
     fees_paid: { topic: 'fees' },
@@ -1647,7 +1658,7 @@
     h += '<ol class="asst-thread" aria-label="' + esc(t('assistant.threadLabel')) + '">' + s.thread.map(function (e) {
       return turnFor(e, s);
     }).join('') + '</ol>';
-    h += '<section class="asst-sugg" aria-labelledby="asst-sugg-h"><h3 id="asst-sugg-h" class="asst-sugg__h">' + esc(t('assistant.suggestTitle')) + '</h3><ul class="asst-qlist">' + QUESTIONS.map(function (q) {
+    h += '<section class="asst-sugg" aria-labelledby="asst-sugg-h"><h3 id="asst-sugg-h" class="asst-sugg__h">' + esc(t('assistant.suggestTitle')) + '</h3><ul class="asst-qlist">' + questions().map(function (q) {
       return qButton(q, 'asst-q-' + q);
     }).join('') + '</ul></section>';
     if (s.thread.length > 1) {
@@ -2047,9 +2058,7 @@
     mode: function () {
       return mode;
     },
-    questions: function () {
-      return QUESTIONS.slice();
-    }
+    questions: questions
   };
 
   YES.register({

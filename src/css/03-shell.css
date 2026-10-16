@@ -176,6 +176,55 @@
 .nav__link:focus-visible {
   outline-offset: -4px;
 }
+/* "From YES": how many updates in What's new the customer has not seen yet
+   (the number is in the link's accessible name too). On --sel with --on-sel:
+   8.53:1 light, 6.91:1 dark; forced colours keep it by its border. */
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: 1.45em;
+  height: 1.45em;
+  margin-inline-start: 6px;
+  padding: 0 0.4em;
+  border: 1px solid var(--sel);
+  border-radius: 999px;
+  background: var(--sel);
+  color: var(--on-sel);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+/* A dot on Ask YES (until it is opened once) and on the phone's Menu button
+   (updates not seen yet); the words are in each button's accessible name. */
+.btn--ask,
+.mast-menu-btn {
+  position: relative;
+}
+.mast-dot {
+  /* Inside the button's box, so it never adds to the page width. */
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--sel);
+  box-shadow: 0 0 0 2px var(--bg);
+  pointer-events: none;
+}
+@media (forced-colors: active) {
+  .nav-badge {
+    border-color: CanvasText;
+  }
+  .mast-dot {
+    forced-color-adjust: none;
+    background: Highlight;
+    border: 2px solid Canvas;
+  }
+}
 
 /* Phone only (see the 45em query below). */
 .mast-menu-btn,
@@ -344,6 +393,11 @@
 }
 .mast-menu__link[aria-current='page'] .mast-menu__current {
   visibility: visible;
+}
+/* The badge follows the label; the check mark stays at the end. */
+.mast-menu__link .nav-badge {
+  margin-inline-end: auto;
+  margin-inline-start: calc(6px - var(--s3));
 }
 .mast-menu__link:focus-visible,
 .mast-menu__theme:focus-visible {

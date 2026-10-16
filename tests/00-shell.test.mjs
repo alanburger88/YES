@@ -110,7 +110,8 @@ export default async function (t) {
     // Phones: logo, period, Ask and Menu; the rest is in the Menu's panel.
     const btn = page.locator('#masthead [data-mast-menu]');
     t.eq((await btn.innerText()).trim(), 'Menu', 'Menu button shows the word "Menu"');
-    t.eq(await page.getByRole('button', { name: 'Menu', exact: true }).count(), 1, 'Menu button named "Menu"');
+    // "(new updates)" joins the name while What's new has updates not seen yet (its dot).
+    t.eq(await page.getByRole('button', { name: 'Menu (new updates)', exact: true }).count(), 1, 'Menu button named "Menu", with "(new updates)" while its dot shows');
     t.eq([await btn.getAttribute('aria-expanded'), await btn.getAttribute('aria-controls')], ['false', 'mast-menu'], 'disclosure: aria-expanded false, aria-controls the panel');
     t.assert(!(await page.locator('#mast-menu').isVisible()), 'panel closed at first');
     t.assert(!(await page.locator('#masthead .nav').isVisible()) && !(await page.locator('#masthead .mast-wide').isVisible()), 'no tab row, language switch, theme or download in the phone header');
@@ -130,8 +131,9 @@ export default async function (t) {
   t.eq(await rec.count(), 1, 'one "Download or print" button');
   t.assert((await rec.innerText()).includes(mobile ? 'Download or print' : 'Download or print'), 'shows "Download or print"');
   if (mobile) {
-    const links = await page.$$eval('#mast-menu .mast-menu__link', (els) => els.map((e) => [e.getAttribute('data-nav'), e.textContent.trim(), e.getAttribute('aria-current')]));
+    const links = await page.$$eval('#mast-menu .mast-menu__link', (els) => els.map((e) => [e.getAttribute('data-nav'), e.firstElementChild.textContent.trim(), e.getAttribute('aria-current')]));
     t.eq(links, [['overview', 'Overview', 'page'], ['transactions', 'Transactions', null], ['understand', 'Understand', null], ['help', 'Help', null], ['whatsnew', "What's new", null]], 'the five sections, the current one marked');
+    t.eq(await page.$$eval('#mast-menu .mast-menu__link .nav-badge', (els) => els.map((e) => [e.closest('a').getAttribute('data-nav'), e.textContent])), [['whatsnew', '4']], 'only What\'s new carries a count (updates not seen yet)');
     t.eq(await page.locator('#mast-menu nav[aria-label="Statement sections"]').count(), 1, 'the sections are a named navigation landmark');
     await axeBad('phone menu open');
     await t.shot('menu-open');

@@ -333,22 +333,23 @@ export default async function (t) {
   if (wide) {
     // "From YES" (promos): one compact update card follows the balance card. It
     // never displaces the balance: the whole balance card (balance, both
-    // actions, the pending notice) stays on the first screen, and the card is
-    // the only promotion above the fold.
+    // actions, the pending notice) stays on the first screen. Above the fold
+    // there is that card and the one-line teaser inside the balance card
+    // (approved 2026-10-16), nothing else.
     const promoFold = await page.evaluate(() => {
       const card = document.querySelector('#overview-root .promo--overview');
-      const above = [...document.querySelectorAll('[data-promo]')].filter((e) => e.getClientRects().length && e.getBoundingClientRect().top + scrollY < innerHeight);
+      const above = [...document.querySelectorAll('[data-promo]')].filter((e) => e.getClientRects().length && e.getBoundingClientRect().top + scrollY < innerHeight).map((e) => (e.classList.contains('promo-teaser') ? 'teaser' : e.classList.contains('promo--overview') ? 'card' : e.className));
       return {
         balance: Math.round(document.querySelector('.ov-balance').getBoundingClientRect().bottom + scrollY),
         top: card ? Math.round(card.getBoundingClientRect().top + scrollY) : null,
         height: card ? Math.round(card.getBoundingClientRect().height) : null,
-        above: above.length
+        above
       };
     });
     t.assert(promoFold.balance <= fold.vh, 'the whole balance card is on the first screen at 1280×900 (bottom ' + promoFold.balance + ')');
     t.assert(promoFold.top !== null && promoFold.top > promoFold.balance && promoFold.top < fold.vh, 'the What\'s new card starts on the first screen, right after the balance card: ' + JSON.stringify(promoFold));
     t.assert(promoFold.height <= 240, 'the What\'s new card stays compact at 1280×900: ' + promoFold.height + 'px');
-    t.eq(promoFold.above, 1, 'at most one promotion above the fold');
+    t.eq(promoFold.above, ['teaser', 'card'], 'above the fold: the one-line teaser and the one card, no other promotion');
     // PRD 5.1: with no update showing (or with the card after the journey,
     // YES.config.promotions.overviewPosition), the balance journey starts on
     // the first screen at 1280×900, exactly as before.
