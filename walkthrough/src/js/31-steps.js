@@ -203,21 +203,21 @@
     {
       id: 'whats-new',
       what:
-        'A “What\'s new from YES” card on the Overview, just below the balance card, shows one update about new YES features at a time, personalised from the statement: here “Pay a YES identity”, because Sam paid 1.00 USBC in network fees sending to an external wallet. A fifth tab, “What\'s new”, lists all four updates (“Pay a YES identity”, “Progressive trust” with a meter of the customer’s trust level, “More currencies” and “Interest on USBC”, subject to regulatory approval), and Ask YES answers “What\'s new?”. Every update is labelled “From YES” and “Illustrative”, stays on screen and is never part of the statement of record.',
+        'New YES features now get noticed from the first screen: a count of unseen updates on the “What\'s new” tab, a small blue dot on the phone Menu and on Ask YES, and a one-line “From YES” teaser inside the balance card, beside the net change. Just below the balance card, a tinted “What\'s new from YES” card shows one update at a time, led by the customer’s own figure, here “You paid 1.00 USBC in network fees this month”, with a fee comparison showing how paying a YES identity avoids it; the fifth tab, “What\'s new”, lists all four updates (“Pay a YES identity”, “Progressive trust” with a trust meter, “More currencies” and “Interest on USBC”, subject to regulatory approval) with a “New” label on unseen ones, and “What\'s new?” is the first suggested question in Ask YES. Every update is labelled “From YES” and “Illustrative”, stays on screen and is never part of the statement of record.',
       valueYes: [
-        'Cross-sells new YES features and drives their adoption inside a statement customers already open, at no extra mailing cost.',
+        'Cross-sells new YES features inside a statement customers already open, at no extra mailing cost, and the tab count, dots and teaser reach customers who never scroll, without moving the balance or the pending notice.',
         'Personalised from the customer’s real activity, such as network fees paid, trust level, amount sent and balance, so it is more relevant than a generic banner.',
         'Copy, order, eligibility rules, placements and dates are managed in one place, so YES can add, change or retire an update without touching the statement.',
         'Kept honest: in this demo every update is illustrative, “Interest on USBC” is “Subject to regulatory approval” and never shows a rate, and the buttons send nothing.'
       ],
       valueCustomer: [
         'Hear about genuinely useful features when they matter, such as paying a YES identity with no network fee after paying one.',
-        'See your own figures in each update, like your trust level, what you sent this month and your monthly send limit.',
-        '“Not now” hides an update from the Overview, and “Show dismissed updates again” in What\'s new brings it back.',
+        'See your own figures in each update, like the network fees you paid, your trust level and what you sent against your monthly limit.',
+        'The count and the “New” labels clear once you have seen the updates, “Not now” hides an update from the Overview, and “Show dismissed updates again” in What\'s new brings it back.',
         'Always clearly labelled “From YES”, and never in print, the PDF or the CSV.'
       ],
       tryIt:
-        'Just below the balance card, the “What\'s new from YES” card shows one update. Select “Next update” to see the next one, or “Not now” to hide it from your Overview. “See what\'s new” opens the “What\'s new” tab with all four updates, including the trust meter. In Ask YES, the suggested question “What\'s new?” gives the same updates. The buttons inside each update are demo-only: they show a message and send nothing.',
+        'Look for the count on the “What\'s new” tab and the “From YES” teaser inside the balance card; its “See what\'s new” link opens that update. Just below the balance card, the “What\'s new from YES” card shows one update. Select “Next update” to see the next one, or “Not now” to hide it from your Overview. “See what\'s new” opens the “What\'s new” tab with all four updates, including the trust meter; after your visit the tab count clears. In Ask YES, the first suggested question, “What\'s new?”, gives the same updates. The buttons inside each update are demo-only: they show a message and send nothing.',
       setup: [{ route: '#/overview' }, { call: 'promos.restore' }],
       target: {
         desktop: ['#overview-root .promo--overview', '#overview-root [data-promo-slot="overview"]'],
@@ -364,7 +364,7 @@
     {
       id: 'assistant',
       what:
-        'Ask YES answers questions about this statement: customers pick one of eight suggested questions (including “What\'s new?”) or type their own. Every answer shows the figures and transactions it used, with “Show these rows in Transactions”, “Was this helpful?” and “Talk to a person”, and it says plainly that it can’t move money, give investment advice or see the live account. In this demo, typed questions are matched to a fixed set of topics.',
+        'Ask YES answers questions about this statement: customers pick one of eight suggested questions (starting with “What\'s new?”) or type their own. Every answer shows the figures and transactions it used, with “Show these rows in Transactions”, “Was this helpful?” and “Talk to a person”, and it says plainly that it can’t move money, give investment advice or see the live account. In this demo, typed questions are matched to a fixed set of topics.',
       valueYes: [
         'Handles routine statement questions at any hour, taking load off support.',
         'Grounded in the statement and honest about its limits, so it builds trust instead of risk.',

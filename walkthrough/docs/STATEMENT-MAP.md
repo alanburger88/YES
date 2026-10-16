@@ -11,7 +11,8 @@ Owner: explore (read-only on the statement). This is the reference that the step
 **Update, 2026-10-15: "From YES" promotions.** The statement gained illustrative, screen-only promotional content (`src/js/70-promos.js`, content in `YES.config.promotions`), and the review gained two features, **`whats-new`** (step 8) and **`promo-notes`** (step 9). The original 22 ids are unchanged; from `explorer` on, every step number moved up by two. What changed in the statement, and what it meant for the steps:
 - **Overview layout.** A "What's new from YES" card (`#overview-root .promo--overview`, inside `[data-promo-slot="overview"]`) now sits between the balance card and the balance journey. Everything below it moved down by the card's height plus a gap: at 1280×900 the card spans 805–1032 and the journey starts at 1056 (it was just inside the first screen before); at 390×844 the card is 450 tall. The `summary` target (`.ov-balance__grid`) and the balance card did not move.
 - **Masthead.** Five section tabs (Overview, Transactions, Understand, Help, **What's new**), and the phone Menu lists the five sections before Download or print, the language switch and Dark mode. The `language` and `theme` targets (`.mast-wide .seg--lang`, `.mast-wide [data-theme-toggle]`, `.mast-menu__pref`, `.mast-menu__theme`) are unchanged.
-- **Ask YES** offers eight suggested questions; the eighth is "What's new?" (`whats_new`).
+- **Ask YES** offers eight suggested questions; the first is "What's new?" (`whats_new`) while any update is eligible (update 2026-10-16).
+- **Update, 2026-10-16: What's new stands out.** A count badge on the What's new tab (`.nav-badge`, unseen updates; clears after a visit), blue dots on the phone Menu and Ask YES buttons (`.mast-dot`), a one-line "From YES" teaser inside the balance card (`.promo-teaser-slot`, after the net change), a tinted Overview card that leads with the customer's figure (hook) and shows a preview (fee comparison, trust meter, currency chips), a one-time entrance, and "New" pills in the What's new tab. Seen ids persist in `localStorage['yes.promos']` (v2); `promos.restore()` keeps them. Targets are unchanged.
 - **Driver.** `30-driver.js` knows the `whatsnew` view, so `{ route: '#/whatsnew' }` waits for the right view. The two new steps call `promos.restore()` in their setup (G19).
 - **Verified:** `tests/30-steps.test.mjs` passes for all 24 steps (880×900 light and dark, 390×844 light and dark, 1480×836, and in the iframe at 870×836 and 390×440 with reduced motion), and a separate run passed all 24 at 683×836, 1280×900 (dark) and 320×640. No existing setup or target had to change.
 
@@ -612,7 +613,7 @@ Each feature lists:
 
 ### 5.15 `assistant`: Ask YES assistant (everywhere)
 - **What it is.** A built-in assistant that answers questions about *this* statement.
-  - It offers eight suggested questions (the eighth, "What's new?", answers from the "From YES" updates, §5.8), or the customer can type their own (≤ 200 characters).
+  - It offers eight suggested questions (the first, "What's new?", answers from the "From YES" updates, §5.8), or the customer can type their own (≤ 200 characters).
   - Every answer shows the figures and transactions it used, with *Show these rows in Transactions*.
   - It has *Was this helpful?*, *Talk to a person*, *Read more in Understand* and a privacy notice ("Answers are computed in this browser… Nothing you ask is sent anywhere").
   - Questions outside the statement get an honest "can't answer" with suggestions.
@@ -841,7 +842,7 @@ No customer-facing capability falls outside the 24 ids. The ones below have no i
 | **About this demo**: what is connected, local, mock or illustrative, and the brand replacement slots (logo, colours, font, product name, issuer, video poster and voiceover, disclosures, support) | Help › About this demo | `help-record` (and `theme` for the brand slots) |
 | **Footer**: statement ID, version, generated time, the disclosures slot, the demo notice, "Interactive statement delivered via InfoSlips" | `#site-footer` | `help-record` |
 | **What's new tab**: all four updates, the trust meter, *Show dismissed updates again*, deep links `#/whatsnew/<id>` | `#view-whatsnew` | `whats-new` |
-| **Ask YES "What's new?"**: the eighth suggested question, and typed questions such as "new features", "interest", "limits", "EUBC", "YES identity" | Drawer | `whats-new` (and `assistant` for the count) |
+| **Ask YES "What's new?"**: the first suggested question, and typed questions such as "new features", "interest", "limits", "EUBC", "YES identity" | Drawer | `whats-new` (and `assistant` for the count) |
 | **"From YES" notes in transaction details**: TX-260909-2051 and its fee | Detail dialog, Fees section | `promo-notes` |
 | **Inquiry resume and duplicate notices**: *Continue your inquiry*, *View your demo inquiry*, the Help draft card | Detail, assistant, Help | `inquiry` |
 

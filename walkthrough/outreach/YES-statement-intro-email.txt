@@ -23,10 +23,11 @@ Four updates, personalised from the customer's own statement:
 - Interest on USBC. Coming soon: earn interest on your USBC balance. Subject to regulatory approval. Rates and terms to be confirmed.
 
 Where customers see it:
-- On the Overview: one update at a time, with See what's new, Next update and Not now. It never rotates on its own.
+- On the first screen: a count of new updates on the What's new tab, a blue dot on Ask YES and the phone menu, and a one-line teaser inside the balance card. They clear once the customer has seen the updates.
+- On the Overview: a tinted card that leads with the customer's own figure, such as the fees they paid, with a simple visual: a fee comparison, a trust meter or the new currencies. One update at a time, with See what's new, Next update and Not now. It never rotates on its own.
 - In context: a short note beside the network fee and in the details of an external wallet send, at the moment it matters most.
-- A new What's new tab with all four updates, each with its own link.
-- Ask YES: customers can ask "What's new?" and get the updates in a few lines.
+- A new What's new tab with all four updates, each with its own link and a New label until it has been seen.
+- Ask YES: "What's new?" is the first suggested question, and gives the updates in a few lines.
 
 See What's new in the statement:
 https://infoslips-yes-statement-review.netlify.app/statement/#/whatsnew
