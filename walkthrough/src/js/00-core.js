@@ -264,8 +264,8 @@
   };
   WT.ANONYMOUS = 'Anonymous reviewer';
 
-  /** Where "open in a new tab" sends people: the hosted YES statement. */
-  WT.STATEMENT_TAB_URL = 'https://salesdemo.infoslipscloud.com/assets/_templates/Crypto/Yes/index.html';
+  /** Where "open in a new tab" sends people: the statement published with this app, so the tour and the statement always match. */
+  WT.STATEMENT_TAB_URL = 'statement/index.html';
   WT.LIMITS = { name: 60, reason: 500, comment: 2000 };
 
   /* ================================================================== */

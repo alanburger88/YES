@@ -1,19 +1,43 @@
+UPDATE: YOUR YES STATEMENT NOW INCLUDES WHAT'S NEW FROM YES
+
 Hi [Recipient name],
 
-Thank you for your business and for choosing InfoSlips. We value our partnership with YES and we are excited about what we can build together.
+This is an update to our earlier email about the interactive preview of a new YES statement. Thank you again for choosing InfoSlips. We have kept building, and we would love your view on what we have added.
 
-To get things started, we have built an interactive preview of what a new YES statement could look like. Think of it as the art of the possible: a showcase of features your customers could have, so your team can decide what belongs in the production statement.
+New in this update: the statement now tells your customers about new YES products and features, right where they will notice them, personalised from their own activity. We call it What's new from YES.
+
+The guided tour and the statement now also share one home, so what you see in the tour always matches the statement you open on its own. Please use the links in this email from now on.
 
 NOW IN THE YES BRAND, AND STILL OPEN TO CHANGE
 We have applied the YES brand from your brand book: the YES logo, the USBC symbol, black, white and accent blue, and IBM Plex Sans. The statement shows balances in USBC (US Bank Coin) and describes it as a bank-issued digital dollar.
 The design and layout are still a starting point. Everything you see is open to change, based on your feedback and the outcome of our design workshop.
 All names, amounts and transactions are fictional. Please focus on the features and what they could do for your customers.
 
+NEW: WHAT'S NEW FROM YES
+Your statement is the one message every customer opens. Now it can also introduce what is next from YES, at no extra mailing cost. Every update is clearly labelled "From YES", can be dismissed, and never appears in the PDF, print or CSV, so the statement of record stays factual.
+
+Four updates, personalised from the customer's own statement:
+- Pay a YES identity. Send to a YES identity, like yes.danielk, instantly and with no network fee. A customer who paid network fees sending to an external wallet sees exactly what they paid this month, and how to avoid it next time.
+- Progressive trust. A Bronze, Silver and Gold meter shows the customer's trust level, what they sent this month against their limit, and the next step to raise it.
+- More currencies. Coming soon: hold EUBC, UKBC, MXBC and NZBC alongside USBC.
+- Interest on USBC. Coming soon: earn interest on your USBC balance. Subject to regulatory approval. Rates and terms to be confirmed.
+
+Where customers see it:
+- On the Overview: one update at a time, with See what's new, Next update and Not now. It never rotates on its own.
+- In context: a short note beside the network fee and in the details of an external wallet send, at the moment it matters most.
+- A new What's new tab with all four updates, each with its own link.
+- Ask YES: customers can ask "What's new?" and get the updates in a few lines.
+
+See What's new in the statement:
+https://infoslips-yes-statement-review.netlify.app/statement/#/whatsnew
+
+All updates are illustrative and subject to YES approval. The buttons in the preview do not send anything; they show what would happen in the YES app.
+
 TWO LINKS TO EXPLORE
-1. The guided tour: walks you through every feature, explains its value for YES and for your customers, and lets you vote on what to include.
+1. The guided tour: walks you through every feature, now including two new steps for What's new from YES, explains its value for YES and for your customers, and lets you vote on what to include.
    https://infoslips-yes-statement-review.netlify.app/
-2. The YES statement on its own: explore it freely, the way a customer would see it.
-   https://salesdemo.infoslipscloud.com/assets/_templates/Crypto/Yes/index.html
+2. The YES statement on its own: explore it freely, the way a customer would see it. It is the same statement the guided tour uses.
+   https://infoslips-yes-statement-review.netlify.app/statement/
 
 HOW TO USE THE GUIDED TOUR
 About 45 minutes for all 24 features. You can stop at any time and continue later on the same browser.
@@ -31,11 +55,12 @@ A TASTE OF WHAT IS INSIDE
 - Explain with AI and the Ask YES assistant. In this preview they are simulated: no live AI model is used and nothing is sent anywhere.
 - A guided way for customers to ask about a transaction, which can mean fewer calls and disputes.
 - Plain-language help on USBC as a bank-issued digital dollar, plus reserves and transparency.
+- New: What's new from YES, with personalised updates on new products and features.
 - PDF, print and CSV downloads.
 - English and Spanish, dark mode, a layout for any screen, and a design that aims to meet WCAG 2.2 AA accessibility.
 
 GOOD TO KNOW
-- Please share these links with colleagues at YES who should have a say. Everyone can take the tour and vote.
+- Please share these links with colleagues at YES who should have a say. Everyone can take the tour and vote. If you already took the tour, your earlier answers are kept, and you can jump to the two new steps from All steps.
 - Votes and comments are visible to everyone with the link, so please keep comments free of confidential or customer information.
 - Your answers are linked to your browser, not to an account. Use the same browser to continue where you left off.
 - The tour works on phones and tablets, but a laptop or desktop gives the best experience.
